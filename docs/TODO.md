@@ -1,11 +1,10 @@
+cat > /home/claude/todo.md << 'ENDOFFILE'
+
 # CullAI — Developer TODO
 
 > Work through each phase in order. Every phase builds on the one before it.
 > Complete **all checkboxes** in a phase before moving to the next.
 > The ✅ **Done Criteria** at the end of each phase is your exit test.
->
-> **⚠️ Execution Order Note:** Phase 1 (Project Scaffold) must be completed before Phase 0
-> (Splash Screen), because Phase 0 depends on files and structure created in Phase 1.
 
 ---
 
@@ -13,8 +12,8 @@
 
 | Phase | Title                                  | Status         |
 | ----- | -------------------------------------- | -------------- |
-| 1     | Project Scaffold                       | ⬜ Not Started |
-| 0     | Splash Screen & Launch Animation       | ⬜ Not Started |
+| 1     | Project Scaffold                       | ✅ Complete    |
+| 1.5   | Splash Screen & Launch Animation       | ⬜ Not Started |
 | 2     | Setup Screen UI (Enhanced)             | ⬜ Not Started |
 | 3     | Secure Storage & License               | ⬜ Not Started |
 | 4     | RAW Decoding Pipeline                  | ⬜ Not Started |
@@ -41,10 +40,10 @@
 
 ---
 
-## Phase 1 — Project Scaffold
+## Phase 1 — Project Scaffold ✅ Complete
 
 > Goal: A working Electron window that opens with a React + TypeScript app inside.
-> **Complete this phase before Phase 0.**
+> **Complete this phase before Phase 1.5.**
 
 ### 1.1 Initialize the Project
 
@@ -102,33 +101,34 @@
 
 ---
 
-## Phase 0 — Splash Screen & Launch Animation
+## Phase 1.5 — Splash Screen & Launch Animation
 
 > Goal: A branded animated splash screen appears on app start, then transitions to main UI.
 > **Prerequisite: Phase 1 must be fully complete before starting this phase.**
 
-### 0.1 Create Splash Screen Component
+### 1.5.1 Create Splash Screen Component
 
 - [ ] Create `src/renderer/components/SplashScreen.tsx`
 - [ ] Design a centered container with CullAI logo + tagline: _"AI-powered photo culling"_
 - [ ] Add a subtle CSS/keyframe animation (fade‑in, pulse, or slide‑up)
-- [ ] Set duration: 1.5–2.5 seconds (configurable in constants)
+- [ ] Set duration: 1.5–2.5 seconds (configurable via `SPLASH_DURATION_MS` in `src/shared/constants.ts`)
 - [ ] Allow click/tap anywhere to skip to main UI immediately
 
-### 0.2 Integrate with App Startup
+### 1.5.2 Integrate with App Startup
 
-- [ ] In `src/renderer/App.tsx`, add a `showSplash` state, default `true`
-- [ ] Render `<SplashScreen onFinish={() => setShowSplash(false)} />` while `showSplash` is true
-- [ ] On splash finish (timeout or skip), mount the main `Setup` screen
-- [ ] Preload critical resources (electron‑store, API key decryption) during splash
+- [ ] In `src/renderer/App.tsx`, add a `screen` state with type: `'splash' | 'setup' | 'processing' | 'results'`
+- [ ] Default state to `'splash'`
+- [ ] Render `<SplashScreen onFinish={() => setScreen('setup')} />` while `screen === 'splash'`
+- [ ] On splash finish (timeout or skip), transition to `'setup'`
+- [ ] Preload critical resources (electron‑store, API key decryption) during splash window
 
-### 0.3 Optional – Lottie Animation
+### 1.5.3 Optional — Lottie Animation
 
 - [ ] Install `lottie-react`: `npm install lottie-react`
 - [ ] Create or obtain a lightweight Lottie JSON animation for the logo
 - [ ] Replace CSS animation with Lottie player for a more polished look
 
-✅ **Done Criteria:** App starts, shows animated splash, then loads Setup screen. Clicking anywhere skips to Setup instantly.
+✅ **Done Criteria:** App starts, shows animated splash for 1.5–2.5 s, then loads Setup screen. Clicking anywhere skips to Setup instantly.
 
 ---
 
@@ -182,7 +182,8 @@
 - [ ] Create `src/renderer/screens/Setup.tsx`
 - [ ] **Input folder** — text input + "Browse" button (wire to `window.electronAPI.openFolderDialog()`)
 - [ ] **Output folder** — text input + "Browse" button
-- [ ] **Number of images to select** — number input + range slider, min 1, max 999, default 20
+- [ ] **Number of images to select** — optional number input + range slider, min 0, max 999, default 20.
+      If set to 0 or left empty, the system will output all S‑tier images (ignoring any count limit).
 - [ ] **Genre preset selector** — embed `GenrePresetSelector`, on change auto-populate scoring weights
 - [ ] **Style profile selector** — dropdown (stub: just shows "No profiles yet"), "Create New" button
 - [ ] **Preference text box** — multi-line textarea, placeholder: `"e.g. sharp, well-lit portraits with natural light"`
@@ -195,6 +196,10 @@
 - [ ] **Dry-run toggle** — checkbox: "Estimate token cost before processing"
 - [ ] **XMP export toggle** — checkbox: "Write Lightroom/Capture One sidecar files"
 - [ ] **Lightroom integration mode** — radio: "Rate originals in-place" vs. "Copy keepers to output folder"
+- [ ] **Image Limiting Options** — When output falls short of requested count:
+  - [ ] **Stop** — output only the available keepers (S+A)
+  - [ ] **Fill with B‑tier images** — automatically promote best B‑tier to reach the target
+  - [ ] **If still not filled, fill with Rejected images** — automatically promote best rejected to reach the target
 
 ### 2.6 Add Extension Filter Component
 
@@ -226,9 +231,9 @@
 
 ### 2.9 Wire App Routing
 
-- [ ] Create simple screen state in `App.tsx`: `'splash' | 'setup' | 'processing' | 'results'`
-- [ ] Render `<Splash />` when state is `'splash'`, `<Setup />` when `'setup'`, etc.
-- [ ] "Start Culling" button transitions state to `'processing'`
+- [ ] The `screen` state is already defined in `App.tsx` (from Phase 1.5): `'splash' | 'setup' | 'processing' | 'results'`
+- [ ] Render `<Setup />` when `screen === 'setup'`, `<Processing />` when `'processing'`, `<Results />` when `'results'`
+- [ ] "Start Culling" button in Setup transitions `screen` to `'processing'`
 - [ ] Apply Tailwind dark theme base styles — dark background, light text, amber/gold accent color
 
 ### 2.10 Persist Settings with electron-store
@@ -264,7 +269,7 @@
 - [ ] Add a slider + number input in the Scoring Weights panel area: "Max faces per image (ignore group shots)"
 - [ ] Range 0–50, default 0 (disabled, meaning no limit)
 - [ ] Store in `AppSettings` as `maxFacesPerImage`
-- [ ] In Phase 6, during face detection, if `maxFacesPerImage > 0` and `faceCount > maxFacesPerImage`, mark image as rejected (or set `faceEyes` score to 0) – this will be implemented in Phase 6.
+- [ ] In Phase 6, during face detection, if `maxFacesPerImage > 0` and `faceCount > maxFacesPerImage`, mark image as rejected (or set `faceEyes` score to 0) — implemented in Phase 6.
 
 ### 2.15 🔥 Test Face Detection on Reference Image
 
@@ -303,6 +308,11 @@
 ## Phase 3 — Secure Storage & License
 
 > Goal: API keys encrypted at OS level; feature gates wired throughout the app.
+>
+> ⚠️ **README Gap:** The license system (Free / Pro / Lifetime tiers, feature gates, monthly
+> image caps) is not documented in `README.md`. Before shipping, `README.md` must be updated
+> to describe the tiered model, what each tier unlocks, and how to purchase/activate a license.
+> Failing to do this will cause user confusion about locked features.
 
 ### 3.1 Implement API Key Secure Storage
 
@@ -338,6 +348,7 @@
   - `xmpExport` — Pro and Lifetime only
   - `unlimitedImages` — Pro and Lifetime only (Free: 500 images **per calendar month** cap)
   - `unlimitedProfiles` — Pro and Lifetime only (Free: max 2 profiles)
+  - `autoTagging` — Pro and Lifetime only (AI keyword tagging from Phase 13b)
 - [ ] Implement `isAllowed(feature: Feature, tier: LicenseTier): boolean`
 - [ ] Implement `getMonthlyImageCount(): number` — tracks usage in `electron-store`, resets on the first of each calendar month
 - [ ] Add IPC handler: `'license-check-feature'`
@@ -356,7 +367,10 @@
 
 - [ ] Install `libraw` Node native addon: `npm install libraw`
 - [ ] Verify native compilation succeeds on your dev platform
-- [ ] Note required system dependencies in `README.md` build section
+- [ ] Note required system dependencies in `README.md` build section:
+  - Linux: `build-essential`
+  - macOS: Xcode CLI tools (`xcode-select --install`)
+  - Windows: Visual Studio Build Tools
 - [ ] Ensure `electron-builder` is configured to rebuild native addons for each target platform (add `electron-rebuild` to build script)
 
 ### 4.2 Create the RAW Decoder Module
@@ -414,8 +428,11 @@
     base64: string; // 1024px resized JPEG as base64
     width: number; // resized dimensions
     height: number;
+    faceMetadata?: FaceMetadata; // populated after Phase 6 face scan; optional until then
   };
   ```
+  > **Note (fix #6):** `faceMetadata` is included here so Phase 6.4's attachment of face data
+  > to `ImageRecord` is type-safe. Mark it optional (`?`) until face detection runs.
 
 ### 5.2 Create the Image Processor Module
 
@@ -521,27 +538,27 @@
 - [ ] Verify that cache limits are respected: create a huge cache (> limit), run cleanup, and check that size no longer exceeds limit.
 - [ ] Verify that cache works across app restarts and across different sessions using the same input folder.
 
-✅ **Done Criteria:**
-
-- First decode of a RAW file stores a preview in `.cullai_cache/raw_previews/`.
-- Second decode of the same file (even after app restart) loads from cache, never calls `libraw`.
-- Cache status UI correctly reports size and file count.
-- Automatic cleanup respects user‑defined size and age limits.
-- "Clear cache now" removes all cached previews for the current input folder.
-- Disabling caching works and no cache files are created.
+✅ **Done Criteria:** First decode of a RAW file stores a preview in `.cullai_cache/raw_previews/`. Second decode of the same file (even after app restart) loads from cache, never calls `libraw`. Cache status UI correctly reports size and file count. Automatic cleanup respects user‑defined size and age limits. "Clear cache now" removes all cached previews for the current input folder. Disabling caching works and no cache files are created.
 
 ---
 
 ## Phase 6 — Face & Eye Detection
 
 > Goal: Every image gets a `FaceMetadata` object populated before AI scoring. Zero face data leaves the device.
+>
+> **Library note (fix #9):** The README tech stack lists `@vladmandic/human / face-api.js` as
+> alternatives. Use `@vladmandic/human` as the primary choice. If it fails to initialize in
+> CPU-only mode on any platform, fall back to `face-api.js` (`npm install face-api.js`) which
+> has broader compatibility but lower accuracy. Document which library is in use in a comment
+> at the top of `face-detector.ts`.
 
 ### 6.1 Install Face Detection Library
 
 - [ ] Install `@vladmandic/human`: `npm install @vladmandic/human`
 - [ ] Download required model files (face detection + landmark + iris models) to `src/main/models/`
 - [ ] Configure Human with `backend: 'node'`, point `modelBasePath` to bundled models directory
-- [ ] Verify Human initializes without GPU — CPU-only mode must work
+- [ ] Verify Human initializes without GPU — CPU-only mode must work on all three platforms
+- [ ] If Human fails CPU initialization on any platform, install `face-api.js` as the fallback and update `face-detector.ts` accordingly
 
 ### 6.2 Define FaceMetadata Type
 
@@ -581,7 +598,8 @@
 
 ### 6.4 Wire into Pipeline
 
-- [ ] In `image-processor.ts`, after producing each `ImageRecord`, call `detectFaces(buffer, settings.maxFacesPerImage)` and attach result as `record.faceMetadata`
+- [ ] In `image-processor.ts`, after producing each `ImageRecord`, call `detectFaces(buffer, settings.maxFacesPerImage)` and assign the result to `record.faceMetadata`
+  - This is type-safe because `faceMetadata` was added as an optional field to `ImageRecord` in Phase 5.1
 - [ ] Add IPC handler: `'scan-faces'` — takes a single base64 image and optional `maxFacesPerImage`, returns `FaceMetadata`
 
 ### 6.5 🔥 Apply Face Count Limit
@@ -599,7 +617,11 @@
 
 ### 7.1 Install Perceptual Hashing Library
 
-- [ ] Install a phash library compatible with Node.js (e.g. `sharp` with a custom DCT implementation, or `imghash`, or `looks-same`)
+- [ ] Install `imghash`: `npm install imghash`
+  > **Recommended choice (fix #7):** `imghash` provides DCT-based perceptual hashing with a
+  > straightforward Node.js API. If `imghash` does not support a required format or buffer input,
+  > fall back to `looks-same` (for comparison) or implement a custom DCT hash over Sharp's pixel
+  > output. Document the final choice in a comment at the top of `duplicate-detector.ts`.
 - [ ] Benchmark hash computation time on 10 images — should be < 100ms each
 
 ### 7.2 Define DuplicateGroup Type
@@ -656,6 +678,7 @@
     tier: "S" | "A" | "B" | "rejected";
     reasoning: string; // AI explanation text
     faceMetadata: FaceMetadata;
+    keywords?: string[]; // populated by Phase 13b auto-tagging (optional)
     usage?: { inputTokens: number; outputTokens: number };
   };
   type SessionStatus = "running" | "completed" | "cancelled" | "crashed";
@@ -710,6 +733,11 @@
 >
 > **Important:** Claude's native API uses a different endpoint and request format from the
 > OpenAI-compatible standard. The AI client must branch on provider. See step 9.3 for details.
+>
+> ⚠️ **README note (fix #5):** The README currently states "CullAI uses the OpenAI-compatible
+> API standard" as a blanket statement. This is inaccurate for Claude. Before public release,
+> update the README to clarify: "Claude uses the native Anthropic API (`/v1/messages`);
+> all other providers use the OpenAI-compatible format (`/chat/completions`)."
 
 ### 9.1 Define AI Call Interfaces
 
@@ -799,9 +827,7 @@
 
 - [ ] After extracting the raw text, strip any accidental markdown fences from the JSON string
 - [ ] Parse JSON — if invalid, throw `AIParseError` with the raw response for debugging
-
 - [ ] Implement `computeWeightedTotal(scores: ScoringWeights, weights: ScoringWeights): number` — weighted average to 2 decimal places
-
 - [ ] Implement `scoreImage(params: AICallParams): Promise<ScoreRecord>` — calls `callAI()`, computes total, attaches usage, returns full `ScoreRecord` **without assigning tiers yet** (tier assignment happens in the orchestrator after all images are scored — see Phase 10)
 
 ### 9.4 Handle API Errors
@@ -876,6 +902,8 @@
   - **A-tier**: next 30% of the ranked pool
   - **B-tier**: next 30% of the ranked pool
   - **Rejected**: bottom 30% of the ranked pool, plus any image with `total < 30` regardless of percentile
+    > Note: images from A or B tiers can be reclassified to Rejected if their `total < 30`.
+    > Apply the absolute threshold check last, after percentile assignment.
   - Images pre-rejected before scoring retain `tier: 'rejected'`
 - [ ] This relative/percentile-based approach ensures S-tier always represents the genuinely best shots from the current set, not an absolute score threshold
 
@@ -887,13 +915,15 @@
 ### 10.6 Output Shortfall Notification
 
 - [ ] After scoring completes and tiers are assigned, compute final selected image count (S + A tier images)
+- [ ] If `numImagesToSelect === 0`, do not show a "requested vs available" warning. Instead, show:
+      "No target quantity set → exported all S‑tier images (X total)."
 - [ ] If `finalSelectedCount < settings.numImagesToSelect`, collect reasons into `outputShortfallReasons`
 - [ ] Store breakdown in session as `outputShortfallReasons`
 - [ ] Send IPC event `'pipeline-output-summary'` with reasons to renderer
 
 ### 10.7 Update Processing Screen to Show Warning
 
-- [ ] On receiving `'pipeline-output-summary'`, show an inline notification (non‑modal) with the reason summary, e.g. _"Requested 200 images, but only 187 selected. 13 excluded: 8 duplicates, 5 below quality threshold."_
+- [ ] On receiving `'pipeline-output-summary'`, show an inline notification (non‑modal) with the reason summary, e.g. _"Requested 200 images, but only 187 selected. 13 excluded: 8 duplicates, 5 below quality threshold. Do you want to add the excluded ones to make it 200?"_ Give notification with option yes and no, if yes, add the excluded ones for total of 200.
 - [ ] Keep notification until user dismisses or navigates away
 
 ✅ **Done Criteria:** If user requests 500 images but only 312 exist, a confirmation dialog appears. After processing, if only 287 are selected, a clear reason summary is shown. Tier assignment is always relative — the best shots in any folder receive S-tier regardless of their absolute score.
@@ -1085,10 +1115,12 @@
 
 ### 12b.6 🔥 Export Session as Portable Archive
 
+- [ ] Install `archiver`: `npm install archiver` and `npm install --save-dev @types/archiver`
+  > **Fix #8:** This install step was missing from the original todo. `archiver` is required
+  > for the zip export feature below.
 - [ ] Add "Export session bundle (.zip)" button
 - [ ] Zip includes: `session.json`, `results.json`, and **all XMP sidecar files** generated for this session (if XMP export was enabled)
 - [ ] Does **not** include original or output images – only metadata
-- [ ] Uses `archiver` npm package (add to devDependencies)
 - [ ] Show progress during zip creation and then save dialog
 
 ### 12b.7 🔥 Reject / Keep Count Badges in Tab Headers
@@ -1106,7 +1138,7 @@
 
 ### 13.1 Choose XMP Writing Strategy
 
-- [ ] Evaluate `xmp-metadata` npm package: install it and test writing a minimal XMP file with `xmp:Rating` and `dc:description`
+- [ ] Evaluate `xmp-metadata` npm package (listed in README tech stack): install it and test writing a minimal XMP file with `xmp:Rating` and `dc:description`
 - [ ] **If the package handles XMP namespace declarations and `rdf:RDF` wrapper correctly**, use it as the primary writer
 - [ ] **If the package is insufficient** (incorrect namespaces, malformed XML, or cannot handle `dc:subject` arrays), build a custom XML writer using Node.js built-ins (`DOMImplementation` or a simple string template). The XMP spec requires correct namespace prefixes (`x:xmpmeta`, `rdf:RDF`, `rdf:Description`) — incorrect namespaces cause Lightroom to silently ignore the sidecar.
 - [ ] Verify the chosen approach by opening the output `.xmp` in Lightroom Classic and confirming the star rating and color label appear before proceeding with the full implementation.
@@ -1144,6 +1176,11 @@
 
 > Goal: S-tier and A-tier keepers receive descriptive keyword tags written into their XMP sidecars,
 > enabling fast searching in Lightroom and Capture One.
+>
+> ⚠️ **README Gap (fix #4):** This feature is not listed in the README's Features section, but
+> the Final Checklist references it ("no keywords" for Free tier). Before completing this phase,
+> add "AI keyword tagging for S/A-tier keepers" to the README features list, and note that it is
+> a Pro-tier feature.
 
 ### 13b.1 Create the Auto-Tagging Module
 
@@ -1170,7 +1207,7 @@
 
 ### 13b.4 Store Keywords in Session
 
-- [ ] Add `keywords?: string[]` to `ScoreRecord` type
+- [ ] `keywords?: string[]` is already part of `ScoreRecord` (added in Phase 8.1)
 - [ ] After tagging, update `ScoreRecord.keywords` in session via `session-manager`
 - [ ] Keywords should be re-exportable from the Results screen without re-running the AI (i.e., stored in session)
 
@@ -1233,17 +1270,20 @@ PROVIDER_DEFAULTS = {
     // ⚠️ Claude uses NATIVE API, not OpenAI-compatible.
     // The endpoint is hardcoded to https://api.anthropic.com/v1/messages
     // baseUrl is only used for non-Claude providers.
-    defaultModel: "claude-sonnet-4",
+    defaultModel: "claude-sonnet-4-20250514",
   },
-  openai: { baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-5" },
+  openai: { baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o" },
   gemini: {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-    defaultModel: "gemini-3.0-flash",
+    defaultModel: "gemini-2.0-flash",
   },
   ollama: { baseUrl: "http://localhost:11434/v1", defaultModel: "llava" },
   custom: { baseUrl: "", defaultModel: "" },
 };
 ```
+
+> **Note:** Keep model string defaults up to date as providers release new versions.
+> The values above should reflect the most current stable vision models at build time.
 
 - [ ] **In `ai-client.ts`, route based on provider:**
   - **If provider === 'claude'**:
@@ -1353,7 +1393,7 @@ PROVIDER_DEFAULTS = {
   - Remaining images = `totalImages - scoredCount`
   - Estimated remaining time = `(elapsedTime / scoredCount) * remainingImages` (if scoredCount > 0)
   - Estimated remaining cost = `(totalCostSoFar / scoredCount) * remainingImages` (if scoredCount > 0 and costs tracked)
-- [ ] Display these in the resume banner: “Resume from image 47/200 (~12 min remaining, ~$0.35 estimated)”
+- [ ] Display these in the resume banner: "Resume from image 47/200 (~12 min remaining, ~$0.35 estimated)"
 
 ✅ **Done Criteria:** Starting with an empty folder shows a clear error. Cancelling mid-run, restarting, and choosing "Resume" continues from the correct image. Dry‑run shows both cost estimate and expected output range. Resume banner shows useful estimates to help user decide whether to resume or start fresh.
 
@@ -1382,6 +1422,7 @@ PROVIDER_DEFAULTS = {
 - [ ] `tests/fixtures/sample.dng` — Adobe DNG file
 - [ ] `tests/fixtures/burst_1.jpg` and `burst_2.jpg` — near-identical burst shots for dedup testing
 - [ ] `tests/fixtures/blink.jpg` — a portrait where subject has eyes closed (for blink test)
+- [ ] `tests/fixtures/benchmark/` — fixed set of 20 images for Phase 20 benchmark mode
 
 ### 17.3 Write raw-decoder Tests
 
@@ -1456,8 +1497,8 @@ PROVIDER_DEFAULTS = {
 ### 17.10 🔥 Mock AI Server for Integration Tests
 
 - [ ] Create `tests/mock-ai-server.ts` – a lightweight HTTP server that implements the OpenAI chat completions endpoint
-- [ ] Accepts JSON payload, returns deterministic scores based on filename or a simple rule (e.g., if filename contains “good” → high scores)
-- [ ] Add a test flag `--use-mock-ai` that overrides the configured provider’s base URL to `http://localhost:${port}/v1` and disables authentication
+- [ ] Accepts JSON payload, returns deterministic scores based on filename or a simple rule (e.g., if filename contains "good" → high scores)
+- [ ] Add a test flag `--use-mock-ai` that overrides the configured provider's base URL to `http://localhost:${port}/v1` and disables authentication
 - [ ] Write integration tests that start the mock server, run a small pipeline, and assert scores match expected patterns
 - [ ] Ensure no real API calls are made when mock server is active (by checking that `process.env.NODE_ENV === 'test'`)
 
@@ -1542,7 +1583,7 @@ PROVIDER_DEFAULTS = {
 - [ ] Integrate Electron `autoUpdater` using `electron-updater` package
 - [ ] Configure `publish` in `electron-builder.config.ts` to target GitHub Releases
 - [ ] On app start, check for updates silently once per day
-- [ ] If an update is available, show a non‑modal notification: “New version X.X.X available. Download now?”
+- [ ] If an update is available, show a non‑modal notification: "New version X.X.X available. Download now?"
 - [ ] Download and install on user confirmation (quit and install)
 - [ ] Allow user to disable auto‑check in settings
 
@@ -1559,22 +1600,31 @@ PROVIDER_DEFAULTS = {
 
 ## Phase 19 — CLI Mode & Automation
 
-> Goal: Run CullAI entirely from the command line with no GUI.
+> Goal: Run CullAI entirely from the command line with no visible GUI window.
+>
+> **Architecture clarification (fix #10):** CullAI's pipeline (libraw, face detection, session manager)
+> runs in Electron's main process, which is a full Node.js environment. CLI mode re-uses this same
+> main process, but launches Electron with no visible `BrowserWindow`. This avoids duplicating the
+> pipeline in a separate Node.js binary and keeps the native addon (libraw) working correctly.
+> Use `app.commandLine.hasSwitch('headless')` in `src/main/index.ts` to detect CLI mode and skip
+> creating the BrowserWindow when the flag is present.
 
 ### 19.1 Add CLI Entry Point
 
-- [ ] Create `src/cli/index.ts` as a separate entry point
-- [ ] Use `commander` or `yargs` to parse arguments:
+- [ ] In `src/main/index.ts`, check for `--headless` flag via `process.argv` or `app.commandLine`
+- [ ] Install `commander` for argument parsing: `npm install commander`
+- [ ] Create `src/cli/args.ts` — define and parse CLI arguments:
   ```bash
   cullai --input /photos --output /keepers --count 200 --provider ollama --headless
   ```
 - [ ] Options: `--input`, `--output`, `--count`, `--provider`, `--api-key`, `--model`, `--weights`, `--no-xmp`, `--dry-run`
-- [ ] If `--headless` is present, skip rendering any Electron window and run pipeline directly using Node.js
+- [ ] When `--headless` is detected, skip `createWindow()` and run the pipeline directly in the main process
 
 ### 19.2 Reuse Pipeline Logic
 
-- [ ] Extract the core pipeline (scan, decode, face detection, AI scoring, XMP write) into `src/core/pipeline.ts` that works without Electron
-- [ ] Both Electron main process and CLI use the same pipeline
+- [ ] The existing pipeline in `orchestrator.ts` already runs in the main process — no extraction needed
+- [ ] Wrap orchestrator call in a CLI runner function in `src/cli/runner.ts` that accepts parsed args and calls `runPipeline(settings)`
+- [ ] Both GUI (via IPC) and CLI (via direct call) use the same `orchestrator.ts` code path
 
 ### 19.3 CLI Output
 
@@ -1585,10 +1635,10 @@ PROVIDER_DEFAULTS = {
 
 ### 19.4 Package CLI Separately
 
-- [ ] Configure `electron-builder` to also produce a standalone Node.js binary (or npm package) for CLI
-- [ ] On Windows, produce `cullai-cli.exe` that includes Node.js runtime (via `pkg` or `nexe`)
+- [ ] Add a new npm script `npm run build:cli` that packages the Electron app with a wrapper shell script / batch file named `cullai-cli` that calls Electron with `--headless`
+- [ ] Document CLI usage in README under a new "CLI Mode" section
 
-✅ **Done Criteria:** Running `cullai --input ./test --output ./out --count 10 --provider ollama --headless` processes 10 images, writes XMPs, and exits with correct JSON summary.
+✅ **Done Criteria:** Running `cullai --input ./test --output ./out --count 10 --provider ollama --headless` processes 10 images, writes XMPs, and exits with code 0 and a correct JSON summary in stdout.
 
 ---
 
@@ -1616,24 +1666,29 @@ PROVIDER_DEFAULTS = {
 ### 20.3 Quick Action Buttons on Results Screen
 
 - [ ] Add a floating action button (or right‑click context menu) with:
-  - “Open containing folder” for the selected image
-  - “Copy filename” / “Copy path”
-  - “View in Lightroom” (if XMP was written, just a reminder – no direct integration)
+  - "Open containing folder" for the selected image
+  - "Copy filename" / "Copy path"
+  - "View in Lightroom" (if XMP was written, just a reminder – no direct integration)
 
 ✅ **Done Criteria:** `--benchmark` runs successfully and prints meaningful metrics. Background maintenance does not slow down startup. Right‑click offers useful shortcuts.
 
 ---
 
-## Final Checklist Before v1.0 Ship (Updated)
+## Final Checklist Before v1.0 Ship
 
-- [ ] All 20 phases (0 through 20) completed with all checkboxes checked
+- [ ] All phases (1 through 20) completed with all checkboxes checked
 - [ ] `npm test` passes with 0 failures (including mock AI tests)
 - [ ] App runs clean on Windows, macOS, and Linux
 - [ ] No API key ever appears in any log output
-- [ ] XMP sidecars validated in Lightroom Classic (including keywords)
+- [ ] XMP sidecars validated in Lightroom Classic (including keywords from Phase 13b)
 - [ ] Free tier limits enforced correctly (500 images **per calendar month**, 2 profiles, no RAW, no XMP, no keywords)
 - [ ] Pro/Lifetime tier unlocks all features
-- [ ] README.md is up to date and accurate (includes new features)
+- [ ] **README.md is fully up to date:**
+  - [ ] License/tier system documented (Free / Pro / Lifetime, feature gates)
+  - [ ] AI keyword tagging listed in Features section
+  - [ ] Claude API vs. OpenAI-compatible note added to Supported AI Providers table
+  - [ ] CLI Mode section added
+  - [ ] Download links updated to GitHub Releases
 - [ ] CLI mode works on all three platforms
 - [ ] Release tagged and installers published on GitHub Releases
 - [ ] Auto‑updater test passes (installer upgrades from v0.9 to v1.0)
@@ -1641,4 +1696,4 @@ PROVIDER_DEFAULTS = {
 
 ---
 
-_Written by Ashmin Dhungana - May 2026_
+_Written by Ashmin Dhungana · Updated May 2026_

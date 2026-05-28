@@ -60,7 +60,7 @@ Photographers call the process of manually sorting and selecting shots **culling
 
 ## Supported AI Providers
 
-CullAI uses the OpenAI-compatible API standard. Bring your own key.
+CullAI uses the OpenAI-compatible API standard as well as Claude native API. Bring your own key.
 
 | Provider               | Model Examples                       | Notes                                       |
 | ---------------------- | ------------------------------------ | ------------------------------------------- |
@@ -247,7 +247,7 @@ CullAI is designed privacy-first:
 | RAW Decoding        | libraw (native Node addon)                |
 | HEIC Support        | Sharp + libvips                           |
 | Face Detection      | @vladmandic/human / face-api.js           |
-| AI Integration      | OpenAI-compatible API                     |
+| AI Integration      | OpenAI-compatible API, Claude & Gemini    |
 | Secure Storage      | Electron `safeStorage` + `electron-store` |
 | Duplicate Detection | Perceptual hashing (phash)                |
 | XMP Export          | xmp-metadata (npm)                        |
