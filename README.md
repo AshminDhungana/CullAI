@@ -242,7 +242,7 @@ CullAI is designed privacy-first:
 | ------------------- | ----------------------------------------- |
 | Desktop Framework   | Electron.js                               |
 | UI                  | React + TypeScript                        |
-| Styling             | Tailwind CSS                              |
+| Styling             | Tailwind CSS 3                            |
 | Image Processing    | Sharp (Node.js)                           |
 | RAW Decoding        | libraw (native Node addon)                |
 | HEIC Support        | Sharp + libvips                           |

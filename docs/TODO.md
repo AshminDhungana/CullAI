@@ -3,37 +3,48 @@
 > Work through each phase in order. Every phase builds on the one before it.
 > Complete **all checkboxes** in a phase before moving to the next.
 > The ✅ **Done Criteria** at the end of each phase is your exit test.
+>
+> **⚠️ Execution Order Note:** Phase 1 (Project Scaffold) must be completed before Phase 0
+> (Splash Screen), because Phase 0 depends on files and structure created in Phase 1.
 
 ---
 
 ## Progress Overview
 
-| Phase | Title                        | Status         |
-| ----- | ---------------------------- | -------------- |
-| 1     | Project Scaffold             | ⬜ Not Started |
-| 2     | Setup Screen UI              | ⬜ Not Started |
-| 3     | Secure Storage & License     | ⬜ Not Started |
-| 4     | RAW Decoding Pipeline        | ⬜ Not Started |
-| 5     | Image Processing Pipeline    | ⬜ Not Started |
-| 6     | Face & Eye Detection         | ⬜ Not Started |
-| 7     | Duplicate Detection          | ⬜ Not Started |
-| 8     | Session Manager              | ⬜ Not Started |
-| 9     | Single AI Call               | ⬜ Not Started |
-| 10    | Full Batch Pipeline (Serial) | ⬜ Not Started |
-| 11    | Parallel Batching            | ⬜ Not Started |
-| 12    | Results Screen               | ⬜ Not Started |
-| 13    | XMP Export                   | ⬜ Not Started |
-| 14    | Style Profile System         | ⬜ Not Started |
-| 15    | Multi-Provider AI Support    | ⬜ Not Started |
-| 16    | Polish & Error Handling      | ⬜ Not Started |
-| 17    | Test Suite                   | ⬜ Not Started |
-| 18    | Packaging & Release          | ⬜ Not Started |
+| Phase | Title                                  | Status         |
+| ----- | -------------------------------------- | -------------- |
+| 1     | Project Scaffold                       | ⬜ Not Started |
+| 0     | Splash Screen & Launch Animation       | ⬜ Not Started |
+| 2     | Setup Screen UI (Enhanced)             | ⬜ Not Started |
+| 3     | Secure Storage & License               | ⬜ Not Started |
+| 4     | RAW Decoding Pipeline                  | ⬜ Not Started |
+| 5     | Image Processing Pipeline (Enhanced)   | ⬜ Not Started |
+| 5b    | Smart RAW Caching                      | ⬜ Not Started |
+| 6     | Face & Eye Detection                   | ⬜ Not Started |
+| 7     | Duplicate Detection                    | ⬜ Not Started |
+| 8     | Session Manager                        | ⬜ Not Started |
+| 9     | Single AI Call (Enhanced)              | ⬜ Not Started |
+| 10    | Full Batch Pipeline + Input Validation | ⬜ Not Started |
+| 10b   | Concurrent Directory Processing        | ⬜ Not Started |
+| 11    | Parallel Batching                      | ⬜ Not Started |
+| 12    | Results Screen (Enhanced)              | ⬜ Not Started |
+| 12b   | Results Performance & UX               | ⬜ Not Started |
+| 13    | XMP Export + Auto‑Tagging              | ⬜ Not Started |
+| 13b   | AI‑Powered Auto‑Tagging                | ⬜ Not Started |
+| 14    | Style Profile System                   | ⬜ Not Started |
+| 15    | Multi-Provider AI Support              | ⬜ Not Started |
+| 16    | Polish & Error Handling (Enhanced)     | ⬜ Not Started |
+| 17    | Test Suite (Enhanced)                  | ⬜ Not Started |
+| 18    | Packaging & Release                    | ⬜ Not Started |
+| 19    | CLI Mode & Automation                  | ⬜ Not Started |
+| 20    | Additional UX & Performance            | ⬜ Not Started |
 
 ---
 
 ## Phase 1 — Project Scaffold
 
 > Goal: A working Electron window that opens with a React + TypeScript app inside.
+> **Complete this phase before Phase 0.**
 
 ### 1.1 Initialize the Project
 
@@ -91,9 +102,39 @@
 
 ---
 
-## Phase 2 — Setup Screen UI
+## Phase 0 — Splash Screen & Launch Animation
 
-> Goal: A fully functional, visually complete Setup/Settings screen. No backend yet — just the UI and client-side state.
+> Goal: A branded animated splash screen appears on app start, then transitions to main UI.
+> **Prerequisite: Phase 1 must be fully complete before starting this phase.**
+
+### 0.1 Create Splash Screen Component
+
+- [ ] Create `src/renderer/components/SplashScreen.tsx`
+- [ ] Design a centered container with CullAI logo + tagline: _"AI-powered photo culling"_
+- [ ] Add a subtle CSS/keyframe animation (fade‑in, pulse, or slide‑up)
+- [ ] Set duration: 1.5–2.5 seconds (configurable in constants)
+- [ ] Allow click/tap anywhere to skip to main UI immediately
+
+### 0.2 Integrate with App Startup
+
+- [ ] In `src/renderer/App.tsx`, add a `showSplash` state, default `true`
+- [ ] Render `<SplashScreen onFinish={() => setShowSplash(false)} />` while `showSplash` is true
+- [ ] On splash finish (timeout or skip), mount the main `Setup` screen
+- [ ] Preload critical resources (electron‑store, API key decryption) during splash
+
+### 0.3 Optional – Lottie Animation
+
+- [ ] Install `lottie-react`: `npm install lottie-react`
+- [ ] Create or obtain a lightweight Lottie JSON animation for the logo
+- [ ] Replace CSS animation with Lottie player for a more polished look
+
+✅ **Done Criteria:** App starts, shows animated splash, then loads Setup screen. Clicking anywhere skips to Setup instantly.
+
+---
+
+## Phase 2 — Setup Screen UI (Enhanced)
+
+> Goal: A fully functional Setup screen with **file extension filter**, **filename prefix filter**, and **reference image upload**.
 
 ### 2.1 Define Shared Types
 
@@ -103,6 +144,9 @@
   - `AIProvider` — union of `'claude' | 'openai' | 'gemini' | 'ollama' | 'custom'`
   - `AppSettings` — all Setup screen fields as a single config object
   - `StyleProfile` — `{ id, name, genre, weights, preferenceText }`
+  - `ExtensionFilter: Set<string>` (e.g. `{'.cr3', '.nef', '.jpg'}`)
+  - `PrefixFilter: string[]` (e.g. `['IMG_', 'DSC_']`)
+  - `ReferenceImage: { filename: string, base64: string } | null`
 
 ### 2.2 Define Genre Presets
 
@@ -136,8 +180,8 @@
 ### 2.5 Build the Setup Screen
 
 - [ ] Create `src/renderer/screens/Setup.tsx`
-- [ ] **Input folder** — text input + "Browse" button (wire to `window.electronAPI.openFolderDialog()` — stub for now)
-- [ ] **Output folder** — text input + "Browse" button (same stub)
+- [ ] **Input folder** — text input + "Browse" button (wire to `window.electronAPI.openFolderDialog()`)
+- [ ] **Output folder** — text input + "Browse" button
 - [ ] **Number of images to select** — number input + range slider, min 1, max 999, default 20
 - [ ] **Genre preset selector** — embed `GenrePresetSelector`, on change auto-populate scoring weights
 - [ ] **Style profile selector** — dropdown (stub: just shows "No profiles yet"), "Create New" button
@@ -146,21 +190,48 @@
 - [ ] **API provider selector** — radio buttons or dropdown: Claude / OpenAI / Gemini / Ollama / Custom
 - [ ] **API key input** — password input field, hidden by default, show/hide toggle button
 - [ ] **Base URL input** — text input, shown only when provider is Ollama or Custom
-- [ ] **Model name input** — text input with smart default per provider (e.g. `claude-sonnet-4` for Claude)
+- [ ] **Model name input** — text input with smart default per provider
 - [ ] **Concurrency setting** — number input, range 1–10, default 5, label: "Parallel API calls"
 - [ ] **Dry-run toggle** — checkbox: "Estimate token cost before processing"
 - [ ] **XMP export toggle** — checkbox: "Write Lightroom/Capture One sidecar files"
 - [ ] **Lightroom integration mode** — radio: "Rate originals in-place" vs. "Copy keepers to output folder"
-- [ ] "**Start Culling**" button — disabled until input folder, output folder, and API key are filled
 
-### 2.6 Wire App Routing
+### 2.6 Add Extension Filter Component
 
-- [ ] Create simple screen state in `App.tsx`: `'setup' | 'processing' | 'results'`
-- [ ] Render `<Setup />` when state is `'setup'`
-- [ ] "Start Culling" button transitions state to `'processing'` (renders a blank placeholder for now)
+- [ ] Create `src/renderer/components/ExtensionFilter.tsx`
+- [ ] Render a multi‑select dropdown with checkboxes for each extension found in the selected input folder
+- [ ] Extensions are discovered by scanning the input folder (call `'scan-folder-extensions'` IPC)
+- [ ] Each extension shows a count badge, e.g. `CR3 (142)`
+- [ ] Buttons: "Select all", "Clear all", "Apply"
+- [ ] Store selected extensions in `AppSettings.extensionFilter`
+- [ ] When folder changes, re‑scan and reset filter to all supported by default
+
+### 2.7 Add Filename Prefix Filter Component
+
+- [ ] Create `src/renderer/components/PrefixFilter.tsx`
+- [ ] Text input with placeholder: `IMG_, DSC_, _MG_` (comma or space separated)
+- [ ] Real‑time preview: "Matches: 47 files"
+- [ ] Case‑insensitive matching toggle (checkbox)
+- [ ] Store prefixes as `string[]` in `AppSettings.prefixFilter`
+
+### 2.8 Add Reference Image Upload
+
+- [ ] Add a section to Setup screen: **Custom Instructions & Reference Image**
+- [ ] Textarea for custom instructions (already above)
+- [ ] Button: "Upload Reference Image" – opens file dialog (JPEG/PNG only)
+- [ ] After upload, display thumbnail preview and filename
+- [ ] Store reference image as base64 (resized to 512px) in `AppSettings.referenceImage`
+- [ ] Add a "Clear" button to remove the reference image
+- [ ] Show info tooltip: _"Reference image will be sent to AI during Discovery Pass to guide scoring."_
+
+### 2.9 Wire App Routing
+
+- [ ] Create simple screen state in `App.tsx`: `'splash' | 'setup' | 'processing' | 'results'`
+- [ ] Render `<Splash />` when state is `'splash'`, `<Setup />` when `'setup'`, etc.
+- [ ] "Start Culling" button transitions state to `'processing'`
 - [ ] Apply Tailwind dark theme base styles — dark background, light text, amber/gold accent color
 
-### 2.7 Persist Settings with electron-store
+### 2.10 Persist Settings with electron-store
 
 - [ ] Install `electron-store`: `npm install electron-store`
 - [ ] Create IPC handler in `src/main/ipc-handlers.ts`: `'settings-get'` and `'settings-set'`
@@ -169,7 +240,63 @@
 - [ ] On any field change, auto-save settings via debounced IPC call
 - [ ] Verify settings survive app restart
 
-✅ **Done Criteria:** All Setup screen fields render correctly, genre preset auto-populates sliders, weights always sum to 100, settings persist across restarts.
+### 2.11 🔥 Recent Folders Dropdown
+
+- [ ] Add a dropdown component "Recent input folders" and "Recent output folders" below the folder selection fields
+- [ ] Store last 10 unique paths in `electron-store` under `recentInputFolders` / `recentOutputFolders`
+- [ ] On folder selection (via browse or manual entry), update the recent list (move to top, remove duplicates)
+- [ ] Clicking a recent folder auto‑fills the corresponding field and triggers validation
+
+### 2.12 🔥 "Open in Explorer/Finder" Buttons
+
+- [ ] Add a small folder icon button next to each folder text input
+- [ ] On click, call IPC `'shell-show-item'` with the folder path (if empty, show a warning)
+- [ ] Uses Electron `shell.showItemInFolder` for the folder itself (or `openPath` if preferred)
+
+### 2.13 🔥 Output Folder Safety Check
+
+- [ ] When user selects or types an output folder, validate that it is **not** a subdirectory of the input folder (case‑insensitive path comparison)
+- [ ] If conflict detected, show a yellow warning banner: "Output folder is inside input folder – this may cause recursion or accidental overwrites. Continue?"
+- [ ] Add an "Ignore" checkbox that persists for the session (does not auto‑save to global settings)
+
+### 2.14 🔥 Face Count Limit Setting
+
+- [ ] Add a slider + number input in the Scoring Weights panel area: "Max faces per image (ignore group shots)"
+- [ ] Range 0–50, default 0 (disabled, meaning no limit)
+- [ ] Store in `AppSettings` as `maxFacesPerImage`
+- [ ] In Phase 6, during face detection, if `maxFacesPerImage > 0` and `faceCount > maxFacesPerImage`, mark image as rejected (or set `faceEyes` score to 0) – this will be implemented in Phase 6.
+
+### 2.15 🔥 Test Face Detection on Reference Image
+
+- [ ] After a reference image is uploaded, add a "Test face detection" button next to the thumbnail
+- [ ] On click, send the reference image's base64 to `'scan-faces'` IPC and show a small modal/notification:
+  - "Faces detected: X, eyes open: Yes/No, blink detected: Yes/No"
+- [ ] If no faces detected, suggest adjusting the reference image or continuing anyway
+
+### 2.16 🔥 Support for `.cullaiignore` File
+
+- [ ] During folder scan, look for a file named `.cullaiignore` in the **input folder root**
+- [ ] Parse it line by line (ignore empty lines and comments starting with `#`)
+- [ ] Support simple glob patterns (`*`, `?`, `[abc]`, `**` for directories)
+- [ ] Apply exclusions **in addition** to prefix filters and extension filters
+- [ ] Show a small badge on Setup screen: "Ignoring X files via .cullaiignore"
+- [ ] Add a "Reload ignore rules" button next to the badge (in case user edits the file manually)
+
+### 2.17 🔥 Burst Handling Toggle
+
+- [ ] Add a checkbox: "Keep all burst shots (disable duplicate grouping)"
+- [ ] Default: unchecked (duplicate grouping active)
+- [ ] Store in `AppSettings` as `disableDuplicateGrouping`
+- [ ] When checked, Phase 7 will skip duplicate grouping and treat every image as a separate candidate
+
+### 2.18 🔥 Similarity Threshold Slider (Duplicate Detection)
+
+- [ ] Add a slider labeled "Burst similarity threshold (bits)" with range 5–20, default 10
+- [ ] Add info tooltip: "Lower = stricter grouping (only nearly identical images). Higher = looser grouping (more images considered duplicates)."
+- [ ] Store in `AppSettings` as `duplicateThreshold`
+- [ ] Used in Phase 7 instead of the hardcoded constant
+
+✅ **Done Criteria:** All Setup screen fields render correctly, genre preset auto-populates sliders, weights always sum to 100, settings persist across restarts. Extension filter, prefix filter, and reference image upload work and save.
 
 ---
 
@@ -185,7 +312,7 @@
 - [ ] Implement `deleteApiKey(provider: AIProvider): void`
 - [ ] Store encrypted bytes in `electron-store` under key `apiKeys.{provider}`
 - [ ] Ensure raw key string is never written to any log or file
-- [ ] Add IPC handlers: `'api-key-store'`, `'api-key-get'` (returns masked string `sk-...****`), `'api-key-delete'`
+- [ ] Add IPC handlers: `'api-key-store'`, `'api-key-get'`, `'api-key-delete'`
 - [ ] Wire Setup screen API key input to these IPC handlers — save on blur, load masked value on mount
 
 ### 3.2 Platform Verification
@@ -209,15 +336,15 @@
 - [ ] Define feature flag map in `license.ts`:
   - `rawFormats` — Pro and Lifetime only
   - `xmpExport` — Pro and Lifetime only
-  - `unlimitedImages` — Pro and Lifetime only (Free: 500/month cap)
+  - `unlimitedImages` — Pro and Lifetime only (Free: 500 images **per calendar month** cap)
   - `unlimitedProfiles` — Pro and Lifetime only (Free: max 2 profiles)
 - [ ] Implement `isAllowed(feature: Feature, tier: LicenseTier): boolean`
-- [ ] Implement `getMonthlyImageCount(): number` — tracks usage in `electron-store`, resets monthly
+- [ ] Implement `getMonthlyImageCount(): number` — tracks usage in `electron-store`, resets on the first of each calendar month
 - [ ] Add IPC handler: `'license-check-feature'`
 - [ ] In Setup screen: show lock icon on RAW-related fields and XMP toggle if tier is Free
-- [ ] In Setup screen: show upgrade prompt if monthly limit is approaching
+- [ ] In Setup screen: show upgrade prompt if monthly limit is approaching (e.g. >80% used)
 
-✅ **Done Criteria:** API key stores and loads encrypted; deleting it removes it cleanly. License tier reads from file; Free tier shows lock icons on Pro features.
+✅ **Done Criteria:** API key stores and loads encrypted; deleting it removes it cleanly. License tier reads from file; Free tier shows lock icons on Pro features. Monthly image counter resets correctly on a new month.
 
 ---
 
@@ -227,9 +354,9 @@
 
 ### 4.1 Install and Configure libraw
 
-- [ ] Install `libraw` Node native addon: `npm install libraw` (or `@napi-rs/canvas` + libraw binding as available)
+- [ ] Install `libraw` Node native addon: `npm install libraw`
 - [ ] Verify native compilation succeeds on your dev platform
-- [ ] Note required system dependencies in `README.md` build section (already done)
+- [ ] Note required system dependencies in `README.md` build section
 - [ ] Ensure `electron-builder` is configured to rebuild native addons for each target platform (add `electron-rebuild` to build script)
 
 ### 4.2 Create the RAW Decoder Module
@@ -241,25 +368,39 @@
   - Open file with libraw
   - Unpack raw data
   - Process through libraw's default pipeline
-  - Output as full-quality JPEG buffer (or TIFF if JPEG not available)
+  - Output as full-quality JPEG buffer
   - Close libraw handle
 - [ ] Implement proper error handling — throw a typed `RawDecodeError` with filename and reason
 - [ ] Log decode time per file in dev mode for performance monitoring
 
 ### 4.3 Test RAW Decoding Manually
 
-- [ ] Add at least one sample RAW file per major brand to `tests/fixtures/` (CR3, NEF, ARW, RAF, DNG minimum)
-- [ ] Write a manual test script (not the full test suite yet) that decodes each fixture and writes output JPEG to disk
+- [ ] Add sample RAW files per major brand to `tests/fixtures/` (CR3, NEF, ARW, RAF, DNG)
+- [ ] Write a manual test script that decodes each fixture and writes output JPEG to disk
 - [ ] Visually inspect each output JPEG — confirm correct colors, no corruption
 - [ ] Measure decode time per format — log results
 
-✅ **Done Criteria:** `decodeRaw()` successfully converts CR3, NEF, ARW, RAF, and DNG to JPEG buffers. Output images look correct visually.
+### 4.4 🔥 Extract Embedded JPEG Preview (Fast Thumbnails)
+
+- [ ] In `raw-decoder.ts`, implement `extractEmbeddedJpeg(filePath: string): Promise<Buffer | null>`
+- [ ] Use `libraw`'s ability to extract the preview image (if present) without full decode
+- [ ] If successful, return the JPEG buffer; if not, fall back to `decodeRaw()`
+- [ ] Use this in `image-processor.ts` **only** for generating the base64 preview used in the Results screen (not for AI scoring)
+- [ ] For AI scoring, always use the full‑quality decoded buffer (or cached full preview)
+- [ ] Add a setting to disable this feature (in case of inconsistency)
+
+✅ **Done Criteria:** `decodeRaw()` successfully converts CR3, NEF, ARW, RAF, and DNG to JPEG buffers. Output images look correct visually. RAW files with embedded previews load noticeably faster in the Results gallery. Full decode still used for AI scoring.
 
 ---
 
 ## Phase 5 — Image Processing Pipeline
 
 > Goal: Given an input folder, produce a list of `ImageRecord` objects with resized base64 data, ready for AI scoring.
+>
+> **Note on RAW Caching:** Basic RAW caching integration is stubbed in step 5.2 below (cache lookup
+> before decode), but the full cache module (`raw-cache.ts`) is built in **Phase 5b**. In Phase 5,
+> call `getCachedRawPreview` / `storeRawPreview` as if the module already exists; implement them in
+> Phase 5b. Do not create `raw-cache.ts` here.
 
 ### 5.1 Define ImageRecord Type
 
@@ -280,26 +421,114 @@
 
 - [ ] Create `src/main/image-processor.ts`
 - [ ] Install `sharp`: `npm install sharp`
-- [ ] Implement `scanFolder(folderPath: string): Promise<string[]>` — returns all image file paths in folder
+- [ ] Implement `scanFolder(folderPath: string, extensionFilter?: Set<string>, prefixFilter?: string[]): Promise<string[]>`
   - Supported extensions: `.jpg`, `.jpeg`, `.png`, `.webp`, `.heic`, `.heif`, `.gif`, `.avif`, `.tiff`, `.tif` + all RAW extensions
-  - Skip hidden files and system files (`.DS_Store`, `Thumbs.db`)
-  - Sort alphabetically for deterministic ordering
+  - Apply extension filter (if provided, only those extensions; if empty, all supported)
+  - Apply prefix filter (only filenames starting with any of the given prefixes)
+  - Skip hidden files and system files (`.DS_Store`, `Thumbs.db`, `.cullai_cache`)
+  - Sort alphabetically
 - [ ] Implement `processImage(filePath: string): Promise<ImageRecord>`:
-  - If `isRawFile(filePath)` → call `decodeRaw(filePath)` to get JPEG buffer
+  - If `isRawFile(filePath)` → call `getCachedRawPreview(filePath)` first (from `raw-cache.ts`, Phase 5b). On cache miss, call `decodeRaw`, then `storeRawPreview`.
   - Else → read file with `fs.readFile()`
   - Pass buffer to Sharp: `sharp(buffer).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 })`
   - Encode Sharp output as base64
   - Return `ImageRecord`
-- [ ] Implement `processFolder(folderPath: string): AsyncGenerator<ImageRecord>` — yields one record at a time (memory-efficient)
+- [ ] Implement `processFolder(folderPath: string): AsyncGenerator<ImageRecord>` — yields one record at a time
 
 ### 5.3 Wire IPC
 
-- [ ] Add IPC handler in `ipc-handlers.ts`: `'scan-folder'` — takes folder path, returns file count + list of filenames
-- [ ] Add IPC handler: `'process-images'` — streams `ImageRecord` objects back to renderer via `event.sender.send('image-processed', record)`
+- [ ] Add IPC handler: `'scan-folder'` — takes folder path, extension filter, prefix filter → returns file count + list of filenames
+- [ ] Add IPC handler: `'process-images'` — streams `ImageRecord` objects back to renderer
 - [ ] Expose `window.electronAPI.scanFolder()` and `window.electronAPI.processImages()` in preload script
-- [ ] Handle free tier limit: if image count > 500 and tier is Free, reject with error code `FREE_LIMIT_EXCEEDED`
+- [ ] Handle free tier limit: if image count > 500 (this month) and tier is Free, reject with error code `FREE_LIMIT_EXCEEDED`
 
-✅ **Done Criteria:** Given a folder of mixed JPEGs and RAW files, `processFolder()` yields one correctly sized base64-encoded `ImageRecord` per image with no errors.
+✅ **Done Criteria:** Given a folder of mixed images, `processFolder()` yields correctly sized base64-encoded `ImageRecord` per image, respecting extension and prefix filters. On a second run with the same RAW files, it defers to Phase 5b cache (once implemented).
+
+---
+
+## Phase 5b — Smart RAW Caching
+
+> Goal: Decoded RAW previews are cached to disk so subsequent runs (or session resumes) avoid re‑decoding the same RAW files. Cache is **self‑managing** with size and age limits.
+>
+> **This phase creates `src/main/raw-cache.ts` for the first time.** Phase 5 already calls its
+> functions as stubs; implementing them here completes the integration.
+
+### 5b.1 Create RAW Cache Module
+
+- [ ] Create `src/main/raw-cache.ts` (this is the single, authoritative implementation — not a duplicate)
+- [ ] Define cache directory location:
+      `{inputFolder}/.cullai_cache/raw_previews/`
+      _(Alternative: a global cache in app data, e.g. `~/.cullai/cache/raw/` — decide based on portability requirements)_
+- [ ] Implement `getCachedRawPreview(rawPath: string): Buffer | null`:
+  - Compute cache key: `hash(filePath + lastModified)` or just use `basename + lastModified` timestamp.
+  - Check if cached file exists and its embedded metadata indicates it was generated from the current RAW file (compare `mtime` or store a checksum).
+  - If valid, read and return the JPEG buffer; otherwise return `null`.
+- [ ] Implement `storeRawPreview(rawPath: string, jpegBuffer: Buffer): void`:
+  - Write the JPEG buffer to the cache directory with a deterministic filename (e.g., `basename + '.jpg'`).
+  - Store a sidecar JSON file containing original RAW path, `mtime`, size, and a timestamp of when the cache entry was created.
+- [ ] Implement `getCacheStats(): Promise<{ sizeBytes: number, fileCount: number, oldestEntry: Date | null }>`:
+  - Recursively scan the cache directory, sum file sizes, count files, find oldest entry date.
+
+### 5b.2 Integrate with Image Processor
+
+- [ ] Verify that `image-processor.ts` → `processImage(filePath)` already calls `getCachedRawPreview` and `storeRawPreview` (stubbed in Phase 5.2). No changes to `image-processor.ts` needed here — just ensure the now-real `raw-cache.ts` module is importable.
+- [ ] Ensure the cached buffer is **identical** to the buffer that would have been produced by a fresh decode (i.e., same dimensions, quality, color profile). No additional processing (like face detection or resizing) is stored in the cache — just the decoded JPEG.
+
+### 5b.3 Add Cache Management IPC
+
+- [ ] Create IPC handlers in `src/main/ipc-handlers.ts`:
+  - `'raw-cache-stats'` – returns cache size, file count, oldest entry date.
+  - `'raw-cache-clear'` – deletes the entire cache directory for the current input folder (or global cache if implemented).
+  - `'raw-cache-set-limits'` – receives `{ maxSizeGB: number, maxAgeDays: number }` and stores in `electron-store`.
+- [ ] Expose these handlers via preload script as `window.electronAPI.getRawCacheStats()`, `clearRawCache()`, `setRawCacheLimits()`.
+
+### 5b.4 Build Cache UI in Setup Screen
+
+- [ ] Add an **"Advanced"** expandable section at the bottom of the Setup screen.
+- [ ] Inside, display current RAW cache status:
+  - "RAW preview cache: 2.3 GB / 5.0 GB • 847 files • oldest from 12 days ago"
+- [ ] Add two numeric inputs (or sliders):
+  - **Max cache size (GB)** – default 5, range 1–50.
+  - **Max cache age (days)** – default 30, range 1–365.
+- [ ] Add a **"Clear cache now"** button – on click, calls `clearRawCache()` and updates the status display.
+- [ ] Store cache limit preferences globally (not per‑project). They apply to all input folders.
+
+### 5b.5 Implement Automatic Cache Cleanup
+
+- [ ] Create `src/main/cache-cleaner.ts`.
+- [ ] Export a function `enforceCacheLimits()` that:
+  - Retrieves current cache stats and the stored limits (max size, max age).
+  - If total size > maxSizeGB → delete oldest cached files (by creation date) until total size ≤ limit.
+  - If any cached file's age > maxAgeDays → delete it regardless of size.
+- [ ] Run `enforceCacheLimits()`:
+  - On app startup (after main window loads, non‑blocking).
+  - After each session completes (or is cancelled).
+  - Whenever the user manually changes cache limits via the UI.
+- [ ] Log cleanup actions to the console (in dev mode) and optionally to a debug log file.
+
+### 5b.6 Handle Edge Cases
+
+- [ ] If cache directory is deleted manually by the user, recreate it gracefully on next `storeRawPreview`.
+- [ ] If a cached file is corrupted (e.g., partial write), treat it as a cache miss and overwrite on next decode.
+- [ ] Ensure `.cullai_cache` directory is excluded from recursive folder scanning (Phase 5) and from any "copy to output" operations.
+- [ ] Add a setting to disable RAW caching entirely (e.g., for users with very limited disk space).
+
+### 5b.7 Performance Verification
+
+- [ ] Test with 50 RAW images:
+  - First run (no cache): measure total decode time.
+  - Second run (cache hit): measure total time; should be dramatically faster (close to the time needed to copy JPEGs).
+- [ ] Verify that cache limits are respected: create a huge cache (> limit), run cleanup, and check that size no longer exceeds limit.
+- [ ] Verify that cache works across app restarts and across different sessions using the same input folder.
+
+✅ **Done Criteria:**
+
+- First decode of a RAW file stores a preview in `.cullai_cache/raw_previews/`.
+- Second decode of the same file (even after app restart) loads from cache, never calls `libraw`.
+- Cache status UI correctly reports size and file count.
+- Automatic cleanup respects user‑defined size and age limits.
+- "Clear cache now" removes all cached previews for the current input folder.
+- Disabling caching works and no cache files are created.
 
 ---
 
@@ -331,29 +560,36 @@
     blinkDetected: boolean; // true if any face shows blink
     expressionNeutral: boolean;
     boundingBoxes: FaceBoundingBox[];
+    exceedsFaceLimit: boolean; // true if faceCount > maxFacesPerImage setting
   };
   ```
 
 ### 6.3 Create the Face Detector Module
 
 - [ ] Create `src/main/face-detector.ts`
-- [ ] Implement `detectFaces(imageBuffer: Buffer): Promise<FaceMetadata>`:
+- [ ] Implement `detectFaces(imageBuffer: Buffer, maxFacesPerImage?: number): Promise<FaceMetadata>`:
   - Decode buffer to tensor (Human accepts Node.js Buffer via `human.image()`)
   - Run `human.detect(tensor, { face: { enabled: true }, body: { enabled: false }, hand: { enabled: false } })`
   - Extract face count, bounding boxes, eye open/close states, expression
   - Determine `eyesOpen` = all detected faces have left+right iris score above threshold
   - Determine `blinkDetected` = any face has eye openness below blink threshold
+  - Determine `exceedsFaceLimit` = `maxFacesPerImage > 0 && faceCount > maxFacesPerImage`
   - Return `FaceMetadata`
-  - If no faces detected, return `{ hasFaces: false, faceCount: 0, eyesOpen: true, blinkDetected: false, expressionNeutral: true, boundingBoxes: [] }`
+  - If no faces detected, return `{ hasFaces: false, faceCount: 0, eyesOpen: true, blinkDetected: false, expressionNeutral: true, boundingBoxes: [], exceedsFaceLimit: false }`
 - [ ] Add input guard: skip detection if image dimensions are too small (< 64px)
 - [ ] Ensure no face data is logged, stored, or transmitted externally
 
 ### 6.4 Wire into Pipeline
 
-- [ ] In `image-processor.ts`, after producing each `ImageRecord`, call `detectFaces(buffer)` and attach result as `record.faceMetadata`
-- [ ] Add IPC handler: `'scan-faces'` — takes a single base64 image, returns `FaceMetadata`
+- [ ] In `image-processor.ts`, after producing each `ImageRecord`, call `detectFaces(buffer, settings.maxFacesPerImage)` and attach result as `record.faceMetadata`
+- [ ] Add IPC handler: `'scan-faces'` — takes a single base64 image and optional `maxFacesPerImage`, returns `FaceMetadata`
 
-✅ **Done Criteria:** Portrait images return `hasFaces: true` with correct bounding boxes. Landscape images return `hasFaces: false`. Blink test image returns `blinkDetected: true`.
+### 6.5 🔥 Apply Face Count Limit
+
+- [ ] In the orchestrator (Phase 10), if `faceMetadata.exceedsFaceLimit` is true, immediately mark the image as rejected (tier = `rejected`) and skip AI scoring. Add a reason: "Exceeds face limit (X > Y)"
+- [ ] Log this as a separate counter in `outputShortfallReasons`
+
+✅ **Done Criteria:** Portrait images return `hasFaces: true` with correct bounding boxes. Landscape images return `hasFaces: false`. Blink test image returns `blinkDetected: true`. Images with more faces than the configured limit are automatically rejected without using an AI call. The reason appears in the final shortfall summary.
 
 ---
 
@@ -381,16 +617,27 @@
 - [ ] Create `src/main/duplicate-detector.ts`
 - [ ] Implement `computeHash(imageBuffer: Buffer): Promise<string>` — returns perceptual hash string
 - [ ] Implement `hammingDistance(hashA: string, hashB: string): number` — count differing bits
-- [ ] Implement `groupDuplicates(images: ImageRecord[]): Promise<DuplicateGroup[]>`:
+- [ ] Implement `groupDuplicates(images: ImageRecord[], threshold: number): Promise<DuplicateGroup[]>`:
   - Compute phash for every image
-  - Build adjacency: images with distance ≤ threshold (default: 10 bits) are in the same cluster
+  - Build adjacency: images with distance ≤ threshold are in the same cluster
   - Use union-find or simple BFS to form groups
   - For each group, designate `representative` as the first image (ordering by filename = chronological for burst shots)
   - Images that are unique (not in any group) each become their own single-member group
-- [ ] Export `SIMILARITY_THRESHOLD = 10` as a configurable constant
-- [ ] Add IPC handler: `'detect-duplicates'` — takes list of image IDs and hashes, returns groups
+- [ ] Export `DEFAULT_SIMILARITY_THRESHOLD = 10` as a configurable constant
+- [ ] Add IPC handler: `'detect-duplicates'` — takes list of image IDs and hashes plus an optional `threshold` parameter, returns groups
 
-✅ **Done Criteria:** A folder of 5 near-identical burst shots groups into 1 cluster with 1 representative. 5 completely different images produce 5 single-member groups.
+### 7.4 🔥 Use User‑Configurable Threshold
+
+- [ ] `groupDuplicates` already accepts `threshold` as a parameter (defined above). Pass `settings.duplicateThreshold` from the orchestrator.
+- [ ] Update IPC handler `'detect-duplicates'` to accept `threshold` as a parameter and pass it through.
+
+### 7.5 🔥 Skip Duplicate Grouping When Disabled
+
+- [ ] In orchestrator, if `settings.disableDuplicateGrouping` is true, skip calling `groupDuplicates` entirely
+- [ ] Instead, treat each image as its own group (representative = itself)
+- [ ] Log a message in the processing log: "Duplicate grouping disabled – all images will be scored individually"
+
+✅ **Done Criteria:** A folder of 5 near-identical burst shots groups into 1 cluster with 1 representative. 5 completely different images produce 5 single-member groups. Changing similarity threshold affects burst grouping. Disabling grouping scores every image. Both options persist across sessions.
 
 ---
 
@@ -409,6 +656,7 @@
     tier: "S" | "A" | "B" | "rejected";
     reasoning: string; // AI explanation text
     faceMetadata: FaceMetadata;
+    usage?: { inputTokens: number; outputTokens: number };
   };
   type SessionStatus = "running" | "completed" | "cancelled" | "crashed";
   type Session = {
@@ -422,6 +670,14 @@
     settings: AppSettings;
     scores: Record<string, ScoreRecord>; // keyed by filename
     discoveryContext: string; // AI discovery pass summary
+    outputShortfallReasons?: ShortfallReasons;
+  };
+  type ShortfallReasons = {
+    duplicatesSkipped: number;
+    belowThreshold: number;
+    faceDetectionFailed: number;
+    exceededFaceLimit: number;
+    burstGrouped: number;
   };
   ```
 
@@ -448,9 +704,12 @@
 
 ---
 
-## Phase 9 — Single AI Call
+## Phase 9 — Single AI Call (Enhanced)
 
-> Goal: One image + one provider (Claude) → one valid `ScoreRecord`. This is the atomic unit the whole pipeline is built on.
+> Goal: One image + one provider → one valid `ScoreRecord`. This is the atomic unit the whole pipeline is built on.
+>
+> **Important:** Claude's native API uses a different endpoint and request format from the
+> OpenAI-compatible standard. The AI client must branch on provider. See step 9.3 for details.
 
 ### 9.1 Define AI Call Interfaces
 
@@ -468,7 +727,11 @@
     model: string;
     baseUrl: string;
   };
-  type AIRawResponse = { scores: ScoringWeights; reasoning: string };
+  type AIRawResponse = {
+    scores: ScoringWeights;
+    reasoning: string;
+    usage?: { inputTokens: number; outputTokens: number };
+  };
   ```
 
 ### 9.2 Build the Scoring Prompt
@@ -495,21 +758,51 @@
 ### 9.3 Implement the AI Client
 
 - [ ] Create `src/main/ai-client.ts`
-- [ ] Implement `callAI(params: AICallParams): Promise<AIRawResponse>`:
-  - Build request body per OpenAI chat completions format
-  - Include image as base64 in the `content` array (vision message format)
+- [ ] Implement `callAI(params: AICallParams): Promise<AIRawResponse>` with **provider-specific routing**:
+
+  **For Claude (Anthropic native API):**
+  - POST to `https://api.anthropic.com/v1/messages` (always this URL, regardless of `baseUrl` for Claude)
+  - Headers: `x-api-key: {apiKey}`, `anthropic-version: 2023-06-01`, `Content-Type: application/json`
+  - Request body uses Anthropic Messages format:
+    ```json
+    {
+      "model": "{model}",
+      "max_tokens": 1024,
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "image",
+              "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": "{imageBase64}"
+              }
+            },
+            { "type": "text", "text": "{prompt}" }
+          ]
+        }
+      ]
+    }
+    ```
+  - Parse response: extract `content[0].text`
+  - Parse token usage from `response.usage.input_tokens` / `response.usage.output_tokens`
+
+  **For OpenAI, Gemini, Ollama, Custom (OpenAI-compatible):**
   - POST to `baseUrl + '/chat/completions'`
-  - Set headers: `Authorization: Bearer {apiKey}`, `Content-Type: application/json`
+  - Headers: `Authorization: Bearer {apiKey}`, `Content-Type: application/json`
+  - Ollama: omit `Authorization` header (empty key is valid)
+  - Request body uses OpenAI chat completions format with vision content array
   - Parse response: extract `choices[0].message.content`
-  - Strip any accidental markdown fences from JSON string
-  - Parse JSON — if invalid, throw `AIParseError` with the raw response for debugging
+  - Parse token usage from `response.usage.prompt_tokens` / `response.usage.completion_tokens`
+
+- [ ] After extracting the raw text, strip any accidental markdown fences from the JSON string
+- [ ] Parse JSON — if invalid, throw `AIParseError` with the raw response for debugging
+
 - [ ] Implement `computeWeightedTotal(scores: ScoringWeights, weights: ScoringWeights): number` — weighted average to 2 decimal places
-- [ ] Implement `assignTier(total: number): 'S' | 'A' | 'B' | 'rejected'`:
-  - S: top 10% of range (90+)
-  - A: 75–89
-  - B: 55–74
-  - Rejected: < 55
-- [ ] Implement `scoreImage(params: AICallParams): Promise<ScoreRecord>` — calls `callAI()`, computes total, assigns tier, returns full `ScoreRecord`
+
+- [ ] Implement `scoreImage(params: AICallParams): Promise<ScoreRecord>` — calls `callAI()`, computes total, attaches usage, returns full `ScoreRecord` **without assigning tiers yet** (tier assignment happens in the orchestrator after all images are scored — see Phase 10)
 
 ### 9.4 Handle API Errors
 
@@ -522,61 +815,122 @@
 ### 9.5 End-to-End Test
 
 - [ ] Write a manual test script: load one fixture JPEG, call `scoreImage()` with Claude, print the `ScoreRecord` to console
-- [ ] Verify: all 6 dimension scores are 0–100, total is correctly weighted, reasoning is a non-empty string, tier is assigned
+- [ ] Verify: all 6 dimension scores are 0–100, total is correctly weighted, reasoning is a non-empty string
 
-✅ **Done Criteria:** `scoreImage()` called with a real image and a real Claude API key returns a valid `ScoreRecord` with all fields populated. Invalid JSON from AI is caught and rethrown as a typed error.
+### 9.6 🔥 Return Token Usage in Response
+
+- [ ] `AIRawResponse` already includes optional `usage` (defined in 9.1). Ensure `callAI()` populates it for all providers that return usage data.
+- [ ] If the provider does not return usage, set to `{ inputTokens: 0, outputTokens: 0 }`
+- [ ] Store token usage in `ScoreRecord.usage`
+- [ ] Return usage to caller for cumulative tracking (Phase 11 enhancement)
+
+✅ **Done Criteria:** `scoreImage()` called with a real image and a real Claude API key (using the `/v1/messages` endpoint) returns a valid `ScoreRecord` with all 6 dimension scores populated. The same test passes with OpenAI and Ollama using their respective endpoints. Invalid JSON from AI is caught and rethrown as a typed error. Token usage is stored when available.
 
 ---
 
-## Phase 10 — Full Batch Pipeline (Serial)
+## Phase 10 — Full Batch Pipeline (Serial) + Input Validation
 
-> Goal: The complete end-to-end flow works for any folder, processed one image at a time, with a live progress UI.
+> Goal: Complete end-to-end flow with discovery pass, orchestrator, processing screen, **requested vs
+> available validation**, and **post‑run output reason notification**.
 
-### 10.1 Implement Discovery Pass
+### 10.1 Discovery Pass
 
-- [ ] In `ai-client.ts`, implement `runDiscoveryPass(sampleImages: ImageRecord[], params): Promise<string>`:
-  - Select 5–8 representative images (spread evenly across the sorted list)
-  - Send all sample images in a single API call with a discovery prompt:
-    - "Look at these sample photos. Describe: what genre are they? what does 'best' look like in this context? what technical qualities matter most?"
-  - Return the AI's plain-text context summary string
-  - Store in session as `discoveryContext`
+- [ ] Create `src/main/orchestrator.ts`
+- [ ] Implement `runDiscoveryPass(images: ImageRecord[], settings: AppSettings): Promise<string>`:
+  - Select 5–8 representative sample images from the full set (evenly spaced by index)
+  - If a reference image is set in `AppSettings`, prepend it to the sample set
+  - Call `callAI()` once with all sample images and a discovery prompt: _"What genre is this shoot? What does 'best' mean in this context? Summarize in 2–3 sentences."_
+  - Return the AI's summary string as `discoveryContext`
+- [ ] Store `discoveryContext` in the session immediately after the discovery pass completes
 
-### 10.2 Implement the Orchestrator
+### 10.2 Orchestrator (Serial Scoring Loop)
 
-- [ ] Create `src/main/pipeline.ts` (or extend `ipc-handlers.ts`)
-- [ ] Implement `runPipeline(settings: AppSettings)`:
-  1. Create new session (or load existing if resuming)
-  2. Scan input folder → get full image list
-  3. Filter out already-scored images (resume case)
-  4. Check free tier limit
-  5. Process all images → `ImageRecord[]` (RAW decode + resize + base64)
-  6. Run face detection on each image
-  7. Run duplicate detection → get `DuplicateGroup[]`
-  8. Collect representatives for scoring; mark duplicates as skipped
-  9. Run discovery pass on 5–8 sample representatives
-  10. Serial scoring loop: for each representative → call `scoreImage()` → save to session → emit progress IPC event
-  11. After all scored: copy top N images to output folder
-  12. Save `results.json` to output folder
-  13. Mark session complete
-  14. Emit `'pipeline-complete'` IPC event
+- [ ] In `orchestrator.ts`, implement `runPipeline(settings: AppSettings): AsyncGenerator<PipelineEvent>`:
+  - Scan folder with filters → get full file list
+  - Run duplicate detection → get `DuplicateGroup[]`; collect `duplicatesSkipped` count
+  - Run face detection on all representative images; mark `exceedsFaceLimit` images as pre-rejected
+  - Run discovery pass → store `discoveryContext` in session
+  - For each representative `ImageRecord` (not pre-rejected):
+    - Call `scoreImage()` → get `ScoreRecord` (no tier yet)
+    - Save score to session immediately via `session-manager`
+    - Emit `'pipeline-image-scored'` progress event
+  - After all images scored, call `assignTiers(allScores)` (see below)
+  - Compute `outputShortfallReasons` and store in session
+  - Mark session complete
 
 ### 10.3 Build the Processing Screen
 
 - [ ] Create `src/renderer/screens/Processing.tsx`
-- [ ] Progress bar — `scoredCount / totalImages * 100%`
-- [ ] Current image filename being processed
-- [ ] Live log — scrollable list of status messages (e.g. "Decoded raw file: IMG_001.CR3", "Scored: IMG_002.JPG — Score 87.4 (A-tier)")
-- [ ] Estimated time remaining — calculate from elapsed time per image × remaining images
-- [ ] Resume banner — if `session-has-existing` returns true on mount, show: "A previous session was found. Resume from image 47?" with Resume / Start Fresh buttons
-- [ ] Cancel button — calls `'pipeline-cancel'` IPC, transitions to Setup screen
+- [ ] On mount, check `'session-has-existing'` IPC — if an existing session is found, show the resume banner (Phase 16.3) before starting
+- [ ] Display: progress bar (`scoredCount / totalImages`), current filename, estimated time remaining
+- [ ] Show a scrollable log of scored images with their raw composite score
+- [ ] "Cancel" button → calls `'session-mark-cancelled'` IPC and returns to Setup screen
+- [ ] On pipeline complete, automatically transition to Results screen
 
-### 10.4 Connect Pipeline to App Navigation
+### 10.4 Relative Tier Assignment (Post-Scoring)
 
-- [ ] "Start Culling" in Setup → validates inputs → calls `'pipeline-start'` IPC → transitions to Processing screen
-- [ ] `'pipeline-complete'` IPC event → transitions to Results screen (stub for now)
-- [ ] `'pipeline-image-scored'` IPC event → updates progress bar and log in real-time
+- [ ] Implement `assignTiers(scores: ScoreRecord[]): ScoreRecord[]` in `orchestrator.ts`:
+  - Exclude pre-rejected images (face limit, already marked rejected) from ranking pool
+  - Sort remaining images by `total` score descending
+  - **S-tier**: top 10% of the ranked pool (minimum 1 image if pool is non-empty)
+  - **A-tier**: next 30% of the ranked pool
+  - **B-tier**: next 30% of the ranked pool
+  - **Rejected**: bottom 30% of the ranked pool, plus any image with `total < 30` regardless of percentile
+  - Images pre-rejected before scoring retain `tier: 'rejected'`
+- [ ] This relative/percentile-based approach ensures S-tier always represents the genuinely best shots from the current set, not an absolute score threshold
 
-✅ **Done Criteria:** A folder of 20 mixed images (JPEG + 2 RAW) runs fully end-to-end: scanned → face-detected → deduplicated → discovery pass → serial scoring → results.json written to disk. Progress bar tracks correctly.
+### 10.5 Input Count Validation
+
+- [ ] In orchestrator, after scanning folder with filters, compare `filteredImageCount` with `settings.numImagesToSelect`
+- [ ] If `numImagesToSelect > filteredImageCount`, emit a warning to renderer and ask for confirmation (via dialog). If user confirms, proceed with all available images.
+
+### 10.6 Output Shortfall Notification
+
+- [ ] After scoring completes and tiers are assigned, compute final selected image count (S + A tier images)
+- [ ] If `finalSelectedCount < settings.numImagesToSelect`, collect reasons into `outputShortfallReasons`
+- [ ] Store breakdown in session as `outputShortfallReasons`
+- [ ] Send IPC event `'pipeline-output-summary'` with reasons to renderer
+
+### 10.7 Update Processing Screen to Show Warning
+
+- [ ] On receiving `'pipeline-output-summary'`, show an inline notification (non‑modal) with the reason summary, e.g. _"Requested 200 images, but only 187 selected. 13 excluded: 8 duplicates, 5 below quality threshold."_
+- [ ] Keep notification until user dismisses or navigates away
+
+✅ **Done Criteria:** If user requests 500 images but only 312 exist, a confirmation dialog appears. After processing, if only 287 are selected, a clear reason summary is shown. Tier assignment is always relative — the best shots in any folder receive S-tier regardless of their absolute score.
+
+---
+
+## Phase 10b — Concurrent Directory Processing
+
+> Goal: Process all subfolders inside a selected root folder in one batch job.
+
+### 10b.1 Add UI Toggle
+
+- [ ] In Setup screen, add a checkbox: **"Process subfolders recursively"**
+- [ ] Store `processSubfolders: boolean` in `AppSettings`
+
+### 10b.2 Implement Recursive Scan
+
+- [ ] Create `src/main/folder-walker.ts`
+- [ ] Implement `walkFolders(rootPath: string): Promise<string[]>` – returns list of all subdirectory paths (excluding hidden folders like `.cullai_cache`)
+- [ ] Modify orchestrator: if `processSubfolders` is true, treat each subfolder as a separate batch
+- [ ] Process batches sequentially (or parallel with separate session files) – combine results into one master session
+- [ ] Output folder: create subfolder structure mirroring input (or flatten with prefix option)
+
+### 10b.3 Progress UI for Batches
+
+- [ ] In Processing screen, show current batch: `Processing folder 3/12: "Reception"`
+- [ ] Overall progress = (sum of scored across batches) / (total images across all batches)
+
+### 10b.4 🔥 Preserve Subfolder Structure Option
+
+- [ ] In Setup screen, add a checkbox: "Preserve folder structure in output" (only visible when "Process subfolders recursively" is checked)
+- [ ] Store in `AppSettings` as `preserveSubfolderStructure`
+- [ ] When enabled, for each input subfolder (e.g., `input/Wedding/Reception/`), create the same relative path under the output folder (e.g., `output/Wedding/Reception/`)
+- [ ] When disabled (default), flatten all keepers into the root output folder
+- [ ] If filename conflicts occur when flattening, append a suffix (`_1`, `_2`) to the copied filename
+
+✅ **Done Criteria:** A folder with 5 subfolders processes all images across all subfolders. Final output contains keepers from all batches. Session resume works across batches. With recursive processing and "preserve structure" on, the output folder mirrors the input folder's hierarchy. With it off, all selected images land in a single folder (with conflict resolution).
 
 ---
 
@@ -605,21 +959,31 @@
 
 ### 11.3 Replace Serial Loop in Pipeline
 
-- [ ] In `pipeline.ts`, replace the serial scoring `for` loop with `BatchScheduler.run()`
+- [ ] In `orchestrator.ts`, replace the serial scoring `for` loop with `BatchScheduler.run()`
 - [ ] Pass concurrency setting from `AppSettings`
 - [ ] Emit `'pipeline-image-scored'` progress event after each individual image scores (not each batch)
 - [ ] Scores still saved to session after each image via `session-manager`
+- [ ] After `BatchScheduler.run()` resolves, call `assignTiers()` on all collected scores
 
 ### 11.4 Update Processing Screen
 
 - [ ] Update time-remaining estimate to account for parallel processing (total time ÷ concurrency rate)
 - [ ] Show current batch indicator in log: "Scoring batch 3/12 (5 parallel calls)..."
 
-✅ **Done Criteria:** 50-image folder with concurrency=5 completes in roughly 1/5 the time vs. serial. Rate limit errors cause retry (not crash). Auth errors abort and surface a clear message.
+### 11.5 🔥 Live Cost & Token Tracking
+
+- [ ] In `orchestrator.ts`, maintain cumulative `totalInputTokens`, `totalOutputTokens` across all scored images
+- [ ] After each image scores, update the counters and emit IPC event `'pipeline-cost-update'` with the current totals
+- [ ] In Processing screen, display:
+  - Estimated total cost (using provider's per‑token pricing from `src/shared/constants.ts`)
+  - Optionally show per‑provider cost breakdown
+- [ ] If dry‑run mode is active, also show **predicted** cost based on average tokens per image (already in Phase 16.1)
+
+✅ **Done Criteria:** 50-image folder with concurrency=5 completes in roughly 1/5 the time vs. serial. Rate limit errors cause retry (not crash). Auth errors abort and surface a clear message. User sees real‑time token usage and estimated cost while scoring runs. The estimate updates after each image or batch.
 
 ---
 
-## Phase 12 — Results Screen
+## Phase 12 — Results Screen (Enhanced)
 
 > Goal: A full-featured gallery for reviewing, comparing, and manually adjusting AI selections.
 
@@ -674,13 +1038,65 @@
 - [ ] Show a keyboard shortcut legend/tooltip in the UI (dismissable)
 - [ ] Detach listener on component unmount
 
-### 12.6 Manual Tier Overrides
+✅ **Done Criteria:** Results screen renders all tiers correctly. Keyboard shortcuts work. Compare mode shows side-by-side images with score breakdowns. Face overlay appears on hover when faces were detected.
 
-- [ ] Allow drag-and-drop of image tiles between tier tabs
-- [ ] On tier change: update local `ScoreRecord.tier`, re-render, update output folder (move/copy file if needed)
-- [ ] Persist manual overrides to `session.json`
+---
 
-✅ **Done Criteria:** Results screen shows all images in correct tiers, tier tabs update counts live, compare mode works for 2–4 images, keyboard shortcuts navigate and tier-move correctly, face boxes appear on hover.
+## Phase 12b — Results Performance & UX
+
+> Goal: The Results screen handles large image sets without lag, and supports advanced review workflows.
+
+### 12b.1 Add Virtualized Grid
+
+- [ ] Install `react-window`: `npm install react-window`
+- [ ] In `Results.tsx`, replace simple grid with `FixedSizeGrid` or `VariableSizeGrid`
+- [ ] Only render tiles that are visible in the viewport
+- [ ] Lazy‑load high‑res previews when tile becomes visible
+
+### 12b.2 Add Undo for Manual Overrides
+
+- [ ] Create a simple undo stack in Results screen state: store `{ previousTier, imageId, timestamp }` (max 20 entries)
+- [ ] On `P`, `X`, `R`, or drag‑and‑drop tier change, push previous state to stack
+- [ ] Add keyboard shortcut: `Cmd+Z` / `Ctrl+Z` – pop last action and revert tier
+- [ ] Show a small toast: "Undo moved IMG_001 back to A tier"
+
+### 12b.3 Add Before/After Slider in Compare Mode
+
+- [ ] In `CompareView.tsx`, when exactly 2 images are selected, add a toggle: "Split‑screen slider"
+- [ ] Render two images absolutely positioned, with a draggable vertical divider
+- [ ] On slider drag, clip left/right images accordingly
+
+### 12b.4 🔥 Re‑Score Selected Images with New Weights
+
+- [ ] Add a button in the Results screen toolbar: "Re‑score selected (with current weights)"
+- [ ] Enabled only when one or more images are selected in the active tab
+- [ ] On click, collect the `ImageRecord`s for selected images (from the session)
+- [ ] Call a new IPC `'re-score-images'` with the list of image IDs, current `AppSettings` (weights, etc.)
+- [ ] Re‑use the existing scoring pipeline (including face metadata, discovery context) but skip duplicate detection and scanning
+- [ ] Re-run `assignTiers()` on the updated scores and refresh the UI
+- [ ] Show a progress modal: "Re‑scoring 12 images…"
+
+### 12b.5 🔥 Export Scores as CSV
+
+- [ ] Add "Export CSV" button next to "Export results.json"
+- [ ] Generate a CSV file with columns: Filename, Tier, Total Score, Quality, Aesthetic, Composition, Sharpness, Exposure, FaceEyes, Reasoning
+- [ ] Use the same file‑save dialog as JSON export, default name `cullai_scores.csv`
+- [ ] CSV is UTF‑8 encoded and can be opened in Excel / Google Sheets
+
+### 12b.6 🔥 Export Session as Portable Archive
+
+- [ ] Add "Export session bundle (.zip)" button
+- [ ] Zip includes: `session.json`, `results.json`, and **all XMP sidecar files** generated for this session (if XMP export was enabled)
+- [ ] Does **not** include original or output images – only metadata
+- [ ] Uses `archiver` npm package (add to devDependencies)
+- [ ] Show progress during zip creation and then save dialog
+
+### 12b.7 🔥 Reject / Keep Count Badges in Tab Headers
+
+- [ ] In addition to the count badge (e.g., "S (12)"), show a small proportion bar or tooltip: "12 of 200 total"
+- [ ] Keep it clean – optionally show "12/200" next to the tab name
+
+✅ **Done Criteria:** Results screen handles 10,000 images without lag. Undo works for manual tier changes. Two‑image compare mode has a working split‑screen slider. All new export and re‑scoring features work without crashing. Re‑scoring updates the session and UI correctly. CSV exports contain all scores.
 
 ---
 
@@ -688,11 +1104,12 @@
 
 > Goal: Every scored image has an XMP sidecar file that Lightroom Classic and Capture One can read natively.
 
-### 13.1 Install XMP Library
+### 13.1 Choose XMP Writing Strategy
 
-- [ ] Install `xmp-metadata` npm package: `npm install xmp-metadata`
-  - If package is insufficient, plan a custom XML writer using Node.js built-ins
-- [ ] Verify package can read and write `.xmp` files without modifying the original image
+- [ ] Evaluate `xmp-metadata` npm package: install it and test writing a minimal XMP file with `xmp:Rating` and `dc:description`
+- [ ] **If the package handles XMP namespace declarations and `rdf:RDF` wrapper correctly**, use it as the primary writer
+- [ ] **If the package is insufficient** (incorrect namespaces, malformed XML, or cannot handle `dc:subject` arrays), build a custom XML writer using Node.js built-ins (`DOMImplementation` or a simple string template). The XMP spec requires correct namespace prefixes (`x:xmpmeta`, `rdf:RDF`, `rdf:Description`) — incorrect namespaces cause Lightroom to silently ignore the sidecar.
+- [ ] Verify the chosen approach by opening the output `.xmp` in Lightroom Classic and confirming the star rating and color label appear before proceeding with the full implementation.
 
 ### 13.2 Define XMP Mapping
 
@@ -719,18 +1136,45 @@
 - [ ] Implement `writeAllSidecars(scores: ScoreRecord[], inputFolder: string): Promise<void>` — writes all sidecars in parallel with `Promise.all()`
 - [ ] Add IPC handler: `'export-xmp'` — takes session data, writes all sidecars, returns count written
 
-### 13.4 Auto-Export Integration
+✅ **Done Criteria:** After scoring, XMP sidecars appear next to originals. Star ratings and color labels are visible in Lightroom Classic immediately after import. The XMP approach (library or custom) was validated in Lightroom before full implementation.
 
-- [ ] In `pipeline.ts`, after scoring is complete: if `settings.xmpExport === true`, automatically call `writeAllSidecars()`
-- [ ] Emit `'xmp-export-complete'` IPC event with count
+---
 
-### 13.5 Validate Output
+## Phase 13b — AI‑Powered Auto‑Tagging
 
-- [ ] Open a sidecar `.xmp` file in a text editor — verify it is valid XML with correct XMP namespaces
-- [ ] Import folder into Lightroom Classic (if available) — verify star ratings appear on images
-- [ ] Import folder into Capture One (if available) — verify ratings appear
+> Goal: S-tier and A-tier keepers receive descriptive keyword tags written into their XMP sidecars,
+> enabling fast searching in Lightroom and Capture One.
 
-✅ **Done Criteria:** Every scored image has a `.xmp` sidecar with correct star rating. Lightroom Classic displays the ratings without manual import steps.
+### 13b.1 Create the Auto-Tagging Module
+
+- [ ] Create `src/main/auto-tagging.ts`
+- [ ] After scoring and tier assignment are complete, collect all S-tier and A-tier `ImageRecord`s
+- [ ] For each qualifying image, call the AI with a separate, lightweight prompt: _"Generate 5–10 descriptive keywords for this image. Return as a JSON array of strings only, no other text."_
+- [ ] To save API costs, only tag the top 20% of S+A keepers by score (configurable via `AppSettings.tagTopPercent`)
+- [ ] Batch tagging: send up to 5 images per API call (vision model can handle multiple images in one request) to minimise cost
+- [ ] Parse the returned JSON array; on parse failure, log and skip (do not crash the pipeline)
+
+### 13b.2 Write Keywords to XMP
+
+- [ ] Extend `writeXmpSidecar()` in `xmp-writer.ts` to accept an optional `keywords: string[]` parameter
+- [ ] Write keywords under `<dc:subject>` as an `rdf:Bag` of `rdf:li` elements (the correct XMP structure for multi-value arrays)
+- [ ] If keywords are empty or undefined, omit the `<dc:subject>` element entirely (do not write an empty bag)
+- [ ] Re-export XMP sidecars for tagged images (overwrite existing sidecars)
+
+### 13b.3 Wire into Setup Screen
+
+- [ ] Add toggle in Setup screen: "Generate AI keywords (S/A tier only)" – default off
+- [ ] Mark as a Pro feature — show lock icon for Free tier users
+- [ ] Store setting in `AppSettings` as `enableAutoTagging`
+- [ ] Add number input: "Tag top X% of keepers" (range 10–100, default 20)
+
+### 13b.4 Store Keywords in Session
+
+- [ ] Add `keywords?: string[]` to `ScoreRecord` type
+- [ ] After tagging, update `ScoreRecord.keywords` in session via `session-manager`
+- [ ] Keywords should be re-exportable from the Results screen without re-running the AI (i.e., stored in session)
+
+✅ **Done Criteria:** After scoring, sidecars for top-tier images contain `<dc:subject>` with 5–10 relevant keywords visible in Lightroom. Keywords are stored in the session and included in CSV and ZIP exports. Disabling the toggle skips tagging entirely. Free tier users see the lock icon and cannot enable the feature.
 
 ---
 
@@ -782,26 +1226,36 @@
 ### 15.1 Extend ai-client.ts for All Providers
 
 - [ ] Define provider configs in `src/shared/constants.ts`:
-  ```ts
-  PROVIDER_DEFAULTS = {
-    claude: {
-      baseUrl: "https://api.anthropic.com/v1",
-      defaultModel: "claude-sonnet-4",
-    },
-    openai: { baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o" },
-    gemini: {
-      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-      defaultModel: "gemini-2.5-flash",
-    },
-    ollama: { baseUrl: "http://localhost:11434/v1", defaultModel: "llava" },
-    custom: { baseUrl: "", defaultModel: "" },
-  };
-  ```
-- [ ] In `ai-client.ts`, build request headers based on provider:
-  - Claude: `x-api-key: {apiKey}`, `anthropic-version: 2023-06-01`
-  - OpenAI/Gemini/Custom: `Authorization: Bearer {apiKey}`
-  - Ollama: no auth header (empty API key is valid)
-- [ ] Handle Gemini's slightly different endpoint path for vision models
+
+```ts
+PROVIDER_DEFAULTS = {
+  claude: {
+    // ⚠️ Claude uses NATIVE API, not OpenAI-compatible.
+    // The endpoint is hardcoded to https://api.anthropic.com/v1/messages
+    // baseUrl is only used for non-Claude providers.
+    defaultModel: "claude-sonnet-4",
+  },
+  openai: { baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-5" },
+  gemini: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    defaultModel: "gemini-3.0-flash",
+  },
+  ollama: { baseUrl: "http://localhost:11434/v1", defaultModel: "llava" },
+  custom: { baseUrl: "", defaultModel: "" },
+};
+```
+
+- [ ] **In `ai-client.ts`, route based on provider:**
+  - **If provider === 'claude'**:
+    - Ignore `baseUrl` setting.
+    - Use **`https://api.anthropic.com/v1/messages`** (never `/chat/completions`).
+    - Headers: `x-api-key`, `anthropic-version: 2023-06-01`.
+    - Request body follows Anthropic Messages format (as already implemented in Phase 9.3).
+  - **For all other providers** (openai, gemini, ollama, custom):
+    - Use `baseUrl + '/chat/completions'` (OpenAI-compatible).
+    - Headers: `Authorization: Bearer {apiKey}` (omit for ollama).
+
+- [ ] **Double-check**: The Claude branch must **never** append `/chat/completions`. Doing so will cause a 404.
 
 ### 15.2 Connection Validation
 
@@ -886,7 +1340,22 @@
 - [ ] All images already scored (perfect resume) → "All images already scored in a previous session. View results?"
 - [ ] Zero faces detected in portrait session → show info banner: "No faces detected. Consider setting Face & Eyes weight to 0% for this genre."
 
-✅ **Done Criteria:** Starting with an empty folder shows a clear error. Cancelling mid-run, restarting, and choosing "Resume" continues from the correct image. Dry-run shows a sensible cost estimate.
+### 16.7 Add Output Shortfall Estimation in Dry‑Run
+
+- [ ] In dry‑run mode, after counting images, estimate likely output shortfall:
+  - Assume ~10% duplicates (if burst mode)
+  - Assume ~5% quality rejection (based on heuristics)
+  - Show: _"Estimated final keepers: ~180–195 out of 200 requested (due to duplicates and quality filtering)"_
+
+### 16.8 🔥 Resume Banner Enhancement – Show Remaining Time & Cost
+
+- [ ] In Processing screen, when a pending session is found, after loading the session, compute:
+  - Remaining images = `totalImages - scoredCount`
+  - Estimated remaining time = `(elapsedTime / scoredCount) * remainingImages` (if scoredCount > 0)
+  - Estimated remaining cost = `(totalCostSoFar / scoredCount) * remainingImages` (if scoredCount > 0 and costs tracked)
+- [ ] Display these in the resume banner: “Resume from image 47/200 (~12 min remaining, ~$0.35 estimated)”
+
+✅ **Done Criteria:** Starting with an empty folder shows a clear error. Cancelling mid-run, restarting, and choosing "Resume" continues from the correct image. Dry‑run shows both cost estimate and expected output range. Resume banner shows useful estimates to help user decide whether to resume or start fresh.
 
 ---
 
@@ -974,7 +1443,25 @@
 - [ ] Test: `clearSession()` → session file is deleted
 - [ ] Test: simulate file write interruption (write partial JSON) → `loadSession()` handles gracefully (returns null or repairs)
 
-✅ **Done Criteria:** `npm test` runs all test files and passes with 0 failures. Coverage report shows >80% coverage on all pipeline modules.
+### 17.9 New Tests for Added Features
+
+- [ ] Test extension filter: `scanFolder` with filter `{'.cr3'}` returns only CR3 files
+- [ ] Test prefix filter: `scanFolder` with prefix `['IMG_']` excludes `DSC_001.jpg`
+- [ ] Test subfolder processing: `walkFolders` returns correct depth of directories
+- [ ] Test RAW caching: second decode reads from cache, no libraw call
+- [ ] Test output shortfall reasons: session stores and retrieves reason breakdown
+- [ ] Test undo stack: manual tier change can be reverted
+- [ ] Test keyword tagging: XMP sidecar contains valid `<dc:subject>` array
+
+### 17.10 🔥 Mock AI Server for Integration Tests
+
+- [ ] Create `tests/mock-ai-server.ts` – a lightweight HTTP server that implements the OpenAI chat completions endpoint
+- [ ] Accepts JSON payload, returns deterministic scores based on filename or a simple rule (e.g., if filename contains “good” → high scores)
+- [ ] Add a test flag `--use-mock-ai` that overrides the configured provider’s base URL to `http://localhost:${port}/v1` and disables authentication
+- [ ] Write integration tests that start the mock server, run a small pipeline, and assert scores match expected patterns
+- [ ] Ensure no real API calls are made when mock server is active (by checking that `process.env.NODE_ENV === 'test'`)
+
+✅ **Done Criteria:** `npm test` runs all test files and passes with 0 failures. Coverage report shows >80% coverage on all pipeline modules. Running `npm test` starts the mock server automatically, runs pipeline tests without consuming API credits, and shuts down the server afterwards.
 
 ---
 
@@ -1050,21 +1537,107 @@
 - [ ] Write release notes summarizing v1.0.0 features
 - [ ] Update `README.md` download links to point to GitHub Releases
 
-✅ **Done Criteria:** On a clean machine with no development tools installed, the CullAI installer installs and runs cleanly on all three platforms. A full culling run of 20 images completes without error.
+### 18.9 🔥 Automatic Update Notifications
+
+- [ ] Integrate Electron `autoUpdater` using `electron-updater` package
+- [ ] Configure `publish` in `electron-builder.config.ts` to target GitHub Releases
+- [ ] On app start, check for updates silently once per day
+- [ ] If an update is available, show a non‑modal notification: “New version X.X.X available. Download now?”
+- [ ] Download and install on user confirmation (quit and install)
+- [ ] Allow user to disable auto‑check in settings
+
+### 18.10 🔥 Build Portable Windows Executable
+
+- [ ] Add a new npm script: `npm run build:portable`
+- [ ] Configure `electron-builder` with an extra `nsis` target that uses `oneClick` and `perMachine: false`, plus a `portable` target
+- [ ] Output `CullAI-Portable.exe` that runs without installation (writes settings to `%APPDATA%\CullAI-portable` or same directory)
+- [ ] Document on the download page for users without admin rights
+
+✅ **Done Criteria:** On a clean machine with no development tools installed, the CullAI installer installs and runs cleanly on all three platforms. A full culling run of 20 images completes without error. The updater checks GitHub releases and downloads the new version. The portable `.exe` runs on a clean Windows machine without admin privileges.
 
 ---
 
-## Final Checklist Before v1.0 Ship
+## Phase 19 — CLI Mode & Automation
 
-- [ ] All 18 phases completed with all checkboxes checked
-- [ ] `npm test` passes with 0 failures
+> Goal: Run CullAI entirely from the command line with no GUI.
+
+### 19.1 Add CLI Entry Point
+
+- [ ] Create `src/cli/index.ts` as a separate entry point
+- [ ] Use `commander` or `yargs` to parse arguments:
+  ```bash
+  cullai --input /photos --output /keepers --count 200 --provider ollama --headless
+  ```
+- [ ] Options: `--input`, `--output`, `--count`, `--provider`, `--api-key`, `--model`, `--weights`, `--no-xmp`, `--dry-run`
+- [ ] If `--headless` is present, skip rendering any Electron window and run pipeline directly using Node.js
+
+### 19.2 Reuse Pipeline Logic
+
+- [ ] Extract the core pipeline (scan, decode, face detection, AI scoring, XMP write) into `src/core/pipeline.ts` that works without Electron
+- [ ] Both Electron main process and CLI use the same pipeline
+
+### 19.3 CLI Output
+
+- [ ] Print progress to stdout: `[1/200] Scoring IMG_001.CR3...`
+- [ ] On completion, print summary table with tier counts
+- [ ] Output `results.json` path and output folder path
+- [ ] Exit code 0 on success, non‑zero on error
+
+### 19.4 Package CLI Separately
+
+- [ ] Configure `electron-builder` to also produce a standalone Node.js binary (or npm package) for CLI
+- [ ] On Windows, produce `cullai-cli.exe` that includes Node.js runtime (via `pkg` or `nexe`)
+
+✅ **Done Criteria:** Running `cullai --input ./test --output ./out --count 10 --provider ollama --headless` processes 10 images, writes XMPs, and exits with correct JSON summary.
+
+---
+
+## Phase 20 — Additional UX & Performance 🔥
+
+> Goal: Final polish features that improve daily usage without disrupting core workflows.
+
+### 20.1 Benchmark Mode (Hidden Flag)
+
+- [ ] Add a CLI flag `--benchmark` that runs a standard test suite on a fixed set of images (in `tests/fixtures/benchmark/`)
+- [ ] Measures and prints to console:
+  - Time per stage: folder scan, RAW decode, face detection, duplicate detection, AI scoring (uses mock AI or a real provider if specified)
+  - Memory usage peaks
+  - Cache hit ratio (if caching enabled)
+- [ ] Outputs a JSON report: `benchmark_YYYYMMDD_HHMMSS.json`
+- [ ] Does not write any final output (XMP, copy files) unless `--output` is also provided
+
+### 20.2 Background Maintenance
+
+- [ ] On app start, run lightweight maintenance tasks:
+  - Check for orphaned `.cullai_cache` folders (where input folder no longer exists) and offer to delete them (once a week)
+  - Trim old session logs (keep last 30 sessions in `electron-store`)
+- [ ] All maintenance is logged and can be disabled by advanced users via a hidden setting
+
+### 20.3 Quick Action Buttons on Results Screen
+
+- [ ] Add a floating action button (or right‑click context menu) with:
+  - “Open containing folder” for the selected image
+  - “Copy filename” / “Copy path”
+  - “View in Lightroom” (if XMP was written, just a reminder – no direct integration)
+
+✅ **Done Criteria:** `--benchmark` runs successfully and prints meaningful metrics. Background maintenance does not slow down startup. Right‑click offers useful shortcuts.
+
+---
+
+## Final Checklist Before v1.0 Ship (Updated)
+
+- [ ] All 20 phases (0 through 20) completed with all checkboxes checked
+- [ ] `npm test` passes with 0 failures (including mock AI tests)
 - [ ] App runs clean on Windows, macOS, and Linux
 - [ ] No API key ever appears in any log output
-- [ ] XMP sidecars validated in Lightroom Classic
-- [ ] Free tier limits enforced correctly (500 images, 2 profiles, no RAW, no XMP)
+- [ ] XMP sidecars validated in Lightroom Classic (including keywords)
+- [ ] Free tier limits enforced correctly (500 images **per calendar month**, 2 profiles, no RAW, no XMP, no keywords)
 - [ ] Pro/Lifetime tier unlocks all features
-- [ ] README.md is up to date and accurate
+- [ ] README.md is up to date and accurate (includes new features)
+- [ ] CLI mode works on all three platforms
 - [ ] Release tagged and installers published on GitHub Releases
+- [ ] Auto‑updater test passes (installer upgrades from v0.9 to v1.0)
+- [ ] Portable build runs on Windows without installation
 
 ---
 
