@@ -66,26 +66,26 @@
 
 ### 1.4 Create Core Entry Files
 
-- [ ] Create `src/main/index.ts` — Electron app entry point that creates a `BrowserWindow`
-- [ ] Create `src/renderer/App.tsx` — root React component, renders `<h1>CullAI</h1>` as a placeholder
-- [ ] Create `src/renderer/index.tsx` — ReactDOM render entry point
-- [ ] Create `src/shared/types.ts` — empty file, ready for type definitions
-- [ ] Create `src/shared/constants.ts` — define app name, version string
-- [ ] Create `src/shared/genre-presets.ts` — empty file, ready for Phase 2
+- [x] Create `src/main/index.ts` — Electron app entry point that creates a `BrowserWindow`
+- [x] Create `src/renderer/App.tsx` — root React component, renders `<h1>CullAI</h1>` as a placeholder
+- [x] Create `src/renderer/index.tsx` — ReactDOM render entry point
+- [x] Create `src/shared/types.ts` — empty file, ready for type definitions
+- [x] Create `src/shared/constants.ts` — define app name, version string
+- [x] Create `src/shared/genre-presets.ts` — empty file, ready for Phase 2
 
 ### 1.5 Configure Build Scripts
 
-- [ ] Configure Tailwind `content` path to cover `src/renderer/**/*.{tsx,ts}`
-- [ ] Add `npm run dev` script — starts Electron + Vite (or Webpack) renderer dev server together
-- [ ] Add `npm run build` script — compiles TypeScript and runs `electron-builder`
-- [ ] Add `npm run test` script — placeholder for Phase 17
-- [ ] Create skeleton `electron-builder.config.ts` — set `appId`, `productName: "CullAI"`, output dirs for Win/Mac/Linux (leave targets empty for now)
+- [x] Configure Tailwind `content` path to cover `src/renderer/**/*.{tsx,ts}`
+- [x] Add `npm run dev` script — starts Electron + Vite (or Webpack) renderer dev server together
+- [x] Add `npm run build` script — compiles TypeScript and runs `electron-builder`
+- [x] Add `npm run test` script — placeholder for Phase 17
+- [x] Create skeleton `electron-builder.config.ts` — set `appId`, `productName: "CullAI"`, output dirs for Win/Mac/Linux (leave targets empty for now)
 
 ### 1.6 Verify Scaffold
 
-- [ ] Run `npm run dev` — Electron window opens with "CullAI" text rendered by React
-- [ ] No TypeScript errors in console
-- [ ] Hot reload works — editing `App.tsx` updates the window without restarting Electron
+- [x] Run `npm run dev` — Electron window opens with "CullAI" text rendered by React
+- [x] No TypeScript errors in console
+- [x] Hot reload works — editing `App.tsx` updates the window without restarting Electron
 
 ✅ **Done Criteria:** `npm run dev` opens a blank Electron window with React rendering correctly, no TS errors.
 
