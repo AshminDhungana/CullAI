@@ -1,0 +1,61 @@
+{
+  "name": "cullai",
+  "version": "0.1.0",
+  "description": "AI-powered photo culling for photographers who value their time",
+  "keywords": [
+    "photo",
+    "culling",
+    "ai",
+    "photography",
+    "electron",
+    "react",
+    "typescript",
+    "raw",
+    "lightroom",
+    "image",
+    "selection",
+    "computer",
+    "vision"
+  ],
+  "homepage": "https://github.com/AshminDhungana/CullAI#readme",
+  "bugs": {
+    "url": "https://github.com/AshminDhungana/CullAI/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AshminDhungana/CullAI.git"
+  },
+  "license": "MIT",
+  "author": "Ashmin Dhungana",
+  "type": "commonjs",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "tsx src/main/index.ts",
+    "build": "npm run build:main && npm run build:renderer && electron-builder",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "test": "echo \"Tests coming in Phase 17\" && exit 0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.5.2",
+    "autoprefixer": "^10.5.0",
+    "concurrently": "^9.2.1",
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vite": "^6.3.5",
+    "wait-on": "^9.0.10"
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  }
+}

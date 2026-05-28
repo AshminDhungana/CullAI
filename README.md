@@ -11,7 +11,9 @@
 
 **From memory card to keepers — automatically.**
 
-[Download](#installation) · [Quick Start](#quick-start) · [Features](#features) · [Pricing](#pricing) · [Docs](#usage)
+![Status](https://img.shields.io/badge/Status-Ongoing-yellow)
+
+[Download](#installation) · [Quick Start](#quick-start) · [Features](#features) · [Docs](#usage)
 
 </div>
 

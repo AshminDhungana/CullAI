@@ -37,31 +37,32 @@
 
 ### 1.1 Initialize the Project
 
-- [ ] Run `npm init` and set name to `cullai`, version `0.1.0`
-- [ ] Install Electron: `npm install --save-dev electron`
-- [ ] Install React + TypeScript: `npm install react react-dom` and `npm install --save-dev typescript @types/react @types/react-dom`
-- [ ] Install Tailwind CSS: `npm install --save-dev tailwindcss postcss autoprefixer` and run `npx tailwindcss init`
-- [ ] Install `electron-builder` for packaging: `npm install --save-dev electron-builder`
-- [ ] Install `ts-node` and `tsx` for running TypeScript directly in dev
-- [ ] Install `concurrently` and `wait-on` for dev server coordination
+- [x] Run `npm init` and set name to `cullai`, version `0.1.0`
+- [x] Install Electron: `npm install --save-dev electron`
+- [x] Install React + TypeScript: `npm install react react-dom` and `npm install --save-dev typescript @types/react @types/react-dom`
+- [x] Install Tailwind CSS: `npm install --save-dev tailwindcss@3 postcss autoprefixer` and run `npx tailwindcss init`
+- [x] Install `electron-builder` for packaging: `npm install --save-dev electron-builder`
+- [x] Install `ts-node` and `tsx` for running TypeScript directly in dev
+- [x] Install `concurrently` and `wait-on` for dev server coordination
+      `npm install --save-dev ts-node tsx concurrently wait-on`
 
 ### 1.2 Configure TypeScript
 
-- [ ] Create `tsconfig.json` with two project references:
+- [x] Create `tsconfig.json` with two project references:
   - `tsconfig.main.json` — targets Node.js (CommonJS), covers `src/main/`
   - `tsconfig.renderer.json` — targets browser (ESNext), covers `src/renderer/`
-- [ ] Enable `strict: true`, `esModuleInterop: true` in both configs
-- [ ] Exclude `node_modules` and `dist` from both configs
+- [x] Enable `strict: true`, `esModuleInterop: true` in both configs
+- [x] Exclude `node_modules` and `dist` from both configs
 
 ### 1.3 Build Folder Structure
 
-- [ ] Create `src/main/` — Electron main process files
-- [ ] Create `src/renderer/` — React UI files
-- [ ] Create `src/renderer/screens/` — Setup, Processing, Results screen components
-- [ ] Create `src/renderer/components/` — reusable UI components
-- [ ] Create `src/shared/` — types and constants shared between main + renderer
-- [ ] Create `tests/fixtures/` — sample images for tests (add at least one JPEG now)
-- [ ] Create `tests/` — test files (empty for now)
+- [x] Create `src/main/` — Electron main process files
+- [x] Create `src/renderer/` — React UI files
+- [x] Create `src/renderer/screens/` — Setup, Processing, Results screen components
+- [x] Create `src/renderer/components/` — reusable UI components
+- [x] Create `src/shared/` — types and constants shared between main + renderer
+- [x] Create `tests/fixtures/` — sample images for tests (add at least one JPEG now)
+- [x] Create `tests/` — test files (empty for now)
 
 ### 1.4 Create Core Entry Files
 
