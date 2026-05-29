@@ -108,11 +108,11 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 1.5.1 Create Splash Screen Component
 
-- [ ] Create `src/renderer/components/SplashScreen.tsx`
-- [ ] Design a centered container with CullAI logo + tagline: _"AI-powered photo culling"_
-- [ ] Add a subtle CSS/keyframe animation (fade‑in, pulse, or slide‑up)
-- [ ] Set duration: 1.5–2.5 seconds (configurable via `SPLASH_DURATION_MS` in `src/shared/constants.ts`)
-- [ ] Allow click/tap anywhere to skip to main UI immediately
+- [x] Create `src/renderer/components/SplashScreen.tsx`
+- [x] Design a centered container with CullAI logo + tagline: _"AI-powered photo culling"_
+- [x] Add a subtle CSS/keyframe animation (fade‑in, pulse, or slide‑up)
+- [x] Set duration: 1.5–2.5 seconds (configurable via `SPLASH_DURATION_MS` in `src/shared/constants.ts`)
+- [x] Allow click/tap anywhere to skip to main UI immediately
 
 ### 1.5.2 Integrate with App Startup
 
