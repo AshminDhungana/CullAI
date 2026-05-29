@@ -1,5 +1,5 @@
 /**
  * Splash screen display duration in milliseconds.
- * Configurable between 1500–2500ms. Click anywhere to skip immediately.
+ * Animation is ~1.52s, then holds for ~1.5s before dismissing.
  */
-export const SPLASH_DURATION_MS = 2000;
+export const SPLASH_DURATION_MS = 3000;

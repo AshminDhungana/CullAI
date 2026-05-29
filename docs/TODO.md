@@ -124,9 +124,9 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 1.5.3 Optional — Lottie Animation
 
-- [ ] Install `lottie-react`: `npm install lottie-react`
-- [ ] Create or obtain a lightweight Lottie JSON animation for the logo
-- [ ] Replace CSS animation with Lottie player for a more polished look
+- [x] Install `lottie-react`: `npm install lottie-react`
+- [x] Create or obtain a lightweight Lottie JSON animation for the logo
+- [x] Replace CSS animation with Lottie player for a more polished look
 
 ✅ **Done Criteria:** App starts, shows animated splash for 1.5–2.5 s, then loads Setup screen. Clicking anywhere skips to Setup instantly.
 
