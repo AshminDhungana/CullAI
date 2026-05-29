@@ -116,11 +116,11 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 1.5.2 Integrate with App Startup
 
-- [ ] In `src/renderer/App.tsx`, add a `screen` state with type: `'splash' | 'setup' | 'processing' | 'results'`
-- [ ] Default state to `'splash'`
-- [ ] Render `<SplashScreen onFinish={() => setScreen('setup')} />` while `screen === 'splash'`
-- [ ] On splash finish (timeout or skip), transition to `'setup'`
-- [ ] Preload critical resources (electron‑store, API key decryption) during splash window
+- [x] In `src/renderer/App.tsx`, add a `screen` state with type: `'splash' | 'setup' | 'processing' | 'results'`
+- [x] Default state to `'splash'`
+- [x] Render `<SplashScreen onDismiss={() => setScreen('setup')} />` while `screen === 'splash'`
+- [x] On splash finish (timeout or skip), transition to `'setup'`
+- [x] Preload critical resources (electron‑store, API key decryption) during splash window
 
 ### 1.5.3 Optional — Lottie Animation
 
