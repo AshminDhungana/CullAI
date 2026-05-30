@@ -1,4 +1,4 @@
-## Project Structure
+# Project System Map & Architecture
 
 ```
 cullai/

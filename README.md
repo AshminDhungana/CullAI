@@ -293,6 +293,6 @@ Please make sure tests pass before submitting: `npm test`
 
 <div align="center">
 
-Made for photographers, by photographers. &nbsp;·&nbsp;
+Made for photographers, by photographers.
 
 </div>
