@@ -6,11 +6,12 @@
     "outDir": "./dist/main",
     "rootDir": "./src/main",
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "composite": true,
-    "sourceMap": true,
-    "exclude": ["node_modules", "dist"]
+    "sourceMap": true
   },
-  "include": ["src/main/**/*"]
+  "include": ["src/main/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

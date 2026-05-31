@@ -158,24 +158,24 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
   - Landscape: `{ quality: 25, aesthetic: 25, composition: 20, sharpness: 15, exposure: 15, faceEyes: 0 }`
   - Street: `{ quality: 20, aesthetic: 25, composition: 20, sharpness: 15, exposure: 10, faceEyes: 10 }`
   - Event: `{ quality: 20, aesthetic: 15, composition: 10, sharpness: 20, exposure: 10, faceEyes: 25 }`
-- [ ] Export a `GENRE_PRESETS` map: `Record<GenrePreset, ScoringWeights>`
+- [x] Export a `GENRE_PRESETS` map: `Record<GenrePreset, ScoringWeights>`
 
 ### 2.3 Build ScoringWeightsPanel Component
 
-- [ ] Create `src/renderer/components/ScoringWeightsPanel.tsx`
-- [ ] Render 6 labeled sliders: Quality, Aesthetic, Composition, Sharpness, Exposure, Face & Eyes
-- [ ] Each slider: range 0–100, step 1
-- [ ] Implement auto-normalization: when any slider changes, scale all 6 values so they always sum to exactly 100
-- [ ] Display current % value next to each slider label
-- [ ] Accept `weights: ScoringWeights` and `onChange: (weights: ScoringWeights) => void` as props
+- [x] Create `src/renderer/components/ScoringWeightsPanel.tsx`
+- [x] Render 6 labeled sliders: Quality, Aesthetic, Composition, Sharpness, Exposure, Face & Eyes
+- [x] Each slider: range 0–100, step 1
+- [x] Implement auto-normalization: when any slider changes, scale all 6 values so they always sum to exactly 100
+- [x] Display current % value next to each slider label
+- [x] Accept `weights: ScoringWeights` and `onChange: (weights: ScoringWeights) => void` as props
 
 ### 2.4 Build GenrePresetSelector Component
 
-- [ ] Create `src/renderer/components/GenrePresetSelector.tsx`
-- [ ] Render a styled `<select>` dropdown with all 7 genre options
-- [ ] On selection, emit the chosen `GenrePreset` value
-- [ ] Show a read-only weight preview beneath the dropdown (small text: "Quality 25% · Aesthetic 20% · ...")
-- [ ] Accept `value: GenrePreset` and `onChange: (genre: GenrePreset) => void` as props
+- [x] Create `src/renderer/components/GenrePresetSelector.tsx`
+- [x] Render a styled `<select>` dropdown with all 7 genre options
+- [x] On selection, emit the chosen `GenrePreset` value
+- [x] Show a read-only weight preview beneath the dropdown (small text: "Quality 25% · Aesthetic 20% · ...")
+- [x] Accept `value: GenrePreset` and `onChange: (genre: GenrePreset) => void` as props
 
 ### 2.5 Build the Setup Screen
 

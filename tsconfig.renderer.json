@@ -6,13 +6,14 @@
     "outDir": "./dist/renderer",
     "rootDir": "./src/renderer",
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "composite": true,
     "sourceMap": true,
     "jsx": "react-jsx",
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "exclude": ["node_modules", "dist"]
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/renderer/**/*"]
+  "include": ["src/renderer/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
