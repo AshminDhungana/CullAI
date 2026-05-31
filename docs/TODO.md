@@ -138,7 +138,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.1 Define Shared Types
 
-- [ ] In `src/shared/types.ts`, define:
+- [x] In `src/shared/types.ts`, define:
   - `ScoringWeights` — `{ quality, aesthetic, composition, sharpness, exposure, faceEyes: number }`
   - `GenrePreset` — union of `'general' | 'wedding' | 'portrait' | 'sports' | 'landscape' | 'street' | 'event'`
   - `AIProvider` — union of `'claude' | 'openai' | 'gemini' | 'ollama' | 'custom'`
@@ -150,7 +150,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.2 Define Genre Presets
 
-- [ ] In `src/shared/genre-presets.ts`, define the preset weight table:
+- [x] In `src/shared/genre-presets.ts`, define the preset weight table:
   - General: `{ quality: 25, aesthetic: 20, composition: 15, sharpness: 15, exposure: 10, faceEyes: 15 }`
   - Wedding: `{ quality: 20, aesthetic: 20, composition: 10, sharpness: 15, exposure: 10, faceEyes: 25 }`
   - Portrait: `{ quality: 20, aesthetic: 15, composition: 10, sharpness: 15, exposure: 10, faceEyes: 30 }`
