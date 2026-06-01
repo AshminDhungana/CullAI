@@ -3,47 +3,38 @@
 ```
 cullai/
 ├── docs/                                # Documentation
+│   ├── architecture.md
+│   ├── specs.md
+│   ├── tech_stack.md
+│   └── todo.md
 ├── src/                                 # Source code
 │   ├── main/                            # Electron main process (Node.js)
-│   │   ├── index.ts                     # App entry point
-│   │   ├── ipc-handlers.ts              # IPC bridge to renderer
-│   │   ├── image-processor.ts           # Sharp resize + base64 encoding
-│   │   ├── raw-decoder.ts               # libraw → JPEG/TIFF for RAW formats
-│   │   ├── face-detector.ts             # On-device face/eye/blink detection
-│   │   ├── ai-client.ts                 # OpenAI-compatible API calls
-│   │   ├── batch-scheduler.ts           # Parallel batch manager + rate limiter
-│   │   ├── duplicate-detector.ts        # Perceptual hash grouping
-│   │   ├── session-manager.ts           # Incremental score persistence + resume
-│   │   ├── xmp-writer.ts                # XMP sidecar file generation
-│   │   ├── safe-storage.ts              # safeStorage API key wrapper
-│   │   └── license.ts                   # License tier check (Free / Pro / Lifetime)
+│   │   └── index.ts                     # App entry point
 │   ├── renderer/                        # React UI (Electron window)
+│   │   ├── assets/                      # Static assets
+│   │   ├── components/                  # UI Components
+│   │   │   ├── GenrePresetSelector.tsx
+│   │   │   ├── ScoringWeightsPanel.tsx
+│   │   │   └── SplashScreen.tsx
+│   │   ├── screens/                     # App screens
 │   │   ├── App.tsx
-│   │   ├── screens/
-│   │   │   ├── Setup.tsx                # Configuration screen
-│   │   │   ├── Processing.tsx           # Live progress screen
-│   │   │   └── Results.tsx              # Tiered gallery results
-│   │   └── components/
-│   │       ├── ScoringWeightsPanel.tsx  # 6 sliders, auto-normalized
-│   │       ├── GenrePresetSelector.tsx  # Genre dropdown + weight preview
-│   │       ├── StyleProfileManager.tsx  # Create / load / save profiles
-│   │       ├── ImageTile.tsx            # Tile with score, tier badge, reasoning
-│   │       ├── CompareView.tsx          # Side-by-side 2–4 image comparison
-│   │       ├── FaceOverlay.tsx          # Detected face highlight boxes
-│   │       └── KeyboardCuller.tsx       # Keyboard shortcut handler
+│   │   ├── index.css
+│   │   ├── index.html
+│   │   ├── index.tsx
+│   │   └── main.tsx
 │   └── shared/                          # Types and constants
-│       ├── types.ts
+│       ├── constants.ts
 │       ├── genre-presets.ts
-│       └── constants.ts
-├── tests/
-│   ├── fixtures/                        # Sample images (JPEG, RAW, HEIC)
-│   ├── raw-decoder.test.ts
-│   ├── duplicate-detector.test.ts
-│   ├── face-detector.test.ts
-│   ├── scoring-weights.test.ts
-│   ├── xmp-writer.test.ts
-│   └── session-manager.test.ts
+│       └── types.ts
+├── tests/                               # Test suite
+│   └── fixtures/                        # Sample images (JPEG, RAW, HEIC)
+├── electron-builder.config.ts
 ├── package.json
+├── postcss.config.js
+├── README.md
+├── tailwind.config.js
 ├── tsconfig.json
-└── electron-builder.config.ts
+├── tsconfig.main.json
+├── tsconfig.renderer.json
+└── vite.config.ts
 ```
