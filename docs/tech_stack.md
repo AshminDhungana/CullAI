@@ -53,7 +53,7 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 ### 3.1 Process Separation
 
 - **Main process** (`src/main/`) – Electron main, Node.js APIs, native modules (`libraw`, `sharp`), file system, IPC handlers, face detection, session manager, AI client.
-- **Renderer process** (`src/renderer/`) – React UI, Tailwind styling, no direct Node.js imports. Communicates exclusively via `window.electronAPI` (preload script).
+- **Renderer process** (`src/renderer/`) – React UI, Tailwind styling, no direct Node.js imports. Organized into `/components`, `/screens`, and `/assets`. Communicates exclusively via `window.electronAPI` (preload script).
 - **Shared code** (`src/shared/`) – TypeScript types, constants, genre presets. **Must not import** any Node.js or browser‑only modules.
 
 ### 3.2 IPC Communication Pattern
@@ -236,4 +236,4 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 
 ---
 
-_Last updated: May 2026_
+_Last updated: June 2026_
