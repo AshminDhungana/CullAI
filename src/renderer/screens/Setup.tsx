@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -147,6 +147,10 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [connectionError, setConnectionError] = useState<string>('');
   const [showAdvancedWeights, setShowAdvancedWeights] = useState(false);
   const [isValidatingStep, setIsValidatingStep] = useState(false);
+
+  // Tracks whether the last navigation was forward (+1) or backward (-1).
+  // Used to flip the x-axis on step transitions so Back slides right, not left.
+  const directionRef = useRef<1 | -1>(1);
 
   const {
     control,
@@ -355,6 +359,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     try {
       const canProceed = await canGoNext();
       if (canProceed && currentIndex < STEP_ORDER.length - 1) {
+        directionRef.current = 1;
         setStep(STEP_ORDER[currentIndex + 1]);
       }
     } finally {
@@ -364,8 +369,16 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
 
   const handleBack = () => {
     if (currentIndex > 0) {
+      directionRef.current = -1;
       setStep(STEP_ORDER[currentIndex - 1]);
     }
+  };
+
+  // Clicking a completed step in the indicator
+  const handleStepClick = (targetId: WizardStep) => {
+    const targetIdx = STEP_ORDER.indexOf(targetId);
+    directionRef.current = targetIdx < currentIndex ? -1 : 1;
+    setStep(targetId);
   };
 
   // Step validation status for indicator
@@ -1292,9 +1305,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   // └─ scrollable body: max-w-5xl mx-auto px-4 — the content column.
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0, y: 32 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
       className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-white dark:from-[#0f1117] dark:to-[#0a0c10]"
     >
       {/* ===== STICKY TOP SECTION — full viewport width ===== */}
@@ -1339,7 +1352,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   <React.Fragment key={s.id}>
                     <div className="flex flex-col items-center flex-1 relative">
                       <button
-                        onClick={() => isComplete && setStep(s.id)}
+                        onClick={() => isComplete && handleStepClick(s.id)}
                         disabled={!isComplete}
                         className={`
                           relative z-10 flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300
@@ -1351,7 +1364,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                         {isComplete ? <Check className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                       </button>
                       <button
-                        onClick={() => isComplete && setStep(s.id)}
+                        onClick={() => isComplete && handleStepClick(s.id)}
                         disabled={!isComplete}
                         className={`text-xs mt-2 font-medium hidden sm:block transition-colors ${
                           isCurrent
@@ -1385,13 +1398,19 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       <div className="max-w-5xl mx-auto px-6 py-8">
         {/* Step content with animated transitions */}
         <div className="relative">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" custom={directionRef.current}>
             <motion.div
               key={step}
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -30 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
+              custom={directionRef.current}
+              variants={{
+                enter: (d: number) => ({ opacity: 0, x: d * 36, filter: 'blur(2px)' }),
+                center: { opacity: 1, x: 0, filter: 'blur(0px)' },
+                exit: (d: number) => ({ opacity: 0, x: d * -36, filter: 'blur(2px)' }),
+              }}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
               {step === 'welcome' && renderWelcome()}
               {step === 'project' && renderProject()}

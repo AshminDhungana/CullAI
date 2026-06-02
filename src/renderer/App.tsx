@@ -52,9 +52,9 @@ function App() {
     <div className="relative w-screen h-screen overflow-hidden">
       {/* Splash Layer */}
       <div
-        className={`absolute inset-0 transition-all duration-700 ease-out ${
+        className={`absolute inset-0 transition-all duration-500 ease-in ${
           screen !== "splash" && !transitioning
-            ? "opacity-0 scale-[1.03] blur-sm pointer-events-none"
+            ? "opacity-0 scale-[1.04] blur-md pointer-events-none"
             : "opacity-100 scale-100"
         }`}
       >
@@ -63,10 +63,10 @@ function App() {
 
       {/* Setup Layer */}
       <div
-        className={`absolute inset-0 overflow-y-auto transition-all duration-700 ease-out ${
+        className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
           screen === "setup" || transitioning
             ? "opacity-100 translate-y-0"
-            : "opacity-0 translate-y-4 pointer-events-none"
+            : "opacity-0 translate-y-8 pointer-events-none"
         }`}
       >
         <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
