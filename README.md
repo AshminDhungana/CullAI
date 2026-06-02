@@ -29,6 +29,10 @@ Photographers call the process of manually sorting and selecting shots **culling
 
 ---
 
+## Preview
+
+![Application Screenshot](assets/app_screen.png)
+
 ## Features
 
 ### Core Capabilities
