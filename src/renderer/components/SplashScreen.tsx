@@ -7,99 +7,142 @@ interface SplashScreenProps {
   onDismiss: () => void;
 }
 
-const colorFilters = [
-  { keypath: "flesh.Group 1.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "lence.Group 1.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "lence.Group 2.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "lence.Group 3.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "lence.Group 4.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "lence.Group 5.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "lence.Group 6.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "lence.Group 7.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "lence.Group 8.Fill 1", color: { r: 0.506, g: 0.549, b: 0.973, a: 1 } },
-  { keypath: "circle.Group 1.Fill 1", color: { r: 0.09, g: 0.09, b: 0.11, a: 1 } },
-  { keypath: "circle 2.Group 1.Fill 1", color: { r: 0.31, g: 0.34, b: 0.6, a: 1 } },
-  { keypath: "camera.Group 1.Fill 1", color: { r: 0.09, g: 0.09, b: 0.11, a: 1 } },
-  { keypath: "camera.Group 2.Fill 1", color: { r: 0.09, g: 0.09, b: 0.11, a: 1 } },
-  { keypath: "button.Group 1.Fill 1", color: { r: 0.31, g: 0.34, b: 0.6, a: 1 } },
-];
-
 export function SplashScreen({ onDismiss }: SplashScreenProps) {
   const [dismissing, setDismissing] = useState(false);
-  const [showText, setShowText] = useState(false);
-  const [showTagline, setShowTagline] = useState(false);
-
-  const handleDismiss = () => {
-    if (dismissing) return;
-    setDismissing(true);
-  };
+  const [stage, setStage] = useState<
+    "logo" | "text" | "tagline" | "ready"
+  >("logo");
 
   useEffect(() => {
-    const wordmark = setTimeout(() => setShowText(true), 300);
-    const tagline = setTimeout(() => setShowTagline(true), 800);
+    const t1 = setTimeout(() => setStage("text"), 300);
+    const t2 = setTimeout(() => setStage("tagline"), 800);
+    const t3 = setTimeout(() => setStage("ready"), 1400);
+
     return () => {
-      clearTimeout(wordmark);
-      clearTimeout(tagline);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
     };
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDismissing(true), SPLASH_DURATION_MS);
+    const timer = setTimeout(() => {
+      setDismissing(true);
+    }, SPLASH_DURATION_MS);
+
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
     if (!dismissing) return;
-    const timer = setTimeout(() => onDismiss(), 350);
+
+    const timer = setTimeout(() => {
+      onDismiss();
+    }, 700);
+
     return () => clearTimeout(timer);
   }, [dismissing, onDismiss]);
 
   return (
     <div
-      onClick={handleDismiss}
       className={`
         fixed inset-0 z-50
         flex items-center justify-center
-        bg-white dark:bg-zinc-950 cursor-pointer
-        transition-colors duration-300
-        ${dismissing ? "animate-fade-out" : ""}
+        overflow-hidden
+        bg-white dark:bg-zinc-950
+        transition-all duration-700 ease-out
+        ${
+          dismissing
+            ? "opacity-0 scale-110 blur-sm"
+            : "opacity-100 scale-100 blur-0"
+        }
       `}
     >
-      {/* Radial glow */}
+      {/* Background Glow */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-96 h-96 rounded-full bg-amber-500/10 dark:bg-indigo-500/10 blur-3xl transition-colors" />
+        <div className="w-[500px] h-[500px] rounded-full bg-amber-500/10 dark:bg-indigo-500/10 blur-3xl animate-pulse" />
       </div>
 
-      {/* Main content */}
+      {/* Content */}
       <div className="relative flex flex-col items-center gap-6">
-        <Lottie
-          animationData={logoAnimation}
-          loop={false}
-          autoplay={true}
-          colorFilters={colorFilters}
-          style={{ width: 160, height: 160 }}
-        />
-
+        {/* Logo */}
         <div
           className={`
-            flex flex-col items-center gap-2
-            transition-all duration-700 ease-out
-            ${showText ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"}
+            transition-all duration-1000 ease-out
+            ${
+              stage === "logo"
+                ? "scale-90 opacity-80"
+                : "scale-100 opacity-100"
+            }
           `}
         >
-          <span className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-zinc-100">
-            Cull<span className="text-amber-500 dark:text-indigo-400">AI</span>
+          <Lottie
+            animationData={logoAnimation}
+            loop={false}
+            autoplay
+            style={{
+              width: 160,
+              height: 160,
+            }}
+          />
+        </div>
+
+        {/* Brand */}
+        <div className="flex flex-col items-center gap-2">
+          <span
+            className={`
+              text-4xl font-semibold tracking-tight
+              text-gray-900 dark:text-zinc-100
+              transition-all duration-1000 ease-out
+              ${
+                stage === "text" ||
+                stage === "tagline" ||
+                stage === "ready"
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-4"
+              }
+            `}
+          >
+            Cull
+            <span className="text-amber-500 dark:text-indigo-400">
+              AI
+            </span>
           </span>
 
           <p
             className={`
-              text-xs tracking-widest uppercase text-gray-500 dark:text-zinc-500
-              transition-all duration-700 ease-out
-              ${showTagline ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}
+              text-xs tracking-[0.25em] uppercase
+              text-gray-500 dark:text-zinc-500
+              transition-all duration-1000 ease-out
+              ${
+                stage === "tagline" ||
+                stage === "ready"
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-3"
+              }
             `}
           >
-            AI-powered photo culling
+            Intelligent Photo Selection
           </p>
+
+          <div
+            className={`
+              flex flex-col items-center mt-3 transition-all duration-700
+              ${
+                stage === "ready"
+                  ? "opacity-100"
+                  : "opacity-0"
+              }
+            `}
+          >
+            <p className="text-[11px] tracking-wide text-gray-400 dark:text-zinc-600 mb-3">
+              Initializing AI Engine...
+            </p>
+
+            <div className="w-48 h-[2px] bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+              <div className="loading-bar h-full w-1/3 bg-amber-500 dark:bg-indigo-400" />
+            </div>
+          </div>
         </div>
       </div>
     </div>

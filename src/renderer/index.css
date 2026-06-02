@@ -1,3 +1,17 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes loading {
+0% {
+transform: translateX(-100%);
+}
+
+100% {
+transform: translateX(300%);
+}
+}
+
+.loading-bar {
+animation: loading 1.5s ease-in-out infinite;
+}
