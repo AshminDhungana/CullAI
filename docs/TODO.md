@@ -179,27 +179,27 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.5 Build the Setup Screen
 
-- [ ] Create `src/renderer/screens/Setup.tsx`
-- [ ] **Input folder** — text input + "Browse" button (wire to `window.electronAPI.openFolderDialog()`)
-- [ ] **Output folder** — text input + "Browse" button
-- [ ] **Number of images to select** — optional number input + range slider, min 0, max 999, default 20.
+- [x] Create `src/renderer/screens/Setup.tsx`
+- [x] **Input folder** — text input + "Browse" button (wire to `window.electronAPI.openFolderDialog()`)
+- [x] **Output folder** — text input + "Browse" button
+- [x] **Number of images to select** — optional number input + range slider, min 0, max 999, default 20.
       If set to 0 or left empty, the system will output all S‑tier images (ignoring any count limit).
-- [ ] **Genre preset selector** — embed `GenrePresetSelector`, on change auto-populate scoring weights
-- [ ] **Style profile selector** — dropdown (stub: just shows "No profiles yet"), "Create New" button
-- [ ] **Preference text box** — multi-line textarea, placeholder: `"e.g. sharp, well-lit portraits with natural light"`
-- [ ] **Scoring weights panel** — embed `ScoringWeightsPanel`, weights update when genre preset changes
-- [ ] **API provider selector** — radio buttons or dropdown: Claude / OpenAI / Gemini / Ollama / Custom
-- [ ] **API key input** — password input field, hidden by default, show/hide toggle button
-- [ ] **Base URL input** — text input, shown only when provider is Ollama or Custom
-- [ ] **Model name input** — text input with smart default per provider
-- [ ] **Concurrency setting** — number input, range 1–10, default 5, label: "Parallel API calls"
-- [ ] **Dry-run toggle** — checkbox: "Estimate token cost before processing"
-- [ ] **XMP export toggle** — checkbox: "Write Lightroom/Capture One sidecar files"
-- [ ] **Lightroom integration mode** — radio: "Rate originals in-place" vs. "Copy keepers to output folder"
-- [ ] **Image Limiting Options** — When output falls short of requested count:
-  - [ ] **Stop** — output only the available keepers (S+A)
-  - [ ] **Fill with B‑tier images** — automatically promote best B‑tier to reach the target
-  - [ ] **If still not filled, fill with Rejected images** — automatically promote best rejected to reach the target
+- [x] **Genre preset selector** — embed `GenrePresetSelector`, on change auto-populate scoring weights
+- [x] **Style profile selector** — dropdown (stub: just shows "No profiles yet"), "Create New" button
+- [x] **Preference text box** — multi-line textarea, placeholder: `"e.g. sharp, well-lit portraits with natural light"`
+- [x] **Scoring weights panel** — embed `ScoringWeightsPanel`, weights update when genre preset changes
+- [x] **API provider selector** — radio buttons or dropdown: Claude / OpenAI / Gemini / Ollama / Custom
+- [x] **API key input** — password input field, hidden by default, show/hide toggle button
+- [x] **Base URL input** — text input, shown only when provider is Ollama or Custom
+- [x] **Model name input** — text input with smart default per provider
+- [x] **Concurrency setting** — number input, range 1–10, default 5, label: "Parallel API calls"
+- [x] **Dry-run toggle** — checkbox: "Estimate token cost before processing"
+- [x] **XMP export toggle** — checkbox: "Write Lightroom/Capture One sidecar files"
+- [x] **Lightroom integration mode** — radio: "Rate originals in-place" vs. "Copy keepers to output folder"
+- [x] **Image Limiting Options** — When output falls short of requested count:
+  - [x] **Stop** — output only the available keepers (S+A)
+  - [x] **Fill with B‑tier images** — automatically promote best B‑tier to reach the target
+  - [x] **If still not filled, fill with Rejected images** — automatically promote best rejected to reach the target
 
 ### 2.6 Add Extension Filter Component
 

@@ -55,8 +55,13 @@
     "wait-on": "^9.0.10"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.4.0",
+    "framer-motion": "^12.40.0",
     "lottie-react": "^2.4.1",
+    "lucide-react": "^1.17.0",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "react-hook-form": "^7.77.0",
+    "zod": "^4.4.3"
   }
 }
