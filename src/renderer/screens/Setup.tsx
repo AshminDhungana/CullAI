@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   Cpu,
+  FileImage,
   FileJson,
   Copy,
   AlertTriangle,
@@ -35,6 +36,7 @@ import {
   Globe,
   Star,
 } from 'lucide-react';
+import ExtensionFilter from '../components/ExtensionFilter';
 import GenrePresetSelector from '../components/GenrePresetSelector';
 import ScoringWeightsPanel from '../components/ScoringWeightsPanel';
 import type { AppSettings, AIProvider } from '../../shared/types';
@@ -627,6 +629,39 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           )}
         />
       </motion.div>
+
+      {/* Row 3: Extension Filter — only visible once a folder is chosen */}
+      {watchedInputFolder && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] shadow-sm p-5"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+              <FileImage className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">File Type Filter</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Choose which formats to include in this culling run
+              </p>
+            </div>
+          </div>
+          <Controller
+            name="extensionFilter"
+            control={control}
+            render={({ field }) => (
+              <ExtensionFilter
+                inputFolder={watchedInputFolder}
+                value={field.value ?? []}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        </motion.div>
+      )}
     </div>
   );
 
