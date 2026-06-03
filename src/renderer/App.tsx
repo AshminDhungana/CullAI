@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { SplashScreen } from "./components/SplashScreen";
 import SetupScreen from "./screens/Setup";
+import ProcessingScreen from "./screens/Processing";
+import ResultsScreen from "./screens/Results";
 import type { AppSettings } from "../shared/types";
+import { defaultAppSettings } from "../shared/types";
 import { useTheme } from "./hooks/useTheme";
 import { Sun, Moon } from "lucide-react";
 
@@ -16,6 +19,11 @@ function App() {
   const [preloadDone, setPreloadDone] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
+
+  // Holds the settings chosen in Setup so Processing + Results can read them.
+  // Initialised with defaults so the type is always non-nullable downstream.
+  const [currentSettings, setCurrentSettings] = useState<AppSettings>(defaultAppSettings());
+
   const { toggle, isDark } = useTheme();
 
   useEffect(() => {
@@ -32,11 +40,30 @@ function App() {
     }
   }, [preloadDone, splashDone, screen]);
 
+  // ── Screen transition handlers ─────────────────────────────────────────────
+
+  /** Called by Setup's "Start Culling" button. */
   const handleStartCulling = (settings: AppSettings) => {
-    console.log("Starting culling with settings:", settings);
+    setCurrentSettings(settings);
     setScreen("processing");
   };
 
+  /** Cancel out of Processing → back to Setup. */
+  const handleCancelProcessing = () => {
+    setScreen("setup");
+  };
+
+  /** Pipeline signals completion (Phase 10) → show Results. */
+  const handleProcessingComplete = () => {
+    setScreen("results");
+  };
+
+  /** Results → back to Setup for another run. */
+  const handleBackToSetup = () => {
+    setScreen("setup");
+  };
+
+  // ── Theme toggle widget ────────────────────────────────────────────────────
   const ThemeToggle = () => (
     <button
       onClick={toggle}
@@ -47,10 +74,23 @@ function App() {
     </button>
   );
 
-  // Always use the two‑layer layout, no remounting
+  // ── Render ─────────────────────────────────────────────────────────────────
+  //
+  // All four layers live in the DOM simultaneously — only the active one is
+  // visible.  This avoids remounting and gives smooth opacity + translate
+  // transitions between screens.
+  //
+  // Transition matrix:
+  //   splash  → setup       (fade + scale on splash exit, slide-up on setup enter)
+  //   setup   → processing  (slide-up)
+  //   processing → setup    (cancel;  slide-down)
+  //   processing → results  (complete; slide-up)
+  //   results → setup       (back;    slide-down)
+
   return (
-    <div className="relative w-screen h-screen overflow-hidden">
-      {/* Splash Layer */}
+    <div className="relative w-screen h-screen overflow-hidden bg-gray-50 dark:bg-[#0f1117]">
+
+      {/* ── Splash ─────────────────────────────────────────────────────────── */}
       <div
         className={`absolute inset-0 transition-all duration-500 ease-in ${
           screen !== "splash" && !transitioning
@@ -61,7 +101,7 @@ function App() {
         <SplashScreen onDismiss={() => setSplashDone(true)} />
       </div>
 
-      {/* Setup Layer */}
+      {/* ── Setup ──────────────────────────────────────────────────────────── */}
       <div
         className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
           screen === "setup" || transitioning
@@ -77,7 +117,39 @@ function App() {
         </div>
       </div>
 
-      {/* Optional Processing Layer – add later if needed */}
+      {/* ── Processing ─────────────────────────────────────────────────────── */}
+      <div
+        className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
+          screen === "processing"
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 translate-y-8 pointer-events-none"
+        }`}
+      >
+        <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
+          <ProcessingScreen
+            settings={currentSettings}
+            onCancel={handleCancelProcessing}
+            onComplete={handleProcessingComplete}
+          />
+        </div>
+      </div>
+
+      {/* ── Results ────────────────────────────────────────────────────────── */}
+      <div
+        className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
+          screen === "results"
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 translate-y-8 pointer-events-none"
+        }`}
+      >
+        <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
+          <ResultsScreen
+            settings={currentSettings}
+            onBack={handleBackToSetup}
+          />
+        </div>
+      </div>
+
     </div>
   );
 }
