@@ -42,6 +42,8 @@ import PrefixFilter from '../components/PrefixFilter';
 import GenrePresetSelector from '../components/GenrePresetSelector';
 import ReferenceImageUpload from '../components/ReferenceImageUpload';
 import ScoringWeightsPanel from '../components/ScoringWeightsPanel';
+import RecentFoldersDropdown from '../components/RecentFoldersDropdown';
+import { useRecentFolders } from '../hooks/useRecentFolders';
 import type { AppSettings, AIProvider, ReferenceImage } from '../../shared/types';
 import { defaultAppSettings } from '../../shared/types';
 import { GENRE_PRESETS } from '../../shared/genre-presets';
@@ -157,6 +159,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [connectionError, setConnectionError] = useState<string>('');
   const [showAdvancedWeights, setShowAdvancedWeights] = useState(false);
   const [isValidatingStep, setIsValidatingStep] = useState(false);
+
+  // Recent folder history — persisted in electron-store via dedicated IPC channels.
+  const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
 
   // Tracks whether the last navigation was forward (+1) or backward (-1).
   // Used to flip the x-axis on step transitions so Back slides right, not left.
@@ -292,6 +297,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       if (folder) {
         setValue('inputFolder', folder, { shouldDirty: true, shouldValidate: true });
         await validateInputFolder(folder);
+        await addRecentInput(folder);
       }
     } catch (err) {
       console.error('Failed to open folder dialog:', err);
@@ -304,10 +310,32 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       const folder = await window.electronAPI.openFolderDialog();
       if (folder) {
         setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
+        await addRecentOutput(folder);
       }
     } catch (err) {
       console.error('Failed to open folder dialog:', err);
     }
+  };
+
+  /**
+   * Called when the user picks a path from the "Recent" dropdown on the input
+   * card. Fills the field, triggers validation, and moves the path to the top
+   * of the recent list (de-duped by the IPC handler).
+   */
+  const handleSelectRecentInput = async (folder: string) => {
+    setValue('inputFolder', folder, { shouldDirty: true, shouldValidate: true });
+    await validateInputFolder(folder);
+    await addRecentInput(folder);
+  };
+
+  /**
+   * Called when the user picks a path from the "Recent" dropdown on the output
+   * card. Fills the field, triggers validation, and moves the path to the top
+   * of the recent list.
+   */
+  const handleSelectRecentOutput = async (folder: string) => {
+    setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
+    await addRecentOutput(folder);
   };
 
   const testConnection = async () => {
@@ -528,6 +556,10 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                       : `${folderScanCount} images detected`}
                   </p>
                 )}
+                <RecentFoldersDropdown
+                  paths={recentInput}
+                  onSelect={handleSelectRecentInput}
+                />
               </>
             )}
           />
@@ -584,6 +616,10 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                     Output folder set
                   </p>
                 )}
+                <RecentFoldersDropdown
+                  paths={recentOutput}
+                  onSelect={handleSelectRecentOutput}
+                />
               </>
             )}
           />

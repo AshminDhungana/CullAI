@@ -27,6 +27,9 @@ import type Store from 'electron-store';
  */
 type StoredSettings = Record<string, unknown>;
 
+/** Maximum number of recent folder paths to retain per kind. */
+const RECENT_FOLDERS_MAX = 10;
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -63,6 +66,46 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
     store.set('settings', settings);
     return true;
   });
+
+  // -------------------------------------------------------------------------
+  // Recent folders
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns both recent-folder lists in a single round-trip.
+   * Each list is ordered newest-first, capped at RECENT_FOLDERS_MAX entries.
+   */
+  ipcMain.handle('recent-folders-get', () => {
+    const input  = store.get('recentInputFolders',  []) as string[];
+    const output = store.get('recentOutputFolders', []) as string[];
+    return { input, output };
+  });
+
+  /**
+   * Prepends `path` to the appropriate recent list, removes any duplicate
+   * occurrence of the same path, and trims to RECENT_FOLDERS_MAX entries.
+   * Returns the updated list so the renderer can update local state without
+   * a second round-trip.
+   */
+  ipcMain.handle(
+    'recent-folders-update',
+    (_event, payload: { kind: 'input' | 'output'; path: string }) => {
+      if (!payload?.path || typeof payload.path !== 'string') {
+        throw new Error('recent-folders-update: path must be a non-empty string');
+      }
+      if (payload.kind !== 'input' && payload.kind !== 'output') {
+        throw new Error("recent-folders-update: kind must be 'input' or 'output'");
+      }
+
+      const key = payload.kind === 'input' ? 'recentInputFolders' : 'recentOutputFolders';
+      const current = store.get(key, []) as string[];
+      const updated = [payload.path, ...current.filter(p => p !== payload.path)]
+        .slice(0, RECENT_FOLDERS_MAX);
+
+      store.set(key, updated);
+      return updated;
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Folder helpers
