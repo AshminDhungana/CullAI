@@ -231,19 +231,19 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.9 Wire App Routing
 
-- [ ] The `screen` state is already defined in `App.tsx` (from Phase 1.5): `'splash' | 'setup' | 'processing' | 'results'`
-- [ ] Render `<Setup />` when `screen === 'setup'`, `<Processing />` when `'processing'`, `<Results />` when `'results'`
-- [ ] "Start Culling" button in Setup transitions `screen` to `'processing'`
-- [ ] Apply Tailwind dark theme base styles — dark background, light text, amber/gold accent color
+- [x] The `screen` state is already defined in `App.tsx` (from Phase 1.5): `'splash' | 'setup' | 'processing' | 'results'`
+- [x] Render `<Setup />` when `screen === 'setup'`, `<Processing />` when `'processing'`, `<Results />` when `'results'`
+- [x] "Start Culling" button in Setup transitions `screen` to `'processing'`
+- [x] Apply Tailwind dark theme base styles — dark background, light text, amber/gold accent color
 
 ### 2.10 Persist Settings with electron-store
 
-- [ ] Install `electron-store`: `npm install electron-store`
-- [ ] Create IPC handler in `src/main/ipc-handlers.ts`: `'settings-get'` and `'settings-set'`
-- [ ] Expose `window.electronAPI.getSettings()` and `window.electronAPI.saveSettings()` via preload script
-- [ ] On Setup screen mount, load persisted settings and populate all fields
-- [ ] On any field change, auto-save settings via debounced IPC call
-- [ ] Verify settings survive app restart
+- [x] Install `electron-store`: `npm install electron-store`
+- [x] Create IPC handler in `src/main/ipc-handlers.ts`: `'settings-get'` and `'settings-set'`
+- [x] Expose `window.electronAPI.getSettings()` and `window.electronAPI.saveSettings()` via preload script
+- [x] On Setup screen mount, load persisted settings and populate all fields
+- [x] On any field change, auto-save settings via debounced IPC call
+- [x] Verify settings survive app restart
 
 ### 2.11 🔥 Recent Folders Dropdown
 
