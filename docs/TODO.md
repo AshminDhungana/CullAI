@@ -247,10 +247,10 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.11 🔥 Recent Folders Dropdown
 
-- [ ] Add a dropdown component "Recent input folders" and "Recent output folders" below the folder selection fields
-- [ ] Store last 10 unique paths in `electron-store` under `recentInputFolders` / `recentOutputFolders`
-- [ ] On folder selection (via browse or manual entry), update the recent list (move to top, remove duplicates)
-- [ ] Clicking a recent folder auto‑fills the corresponding field and triggers validation
+- [x] Add a dropdown component "Recent input folders" and "Recent output folders" below the folder selection fields
+- [x] Store last 10 unique paths in `electron-store` under `recentInputFolders` / `recentOutputFolders`
+- [x] On folder selection (via browse or manual entry), update the recent list (move to top, remove duplicates)
+- [x] Clicking a recent folder auto‑fills the corresponding field and triggers validation
 
 ### 2.12 🔥 "Open in Explorer/Finder" Buttons
 

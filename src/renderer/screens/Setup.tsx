@@ -111,7 +111,7 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
 }
 
 // -----------------------------------------------------------------------------
-// Wizard steps (6 steps: welcome, project, scoring, ai, options, review)
+// Wizard steps
 // -----------------------------------------------------------------------------
 type WizardStep = 'welcome' | 'project' | 'scoring' | 'ai' | 'options' | 'review';
 
@@ -126,15 +126,15 @@ const STEPS: { id: WizardStep; label: string; icon: React.ElementType; descripti
 
 const STEP_ORDER: WizardStep[] = ['welcome', 'project', 'scoring', 'ai', 'options', 'review'];
 
-// Human-readable labels for enum review display
+// Human-readable labels for review display
 const SHORTFALL_LABELS: Record<string, string> = {
   stop: 'Stop — output available keepers only',
-  fillWithB: 'Fill with B-tier images',
-  fillWithRejected: 'Fill with B-tier, then rejected',
+  fillWithB: 'Fill with B‑tier images',
+  fillWithRejected: 'Fill with B‑tier, then rejected',
 };
 
 const LIGHTROOM_MODE_LABELS: Record<string, string> = {
-  rateInPlace: 'Rate originals in-place',
+  rateInPlace: 'Rate originals in‑place',
   copyToOutput: 'Copy keepers to output folder',
 };
 
@@ -160,11 +160,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [showAdvancedWeights, setShowAdvancedWeights] = useState(false);
   const [isValidatingStep, setIsValidatingStep] = useState(false);
 
-  // Recent folder history — persisted in electron-store via dedicated IPC channels.
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
-
-  // Tracks whether the last navigation was forward (+1) or backward (-1).
-  // Used to flip the x-axis on step transitions so Back slides right, not left.
   const directionRef = useRef<1 | -1>(1);
 
   const {
@@ -215,6 +211,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             prefixFilter: stored.prefixFilter || [],
             prefixCaseInsensitive: stored.prefixCaseInsensitive ?? true,
             referenceImage: stored.referenceImage ?? null,
+            disableDuplicateGrouping: stored.disableDuplicateGrouping ?? false,
+            duplicateThreshold: stored.duplicateThreshold ?? 10,
+            maxFacesPerImage: stored.maxFacesPerImage ?? 0,
           });
         }
       } catch (err) {
@@ -236,6 +235,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           prefixFilter: values.prefixFilter || [],
           prefixCaseInsensitive: values.prefixCaseInsensitive ?? true,
           referenceImage: values.referenceImage ?? null,
+          disableDuplicateGrouping: values.disableDuplicateGrouping ?? false,
+          duplicateThreshold: values.duplicateThreshold ?? 10,
+          maxFacesPerImage: values.maxFacesPerImage ?? 0,
         };
         // @ts-expect-error
         await window.electronAPI.saveSettings(toStore);
@@ -317,22 +319,12 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     }
   };
 
-  /**
-   * Called when the user picks a path from the "Recent" dropdown on the input
-   * card. Fills the field, triggers validation, and moves the path to the top
-   * of the recent list (de-duped by the IPC handler).
-   */
   const handleSelectRecentInput = async (folder: string) => {
     setValue('inputFolder', folder, { shouldDirty: true, shouldValidate: true });
     await validateInputFolder(folder);
     await addRecentInput(folder);
   };
 
-  /**
-   * Called when the user picks a path from the "Recent" dropdown on the output
-   * card. Fills the field, triggers validation, and moves the path to the top
-   * of the recent list.
-   */
   const handleSelectRecentOutput = async (folder: string) => {
     setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
     await addRecentOutput(folder);
@@ -427,14 +419,12 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     }
   };
 
-  // Clicking a completed step in the indicator
   const handleStepClick = (targetId: WizardStep) => {
     const targetIdx = STEP_ORDER.indexOf(targetId);
     directionRef.current = targetIdx < currentIndex ? -1 : 1;
     setStep(targetId);
   };
 
-  // Step validation status for indicator
   const getStepStatus = (stepId: WizardStep): 'complete' | 'current' | 'pending' => {
     const idx = STEP_ORDER.indexOf(stepId);
     if (idx < currentIndex) return 'complete';
@@ -443,7 +433,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   };
 
   // ---------------------------------------------------------------------------
-  // Render functions for each step
+  // Render functions for each step (two‑column dashboard layout)
   // ---------------------------------------------------------------------------
   const renderWelcome = () => (
     <motion.div
@@ -492,450 +482,409 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     </motion.div>
   );
 
+  // Project step: two columns
   const renderProject = () => (
-    // Layout change: expand from narrow max-w-2xl single-column to full max-w-4xl
-    // two-column grid so all three controls fit in one viewport without scrolling.
-    // Row 1: Photos card (left) + Output card (right) — equal width, same height.
-    // Row 2: Image count — full width, compact single-line layout.
-    <div className="max-w-4xl mx-auto space-y-4">
-
-      {/* Row 1: Folder pickers side-by-side */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* Input Folder Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] shadow-sm hover:shadow-md transition-all p-5"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
-              <FolderOpen className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+    <div className="max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left column */}
+        <div className="space-y-6">
+          {/* Input Folder Card */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+                <FolderOpen className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Photos</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Folder containing your images</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Photos</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Folder containing your images</p>
-            </div>
+            <Controller
+              name="inputFolder"
+              control={control}
+              render={({ field }) => (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="flex-1 bg-gray-50 dark:bg-[#0f1117] rounded-lg px-3 py-2.5 font-mono text-sm text-gray-700 dark:text-gray-300 truncate border border-gray-200 dark:border-[#1e2535] min-h-[40px] flex items-center"
+                      title={field.value || 'No folder selected'}
+                    >
+                      <span className={field.value ? '' : 'text-gray-400 dark:text-gray-600'}>
+                        {field.value || 'No folder selected'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleBrowseInput}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Browse
+                    </button>
+                  </div>
+                  {folderScanCount !== null && field.value && !errors.inputFolder && (
+                    <p className={`text-xs mt-2 flex items-center gap-1 ${
+                      folderScanCount === 0
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {folderScanCount === 0 ? (
+                        <AlertTriangle className="w-3 h-3" />
+                      ) : (
+                        <CheckCircle2 className="w-3 h-3" />
+                      )}
+                      {folderScanCount === 0
+                        ? 'No images found in this folder'
+                        : `${folderScanCount} images detected`}
+                    </p>
+                  )}
+                  <RecentFoldersDropdown
+                    paths={recentInput}
+                    onSelect={handleSelectRecentInput}
+                  />
+                </>
+              )}
+            />
+            {errors.inputFolder && (
+              <p className="text-red-500 dark:text-red-400 text-xs mt-2 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {errors.inputFolder.message}
+              </p>
+            )}
           </div>
-          <Controller
-            name="inputFolder"
-            control={control}
-            render={({ field }) => (
-              <>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="flex-1 min-w-0 bg-gray-50 dark:bg-[#0f1117] rounded-lg px-3 py-2.5 font-mono text-sm text-gray-700 dark:text-gray-300 truncate border border-gray-200 dark:border-[#1e2535] min-h-[40px] flex items-center"
-                    title={field.value || 'No folder selected'}
-                  >
-                    <span className={field.value ? '' : 'text-gray-400 dark:text-gray-600'}>
-                      {field.value || 'No folder selected'}
+
+          {/* Image Count Card */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-5">
+            <Controller
+              name="numImagesToSelect"
+              control={control}
+              render={({ field }) => (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Images to select
+                    </label>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      (0 = all S‑tier)
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleBrowseInput}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
-                  >
-                    <FolderOpen className="w-4 h-4" />
-                    Browse
-                  </button>
-                </div>
-                {folderScanCount !== null && field.value && !errors.inputFolder && (
-                  <p className={`text-xs mt-2 flex items-center gap-1 ${
-                    folderScanCount === 0
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-emerald-600 dark:text-emerald-400'
-                  }`}>
-                    {folderScanCount === 0 ? (
-                      <AlertTriangle className="w-3 h-3" />
-                    ) : (
-                      <CheckCircle2 className="w-3 h-3" />
-                    )}
-                    {folderScanCount === 0
-                      ? 'No images found in this folder'
-                      : `${folderScanCount} images detected`}
-                  </p>
-                )}
-                <RecentFoldersDropdown
-                  paths={recentInput}
-                  onSelect={handleSelectRecentInput}
-                />
-              </>
-            )}
-          />
-          {errors.inputFolder && (
-            <p className="text-red-500 dark:text-red-400 text-xs mt-2 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              {errors.inputFolder.message}
-            </p>
-          )}
-        </motion.div>
-
-        {/* Output Folder Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] shadow-sm hover:shadow-md transition-all p-5"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
-              <Save className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Output</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Where to save the results</p>
-            </div>
-          </div>
-          <Controller
-            name="outputFolder"
-            control={control}
-            render={({ field }) => (
-              <>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="flex-1 min-w-0 bg-gray-50 dark:bg-[#0f1117] rounded-lg px-3 py-2.5 font-mono text-sm text-gray-700 dark:text-gray-300 truncate border border-gray-200 dark:border-[#1e2535] min-h-[40px] flex items-center"
-                    title={field.value || 'No folder selected'}
-                  >
-                    <span className={field.value ? '' : 'text-gray-400 dark:text-gray-600'}>
-                      {field.value || 'No folder selected'}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      {...field}
+                      type="number"
+                      min={0}
+                      max={999}
+                      step={1}
+                      onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                      className="w-24 bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                    />
+                    <span className="text-gray-500 dark:text-gray-400 text-sm">images</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleBrowseOutput}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
-                  >
-                    <FolderOpen className="w-4 h-4" />
-                    Browse
-                  </button>
-                </div>
-                {field.value && !errors.outputFolder && (
-                  <p className="text-xs mt-2 flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Output folder set
-                  </p>
-                )}
-                <RecentFoldersDropdown
-                  paths={recentOutput}
-                  onSelect={handleSelectRecentOutput}
-                />
-              </>
-            )}
-          />
-          {errors.outputFolder && (
-            <p className="text-red-500 dark:text-red-400 text-xs mt-2 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              {errors.outputFolder.message}
-            </p>
-          )}
-        </motion.div>
-      </div>
-
-      {/* Row 2: Selection Count — compact horizontal layout */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-5"
-      >
-        <Controller
-          name="numImagesToSelect"
-          control={control}
-          render={({ field }) => (
-            <div className="flex items-center gap-6">
-              {/* Label + number input — fixed left column */}
-              <div className="shrink-0">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Images to select
-                  <span className="text-gray-400 dark:text-gray-600 ml-1.5 text-xs font-normal">(0 = all S-tier)</span>
-                </p>
-                <div className="flex items-center gap-2">
                   <input
-                    {...field}
-                    type="number"
+                    type="range"
                     min={0}
                     max={999}
                     step={1}
-                    onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
-                    className="w-20 bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                    value={field.value}
+                    onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                    className="w-full h-1.5 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
                   />
-                  <span className="text-gray-500 dark:text-gray-500 text-sm">images</span>
+                  <p className="text-gray-400 dark:text-gray-600 text-xs">
+                    {field.value === 0
+                      ? 'Will output all S‑tier images (no limit)'
+                      : `Will select the top ${field.value} best images`}
+                  </p>
+                </div>
+              )}
+            />
+          </div>
+
+          {/* Prefix Filter Card */}
+          {watchedInputFolder && (
+            <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+                  <Filter className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Filename Prefix Filter</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Only include files starting with specific prefixes
+                  </p>
                 </div>
               </div>
-
-              {/* Divider */}
-              <div className="w-px self-stretch bg-gray-200 dark:bg-[#1e2535] shrink-0" />
-
-              {/* Slider — takes up remaining space */}
-              <div className="flex-1 min-w-0">
-                <input
-                  type="range"
-                  min={0}
-                  max={999}
-                  step={1}
-                  value={field.value}
-                  onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
-                  className="w-full h-1.5 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                />
-                <p className="text-gray-400 dark:text-gray-600 text-xs mt-1.5">
-                  {field.value === 0
-                    ? 'Will output all S‑tier images (no limit)'
-                    : `Will select the top ${field.value} best images`}
-                </p>
-              </div>
-            </div>
-          )}
-        />
-      </motion.div>
-
-      {/* Row 3: Extension Filter — only visible once a folder is chosen */}
-      {watchedInputFolder && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] shadow-sm p-5"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
-              <FileImage className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">File Type Filter</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Choose which formats to include in this culling run
-              </p>
-            </div>
-          </div>
-          <Controller
-            name="extensionFilter"
-            control={control}
-            render={({ field }) => (
-              <ExtensionFilter
-                inputFolder={watchedInputFolder}
-                value={field.value ?? []}
-                onChange={field.onChange}
-              />
-            )}
-          />
-        </motion.div>
-      )}
-
-      {/* Row 4: Prefix Filter — only visible once a folder is chosen */}
-      {watchedInputFolder && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] shadow-sm p-5"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
-              <Filter className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Filename Prefix Filter</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Only include files starting with specific prefixes
-              </p>
-            </div>
-          </div>
-          <Controller
-            name="prefixFilter"
-            control={control}
-            render={({ field }) => (
               <Controller
-                name="prefixCaseInsensitive"
+                name="prefixFilter"
                 control={control}
-                render={({ field: ciField }) => (
-                  <PrefixFilter
-                    inputFolder={watchedInputFolder}
-                    value={field.value ?? []}
-                    onChange={field.onChange}
-                    caseInsensitive={ciField.value ?? true}
-                    onCaseInsensitiveChange={ciField.onChange}
+                render={({ field }) => (
+                  <Controller
+                    name="prefixCaseInsensitive"
+                    control={control}
+                    render={({ field: ciField }) => (
+                      <PrefixFilter
+                        inputFolder={watchedInputFolder}
+                        value={field.value ?? []}
+                        onChange={field.onChange}
+                        caseInsensitive={ciField.value ?? true}
+                        onCaseInsensitiveChange={ciField.onChange}
+                      />
+                    )}
                   />
                 )}
               />
-            )}
-          />
-        </motion.div>
-      )}
-    </div>
-  );
-
-  const renderScoring = () => (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Genre Selection */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
-      >
-        <Controller
-          name="genre"
-          control={control}
-          render={({ field }) => (
-            <>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Choose Genre</label>
-              <GenrePresetSelector value={field.value} onChange={field.onChange} />
-            </>
+            </div>
           )}
-        />
-      </motion.div>
+        </div>
 
-      {/* Customize Button */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="text-center"
-      >
-        <button
-          type="button"
-          onClick={() => setShowAdvancedWeights(!showAdvancedWeights)}
-          className="text-sm text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 mx-auto"
-        >
-          {showAdvancedWeights ? 'Hide' : 'Customize Advanced Scoring'}
-          <Sliders className="w-3 h-3" />
-        </button>
-      </motion.div>
-
-      {/* Advanced Weights Panel (collapsible) */}
-      <AnimatePresence>
-        {showAdvancedWeights && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
+        {/* Right column */}
+        <div className="space-y-6">
+          {/* Output Folder Card */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+                <Save className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Output</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Where to save the results</p>
+              </div>
+            </div>
             <Controller
-              name="weights"
+              name="outputFolder"
               control={control}
-              render={({ field }) => <ScoringWeightsPanel weights={field.value} onChange={field.onChange} />}
+              render={({ field }) => (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="flex-1 bg-gray-50 dark:bg-[#0f1117] rounded-lg px-3 py-2.5 font-mono text-sm text-gray-700 dark:text-gray-300 truncate border border-gray-200 dark:border-[#1e2535] min-h-[40px] flex items-center"
+                      title={field.value || 'No folder selected'}
+                    >
+                      <span className={field.value ? '' : 'text-gray-400 dark:text-gray-600'}>
+                        {field.value || 'No folder selected'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleBrowseOutput}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Browse
+                    </button>
+                  </div>
+                  {field.value && !errors.outputFolder && (
+                    <p className="text-xs mt-2 flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Output folder set
+                    </p>
+                  )}
+                  <RecentFoldersDropdown
+                    paths={recentOutput}
+                    onSelect={handleSelectRecentOutput}
+                  />
+                </>
+              )}
             />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Style Preference & Reference Image */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6 space-y-6"
-      >
-        {/* Section header */}
-        <div className="flex items-center gap-3 mb-1">
-          <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
-            <ImageIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Custom Instructions & Reference Image</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Guide the AI with your preferred style</p>
-          </div>
-        </div>
-
-        {/* Style preference textarea */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-            <Info className="w-4 h-4 text-amber-500" />
-            Style preference (optional)
-          </label>
-          <Controller
-            name="preferenceText"
-            control={control}
-            render={({ field }) => (
-              <textarea
-                {...field}
-                rows={3}
-                placeholder="e.g. sharp, well-lit portraits with natural light, candid moments"
-                className="w-full bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
-              />
+            {errors.outputFolder && (
+              <p className="text-red-500 dark:text-red-400 text-xs mt-2 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {errors.outputFolder.message}
+              </p>
             )}
-          />
-        </div>
+          </div>
 
-        {/* Divider */}
-        <div className="border-t border-gray-100 dark:border-[#1e2535]" />
-
-        {/* Reference Image Upload */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            Reference Image (optional)
-          </label>
-          <Controller
-            name="referenceImage"
-            control={control}
-            render={({ field }) => (
-              <ReferenceImageUpload
-                value={field.value ?? null}
-                onChange={(img) => field.onChange(img)}
+          {/* Extension Filter Card */}
+          {watchedInputFolder && (
+            <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+                  <FileImage className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm">File Type Filter</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Choose which formats to include
+                  </p>
+                </div>
+              </div>
+              <Controller
+                name="extensionFilter"
+                control={control}
+                render={({ field }) => (
+                  <ExtensionFilter
+                    inputFolder={watchedInputFolder}
+                    value={field.value ?? []}
+                    onChange={field.onChange}
+                  />
+                )}
               />
-            )}
-          />
+            </div>
+          )}
+
+          {/* Summary / hint card (optional) */}
+          <div className="bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-900/30 p-5">
+            <div className="flex gap-3">
+              <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div className="text-xs text-amber-800 dark:text-amber-300">
+                <p className="font-medium">Filter tips</p>
+                <p className="mt-1">Use extension and prefix filters to narrow down which images are analyzed. Leave empty to include all supported formats.</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 
-  const renderAI = () => (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Provider selection as cards */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
-      >
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">AI Engine</label>
-        <div className="grid grid-cols-2 gap-3">
-          {(['claude', 'openai', 'gemini', 'ollama'] as AIProvider[]).map((prov) => (
-            <button
-              key={prov}
-              type="button"
-              onClick={() => setValue('provider', prov, { shouldDirty: true })}
-              className={`p-3 rounded-xl border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#161b27] ${
-                watchedProvider === prov
-                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 ring-2 ring-amber-500/20'
-                  : 'border-gray-200 dark:border-[#1e2535] hover:border-amber-300 dark:hover:border-amber-700'
-              }`}
-            >
-              <div className="font-medium capitalize text-gray-900 dark:text-white">{prov}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {prov === 'claude' && 'Anthropic'}
-                {prov === 'openai' && 'GPT-4o / o1'}
-                {prov === 'gemini' && 'Google Gemini'}
-                {prov === 'ollama' && 'Local (free)'}
-              </div>
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => setValue('provider', 'custom', { shouldDirty: true })}
-          className={`mt-3 w-full p-3 rounded-xl border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#161b27] ${
-            watchedProvider === 'custom'
-              ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 ring-2 ring-amber-500/20'
-              : 'border-gray-200 dark:border-[#1e2535] hover:border-amber-300 dark:hover:border-amber-700'
-          }`}
-        >
-          <div className="font-medium text-gray-900 dark:text-white">Custom (OpenAI-compatible)</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">Bring your own endpoint</div>
-        </button>
-      </motion.div>
+  // Scoring step: two columns
+  const renderScoring = () => (
+    <div className="max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left column: Genre + Weights */}
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <Controller
+              name="genre"
+              control={control}
+              render={({ field }) => (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Choose Genre</label>
+                  <GenrePresetSelector value={field.value} onChange={field.onChange} />
+                </>
+              )}
+            />
+          </div>
 
-      {/* Provider-specific fields */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={watchedProvider}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="space-y-4"
-        >
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedWeights(!showAdvancedWeights)}
+              className="text-sm text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 mx-auto"
+            >
+              {showAdvancedWeights ? 'Hide' : 'Customize Advanced Scoring'}
+              <Sliders className="w-3 h-3" />
+            </button>
+          </div>
+
+          <AnimatePresence>
+            {showAdvancedWeights && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <Controller
+                  name="weights"
+                  control={control}
+                  render={({ field }) => <ScoringWeightsPanel weights={field.value} onChange={field.onChange} />}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Right column: Style Preference + Reference Image */}
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+                <ImageIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Custom Instructions & Reference</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Guide the AI with your preferred style</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                <Info className="w-4 h-4 text-amber-500" />
+                Style preference (optional)
+              </label>
+              <Controller
+                name="preferenceText"
+                control={control}
+                render={({ field }) => (
+                  <textarea
+                    {...field}
+                    rows={3}
+                    placeholder="e.g. sharp, well-lit portraits with natural light, candid moments"
+                    className="w-full bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
+                  />
+                )}
+              />
+            </div>
+
+            <div className="border-t border-gray-100 dark:border-[#1e2535]" />
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Reference Image (optional)
+              </label>
+              <Controller
+                name="referenceImage"
+                control={control}
+                render={({ field }) => (
+                  <ReferenceImageUpload
+                    value={field.value ?? null}
+                    onChange={(img) => field.onChange(img)}
+                  />
+                )}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // AI step: two columns
+  const renderAI = () => (
+    <div className="max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left column: Provider selection */}
+        <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">AI Engine</label>
+          <div className="grid grid-cols-2 gap-3">
+            {(['claude', 'openai', 'gemini', 'ollama'] as AIProvider[]).map((prov) => (
+              <button
+                key={prov}
+                type="button"
+                onClick={() => setValue('provider', prov, { shouldDirty: true })}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  watchedProvider === prov
+                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 ring-2 ring-amber-500/20'
+                    : 'border-gray-200 dark:border-[#1e2535] hover:border-amber-300 dark:hover:border-amber-700'
+                }`}
+              >
+                <div className="font-medium capitalize text-gray-900 dark:text-white">{prov}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {prov === 'claude' && 'Anthropic'}
+                  {prov === 'openai' && 'GPT-4o / o1'}
+                  {prov === 'gemini' && 'Google Gemini'}
+                  {prov === 'ollama' && 'Local (free)'}
+                </div>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setValue('provider', 'custom', { shouldDirty: true })}
+            className={`mt-3 w-full p-3 rounded-xl border text-left transition-all ${
+              watchedProvider === 'custom'
+                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 ring-2 ring-amber-500/20'
+                : 'border-gray-200 dark:border-[#1e2535] hover:border-amber-300 dark:hover:border-amber-700'
+            }`}
+          >
+            <div className="font-medium text-gray-900 dark:text-white">Custom (OpenAI‑compatible)</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Bring your own endpoint</div>
+          </button>
+        </div>
+
+        {/* Right column: Provider configuration */}
+        <div className="space-y-6">
           {watchedProvider !== 'ollama' && (
             <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">API Key</label>
@@ -1072,396 +1021,442 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               )}
             </div>
           </div>
-        </motion.div>
-      </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 
+  // Options step: two columns (left = operational, right = output behavior)
   const renderOptions = () => (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Style Profile (stub) */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
-      >
-        <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Style Profile</label>
-          <button
-            type="button"
-            className="text-xs text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
-          >
-            <Settings className="w-3 h-3" />
-            Create New
-          </button>
-        </div>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Saved preference sets for quick reuse</p>
-        <div className="w-full bg-gray-50 dark:bg-[#0f1117] border border-gray-200 dark:border-[#1e2535] rounded-lg px-4 py-2.5 text-sm text-gray-400 dark:text-gray-600 cursor-not-allowed select-none">
-          No profiles yet
-        </div>
-      </motion.div>
+    <div className="max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left column: Style Profile, Dry Run, XMP Export */}
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Style Profile</label>
+              <button
+                type="button"
+                className="text-xs text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+              >
+                <Settings className="w-3 h-3" />
+                Create New
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Saved preference sets for quick reuse</p>
+            <div className="w-full bg-gray-50 dark:bg-[#0f1117] border border-gray-200 dark:border-[#1e2535] rounded-lg px-4 py-2.5 text-sm text-gray-400 dark:text-gray-600 cursor-not-allowed select-none">
+              No profiles yet
+            </div>
+          </div>
 
-      {/* Dry-run toggle */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.04 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
-      >
-        <Controller
-          name="dryRun"
-          control={control}
-          render={({ field }) => (
-            <label className="flex items-start gap-3 cursor-pointer group">
-              <div className="relative mt-0.5 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                  className="sr-only"
-                />
-                <div
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                    field.value
-                      ? 'bg-amber-500 border-amber-500'
-                      : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
-                  }`}
-                >
-                  {field.value && <Check className="w-3 h-3 text-white" />}
-                </div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">Estimate token cost before processing</span>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Runs a dry-run pass to estimate API cost and token usage without making real API calls.
-                </p>
-              </div>
-            </label>
-          )}
-        />
-      </motion.div>
-
-      {/* XMP Export toggle */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
-      >
-        <Controller
-          name="enableXmpExport"
-          control={control}
-          render={({ field }) => (
-            <label className="flex items-start gap-3 cursor-pointer group">
-              <div className="relative mt-0.5 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                  className="sr-only"
-                />
-                <div
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                    field.value
-                      ? 'bg-amber-500 border-amber-500'
-                      : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
-                  }`}
-                >
-                  {field.value && <Check className="w-3 h-3 text-white" />}
-                </div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">Write Lightroom / Capture One sidecar files</span>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Generates .xmp sidecar files with star ratings alongside your images.
-                </p>
-              </div>
-            </label>
-          )}
-        />
-      </motion.div>
-
-      {/* Lightroom integration mode */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.12 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
-      >
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Lightroom integration mode</label>
-        <Controller
-          name="lightroomMode"
-          control={control}
-          render={({ field }) => (
-            <div className="space-y-2">
-              {([
-                { value: 'rateInPlace', label: 'Rate originals in-place', desc: 'Stars are written to original files via XMP. No files are copied.' },
-                { value: 'copyToOutput', label: 'Copy keepers to output folder', desc: 'Selected images are physically copied to the output folder.' },
-              ] as const).map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                    field.value === option.value
-                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20'
-                      : 'border-gray-200 dark:border-[#1e2535] hover:border-amber-300 dark:hover:border-amber-700'
-                  }`}
-                >
-                  <div className="mt-0.5 shrink-0">
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <Controller
+              name="dryRun"
+              control={control}
+              render={({ field }) => (
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative mt-0.5 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      className="sr-only"
+                    />
                     <div
-                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        field.value === option.value
-                          ? 'border-amber-500'
-                          : 'border-gray-300 dark:border-gray-600'
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        field.value
+                          ? 'bg-amber-500 border-amber-500'
+                          : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
                       }`}
                     >
-                      {field.value === option.value && (
-                        <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      )}
+                      {field.value && <Check className="w-3 h-3 text-white" />}
                     </div>
                   </div>
-                  <input
-                    type="radio"
-                    name="lightroomMode"
-                    value={option.value}
-                    checked={field.value === option.value}
-                    onChange={() => field.onChange(option.value)}
-                    className="sr-only"
-                  />
                   <div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">{option.label}</span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{option.desc}</p>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Estimate token cost before processing</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Runs a dry‑run pass to estimate API cost and token usage without making real API calls.
+                    </p>
                   </div>
                 </label>
-              ))}
-            </div>
-          )}
-        />
-      </motion.div>
+              )}
+            />
+          </div>
 
-      {/* Shortfall Strategy */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.16 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
-      >
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          When output falls short of requested count
-        </label>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-          What to do if not enough S-tier or A-tier images exist to meet your target.
-        </p>
-        <Controller
-          name="shortfallStrategy"
-          control={control}
-          render={({ field }) => (
-            <div className="space-y-2">
-              {([
-                {
-                  value: 'stop',
-                  label: 'Stop',
-                  desc: 'Output only available S + A tier keepers, even if below the target count.',
-                },
-                {
-                  value: 'fillWithB',
-                  label: 'Fill with B-tier images',
-                  desc: 'Automatically promote the best B-tier images to reach the target.',
-                },
-                {
-                  value: 'fillWithRejected',
-                  label: 'Fill with B-tier, then rejected if still short',
-                  desc: 'First promotes B-tier, then falls back to the best rejected images.',
-                },
-              ] as const).map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                    field.value === option.value
-                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20'
-                      : 'border-gray-200 dark:border-[#1e2535] hover:border-amber-300 dark:hover:border-amber-700'
-                  }`}
-                >
-                  <div className="mt-0.5 shrink-0">
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <Controller
+              name="enableXmpExport"
+              control={control}
+              render={({ field }) => (
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative mt-0.5 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      className="sr-only"
+                    />
                     <div
-                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        field.value === option.value
-                          ? 'border-amber-500'
-                          : 'border-gray-300 dark:border-gray-600'
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        field.value
+                          ? 'bg-amber-500 border-amber-500'
+                          : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
                       }`}
                     >
-                      {field.value === option.value && (
-                        <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      )}
+                      {field.value && <Check className="w-3 h-3 text-white" />}
                     </div>
                   </div>
-                  <input
-                    type="radio"
-                    name="shortfallStrategy"
-                    value={option.value}
-                    checked={field.value === option.value}
-                    onChange={() => field.onChange(option.value)}
-                    className="sr-only"
-                  />
                   <div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">{option.label}</span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{option.desc}</p>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Write Lightroom / Capture One sidecar files</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Generates .xmp sidecar files with star ratings alongside your images.
+                    </p>
                   </div>
                 </label>
-              ))}
+              )}
+            />
+          </div>
+        </div>
+
+        {/* Right column: Lightroom Mode, Shortfall Strategy, Duplicate Detection */}
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Lightroom integration mode</label>
+            <Controller
+              name="lightroomMode"
+              control={control}
+              render={({ field }) => (
+                <div className="space-y-2">
+                  {([
+                    { value: 'rateInPlace', label: 'Rate originals in‑place', desc: 'Stars are written to original files via XMP. No files are copied.' },
+                    { value: 'copyToOutput', label: 'Copy keepers to output folder', desc: 'Selected images are physically copied to the output folder.' },
+                  ] as const).map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        field.value === option.value
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20'
+                          : 'border-gray-200 dark:border-[#1e2535] hover:border-amber-300 dark:hover:border-amber-700'
+                      }`}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            field.value === option.value
+                              ? 'border-amber-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {field.value === option.value && (
+                            <div className="w-2 h-2 rounded-full bg-amber-500" />
+                          )}
+                        </div>
+                      </div>
+                      <input
+                        type="radio"
+                        name="lightroomMode"
+                        value={option.value}
+                        checked={field.value === option.value}
+                        onChange={() => field.onChange(option.value)}
+                        className="sr-only"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{option.label}</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{option.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            />
+          </div>
+
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              When output falls short of requested count
+            </label>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+              What to do if not enough S‑tier or A‑tier images exist to meet your target.
+            </p>
+            <Controller
+              name="shortfallStrategy"
+              control={control}
+              render={({ field }) => (
+                <div className="space-y-2">
+                  {([
+                    { value: 'stop', label: 'Stop', desc: 'Output only available S + A tier keepers, even if below the target count.' },
+                    { value: 'fillWithB', label: 'Fill with B‑tier images', desc: 'Automatically promote the best B‑tier images to reach the target.' },
+                    { value: 'fillWithRejected', label: 'Fill with B‑tier, then rejected if still short', desc: 'First promotes B‑tier, then falls back to the best rejected images.' },
+                  ] as const).map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        field.value === option.value
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20'
+                          : 'border-gray-200 dark:border-[#1e2535] hover:border-amber-300 dark:hover:border-amber-700'
+                      }`}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            field.value === option.value
+                              ? 'border-amber-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {field.value === option.value && (
+                            <div className="w-2 h-2 rounded-full bg-amber-500" />
+                          )}
+                        </div>
+                      </div>
+                      <input
+                        type="radio"
+                        name="shortfallStrategy"
+                        value={option.value}
+                        checked={field.value === option.value}
+                        onChange={() => field.onChange(option.value)}
+                        className="sr-only"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{option.label}</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{option.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            />
+          </div>
+
+          {/* Duplicate Detection Controls (new) */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-amber-500" />
+              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Duplicate Detection</h3>
             </div>
-          )}
-        />
-      </motion.div>
+            <Controller
+              name="disableDuplicateGrouping"
+              control={control}
+              render={({ field }) => (
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative mt-0.5 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        field.value
+                          ? 'bg-amber-500 border-amber-500'
+                          : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
+                      }`}
+                    >
+                      {field.value && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Disable duplicate grouping</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Process near‑duplicate images individually instead of grouping them.
+                    </p>
+                  </div>
+                </label>
+              )}
+            />
+
+            <Controller
+              name="duplicateThreshold"
+              control={control}
+              render={({ field }) => (
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                    Duplicate threshold <span className="text-xs text-gray-400">(0–100, default 10)</span>
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={field.value}
+                    onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                    className="w-full h-1.5 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0 (strict)</span>
+                    <span>50 (moderate)</span>
+                    <span>100 (loose)</span>
+                  </div>
+                </div>
+              )}
+            />
+
+            <Controller
+              name="maxFacesPerImage"
+              control={control}
+              render={({ field }) => (
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                    Max faces per image <span className="text-xs text-gray-400">(0 = unlimited)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={50}
+                    value={field.value}
+                    onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                    className="w-32 bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-3 py-1.5 text-sm"
+                  />
+                </div>
+              )}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 
+  // Review step: left column summary, right column action panel
   const renderReview = () => {
     const totalWeight = Object.values(watchedWeights || {}).reduce((a, b) => a + b, 0);
 
     return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
-        >
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-amber-500" />
-            Ready to start
-          </h3>
-
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Project</span>
-              <span 
-                className="text-gray-900 dark:text-white font-mono text-sm truncate max-w-[200px]"
-                title={watchedInputFolder || 'Not set'}
-              >
-                {watchedInputFolder?.split(/[\\/]/).pop() || 'Not set'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Images found</span>
-              <span className="text-gray-900 dark:text-white">{folderScanCount ?? '?'}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Target selection</span>
-              <span className="text-gray-900 dark:text-white">
-                {watchedNumImages === 0 ? 'All S-tier' : `${watchedNumImages} images`}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Scoring</span>
-              <span className="text-gray-900 dark:text-white capitalize">{watchedGenre} preset</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">AI Engine</span>
-              <span className="text-gray-900 dark:text-white capitalize">{watchedProvider}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Shortfall strategy</span>
-              <span className="text-gray-900 dark:text-white text-sm text-right max-w-[220px]">
-                {SHORTFALL_LABELS[watch('shortfallStrategy')] ?? watch('shortfallStrategy')}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Lightroom mode</span>
-              <span className="text-gray-900 dark:text-white text-sm text-right max-w-[220px]">
-                {LIGHTROOM_MODE_LABELS[watch('lightroomMode')] ?? watch('lightroomMode')}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">XMP sidecar export</span>
-              <span className={`text-sm font-medium ${watch('enableXmpExport') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                {watch('enableXmpExport') ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Reference image</span>
-              <span className={`text-sm font-medium ${watch('referenceImage') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                {watch('referenceImage')?.filename || 'None'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">File types</span>
-              <span className="text-gray-900 dark:text-white text-sm truncate max-w-[200px]" title={watch('extensionFilter')?.length ? watch('extensionFilter')?.join(', ') : 'All formats'}>
-                {watch('extensionFilter')?.length ? watch('extensionFilter')?.join(', ') : 'All formats'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
-              <span className="text-gray-500 dark:text-gray-400">Prefix filter</span>
-              <span className="text-gray-900 dark:text-white text-sm truncate max-w-[200px]" title={watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case-insensitive' : 'case-sensitive'})` : 'None'}>
-                {watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case-insensitive' : 'case-sensitive'})` : 'None'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-500 dark:text-gray-400">Mode</span>
-              <span className="text-amber-600 dark:text-amber-400 font-medium">
-                {watchedDryRun ? 'Dry Run (estimate only)' : 'Live (API calls)'}
-              </span>
+      <div className="max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8">
+          {/* Left column: summary table */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-amber-500" />
+              Configuration Summary
+            </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Project</span>
+                <span className="text-gray-900 dark:text-white font-mono text-sm truncate max-w-[200px]" title={watchedInputFolder || 'Not set'}>
+                  {watchedInputFolder?.split(/[\\/]/).pop() || 'Not set'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Images found</span>
+                <span className="text-gray-900 dark:text-white">{folderScanCount ?? '?'}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Target selection</span>
+                <span className="text-gray-900 dark:text-white">
+                  {watchedNumImages === 0 ? 'All S‑tier' : `${watchedNumImages} images`}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Scoring</span>
+                <span className="text-gray-900 dark:text-white capitalize">{watchedGenre} preset</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">AI Engine</span>
+                <span className="text-gray-900 dark:text-white capitalize">{watchedProvider}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Shortfall strategy</span>
+                <span className="text-gray-900 dark:text-white text-sm text-right max-w-[220px]">
+                  {SHORTFALL_LABELS[watch('shortfallStrategy')] ?? watch('shortfallStrategy')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Lightroom mode</span>
+                <span className="text-gray-900 dark:text-white text-sm text-right max-w-[220px]">
+                  {LIGHTROOM_MODE_LABELS[watch('lightroomMode')] ?? watch('lightroomMode')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">XMP sidecar export</span>
+                <span className={`text-sm font-medium ${watch('enableXmpExport') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                  {watch('enableXmpExport') ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Reference image</span>
+                <span className={`text-sm font-medium ${watch('referenceImage') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                  {watch('referenceImage')?.filename || 'None'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">File types</span>
+                <span className="text-gray-900 dark:text-white text-sm truncate max-w-[200px]" title={watch('extensionFilter')?.length ? watch('extensionFilter')?.join(', ') : 'All formats'}>
+                  {watch('extensionFilter')?.length ? watch('extensionFilter')?.join(', ') : 'All formats'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">Prefix filter</span>
+                <span className="text-gray-900 dark:text-white text-sm truncate max-w-[200px]" title={watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case-insensitive' : 'case-sensitive'})` : 'None'}>
+                  {watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case‑insensitive' : 'case‑sensitive'})` : 'None'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-gray-500 dark:text-gray-400">Mode</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                  {watchedDryRun ? 'Dry Run (estimate only)' : 'Live (API calls)'}
+                </span>
+              </div>
             </div>
           </div>
-        </motion.div>
 
-        {/* Back button on review */}
-        <div className="flex justify-start">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back to Options
-          </button>
+          {/* Right column: warnings and start button */}
+          <div className="space-y-6">
+            {totalWeight !== 100 && (
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-2xl p-4 flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+                <p className="text-sm text-red-800 dark:text-red-300 font-medium">
+                  Scoring weights must total 100%
+                </p>
+              </div>
+            )}
+
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl p-5">
+              <div className="flex items-start gap-3">
+                <Zap className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    {watchedDryRun
+                      ? 'Dry‑run is enabled — no real API calls will be made'
+                      : 'This will make live API calls and may incur costs'}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                    {watchedDryRun
+                      ? 'You will see an estimated token count and cost before committing.'
+                      : `Processing ${folderScanCount ?? 'your'} images with ${watchedProvider} at ${watch('concurrency')} parallel call${watch('concurrency') !== 1 ? 's' : ''}.`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSubmit(onSubmit)}
+              disabled={!isValid || isStarting || totalWeight !== 100}
+              className="w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-gray-700 dark:disabled:to-gray-700 dark:disabled:text-gray-500 text-white font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+            >
+              {isStarting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Starting…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Start Culling
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBack}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to Options
+            </button>
+          </div>
         </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl p-6"
-        >
-          <div className="flex items-start gap-3">
-            <Zap className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                {watchedDryRun
-                  ? 'Dry-run is enabled — no real API calls will be made'
-                  : 'This will make live API calls and may incur costs'}
-              </p>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                {watchedDryRun
-                  ? 'You will see an estimated token count and cost before committing.'
-                  : `Processing ${folderScanCount ?? 'your'} images with ${watchedProvider} at ${watch('concurrency')} parallel call${watch('concurrency') !== 1 ? 's' : ''}.`}
-              </p>
-            </div>
-          </div>
-        </motion.div>
-
-        {totalWeight !== 100 && (
-          <p className="text-red-500 dark:text-red-400 text-xs text-center flex items-center justify-center gap-1">
-            <AlertTriangle className="w-3 h-3" />
-            Scoring weights must total 100%
-          </p>
-        )}
-
-        <button
-          onClick={handleSubmit(onSubmit)}
-          disabled={!isValid || isStarting || totalWeight !== 100}
-          className="w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-gray-700 dark:disabled:to-gray-700 dark:disabled:text-gray-500 text-white dark:text-black font-bold rounded-xl shadow-lg shadow-amber-900/20 dark:shadow-amber-900/30 transition-all duration-200 transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
-        >
-          {isStarting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Starting…
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              Start Culling
-            </>
-          )}
-        </button>
       </div>
     );
   };
@@ -1479,17 +1474,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     );
   }
 
-  // Main setup container with entrance animation
-  //
-  // Layout explanation:
-  // ┌─ motion.div: w-full min-h-screen — fills the entire Electron window so the
-  // │  background gradient covers edge-to-edge, not just behind the content column.
-  // │
-  // ├─ sticky header: full-width (w-full), positioned outside max-w-5xl so it
-  // │  spans wall-to-wall. Inner content is constrained by max-w-5xl mx-auto.
-  // │  pb-6 gives the step-indicator circles breathing room above the border.
-  // │
-  // └─ scrollable body: max-w-5xl mx-auto px-4 — the content column.
+  // Main container with sticky header and animated body
   return (
     <motion.div
       initial={{ opacity: 0, y: 32 }}
@@ -1497,24 +1482,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
       className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-white dark:from-[#0f1117] dark:to-[#0a0c10]"
     >
-      {/* ===== STICKY TOP SECTION — full viewport width ===== */}
-      {/*
-        BUG FIX 1 (icon clipping):
-          - Removed pt-0/pb-0 from wrapper; now uses pt-5 pb-6 so the step
-            indicator circles (w-10 h-10 + ring-4) have 24px of clear space
-            above the border-b line and never clip.
-          - Reduced header mb from mb-8 → mb-4 to keep the header compact.
-          - Step indicator row uses py-1 so ring glows don't clip at top.
-
-        BUG FIX 2 (app only filling centre):
-          - Sticky bar is now a direct child of motion.div (full width), not
-            nested inside max-w-5xl. This means the backdrop/border truly
-            spans edge-to-edge regardless of window width.
-          - max-w-5xl mx-auto px-6 is applied to the *inner* row only.
-      */}
+      {/* Sticky header */}
       <div className="sticky top-0 z-10 w-full border-b border-gray-200 dark:border-[#1e2535] shadow-sm backdrop-blur-md bg-gray-50/90 dark:bg-[#0f1117]/90">
         <div className="max-w-5xl mx-auto px-6">
-          {/* Header row */}
           <div className="flex justify-between items-center pt-5 mb-4">
             <div>
               <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-500 to-amber-600 bg-clip-text text-transparent">
@@ -1527,7 +1497,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             <div className="flex items-center gap-3">{themeToggle}</div>
           </div>
 
-          {/* Step Indicator — py-1 ensures ring-4 on active circle doesn't clip */}
+          {/* Step Indicator */}
           <div className="pb-6 py-1">
             <div className="flex items-center justify-between gap-2 relative">
               {STEPS.map((s, idx) => {
@@ -1579,37 +1549,33 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           </div>
         </div>
       </div>
-      {/* ===== END STICKY SECTION ===== */}
 
-      {/* Scrollable body — content column */}
+      {/* Scrollable body with step content */}
       <div className="max-w-5xl mx-auto px-6 py-8">
-        {/* Step content with animated transitions */}
-        <div className="relative">
-          <AnimatePresence mode="wait" custom={directionRef.current}>
-            <motion.div
-              key={step}
-              custom={directionRef.current}
-              variants={{
-                enter: (d: number) => ({ opacity: 0, x: d * 36, filter: 'blur(2px)' }),
-                center: { opacity: 1, x: 0, filter: 'blur(0px)' },
-                exit: (d: number) => ({ opacity: 0, x: d * -36, filter: 'blur(2px)' }),
-              }}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
-            >
-              {step === 'welcome' && renderWelcome()}
-              {step === 'project' && renderProject()}
-              {step === 'scoring' && renderScoring()}
-              {step === 'ai' && renderAI()}
-              {step === 'options' && renderOptions()}
-              {step === 'review' && renderReview()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+        <AnimatePresence mode="wait" custom={directionRef.current}>
+          <motion.div
+            key={step}
+            custom={directionRef.current}
+            variants={{
+              enter: (d: number) => ({ opacity: 0, x: d * 36, filter: 'blur(2px)' }),
+              center: { opacity: 1, x: 0, filter: 'blur(0px)' },
+              exit: (d: number) => ({ opacity: 0, x: d * -36, filter: 'blur(2px)' }),
+            }}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+          >
+            {step === 'welcome' && renderWelcome()}
+            {step === 'project' && renderProject()}
+            {step === 'scoring' && renderScoring()}
+            {step === 'ai' && renderAI()}
+            {step === 'options' && renderOptions()}
+            {step === 'review' && renderReview()}
+          </motion.div>
+        </AnimatePresence>
 
-        {/* Navigation buttons (only show for non-welcome, non-review steps) */}
+        {/* Navigation buttons (only for non‑welcome, non‑review steps) */}
         {step !== 'welcome' && step !== 'review' && (
           <div className="flex justify-between mt-10 pt-6 border-t border-gray-200 dark:border-[#1e2535]">
             <button
