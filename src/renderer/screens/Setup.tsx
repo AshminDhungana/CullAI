@@ -23,7 +23,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
-  Image,
+  Image as ImageIcon,
   Settings,
   Send,
   Loader2,
@@ -35,11 +35,14 @@ import {
   TrendingUp,
   Globe,
   Star,
+  Filter,
 } from 'lucide-react';
 import ExtensionFilter from '../components/ExtensionFilter';
+import PrefixFilter from '../components/PrefixFilter';
 import GenrePresetSelector from '../components/GenrePresetSelector';
+import ReferenceImageUpload from '../components/ReferenceImageUpload';
 import ScoringWeightsPanel from '../components/ScoringWeightsPanel';
-import type { AppSettings, AIProvider } from '../../shared/types';
+import type { AppSettings, AIProvider, ReferenceImage } from '../../shared/types';
 import { defaultAppSettings } from '../../shared/types';
 import { GENRE_PRESETS } from '../../shared/genre-presets';
 
@@ -82,6 +85,11 @@ const setupSchema = z.object({
   shortfallStrategy: z.enum(['stop', 'fillWithB', 'fillWithRejected']),
   extensionFilter: z.array(z.string()).optional(),
   prefixFilter: z.array(z.string()).optional(),
+  prefixCaseInsensitive: z.boolean().optional(),
+  referenceImage: z.object({
+    filename: z.string(),
+    base64: z.string(),
+  }).nullable().optional(),
   disableDuplicateGrouping: z.boolean().optional(),
   duplicateThreshold: z.number().optional(),
   maxFacesPerImage: z.number().optional(),
@@ -170,6 +178,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       weights: { ...defaultAppSettings().weights },
       extensionFilter: [],
       prefixFilter: [],
+      prefixCaseInsensitive: true,
+      referenceImage: null,
       disableDuplicateGrouping: false,
       duplicateThreshold: 10,
       maxFacesPerImage: 0,
@@ -198,6 +208,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             weights: { ...defaultAppSettings().weights, ...stored.weights },
             extensionFilter: stored.extensionFilter ? Array.from(stored.extensionFilter) : [],
             prefixFilter: stored.prefixFilter || [],
+            prefixCaseInsensitive: stored.prefixCaseInsensitive ?? true,
+            referenceImage: stored.referenceImage ?? null,
           });
         }
       } catch (err) {
@@ -217,6 +229,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           ...values,
           extensionFilter: values.extensionFilter || [],
           prefixFilter: values.prefixFilter || [],
+          prefixCaseInsensitive: values.prefixCaseInsensitive ?? true,
+          referenceImage: values.referenceImage ?? null,
         };
         // @ts-expect-error
         await window.electronAPI.saveSettings(toStore);
@@ -321,11 +335,12 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       return;
     }
     const fullSettings: AppSettings = {
+      ...defaultAppSettings(),
       ...data,
-      extensionFilter: new Set(data.extensionFilter || []),
+      extensionFilter: data.extensionFilter || [],
       prefixFilter: data.prefixFilter || [],
-      prefixCaseInsensitive: true,
-      referenceImage: null,
+      prefixCaseInsensitive: data.prefixCaseInsensitive ?? true,
+      referenceImage: (data.referenceImage ?? null) as ReferenceImage,
       disableDuplicateGrouping: data.disableDuplicateGrouping || false,
       duplicateThreshold: data.duplicateThreshold || 10,
       maxFacesPerImage: data.maxFacesPerImage || 0,
@@ -662,6 +677,47 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           />
         </motion.div>
       )}
+
+      {/* Row 4: Prefix Filter — only visible once a folder is chosen */}
+      {watchedInputFolder && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] shadow-sm p-5"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+              <Filter className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Filename Prefix Filter</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Only include files starting with specific prefixes
+              </p>
+            </div>
+          </div>
+          <Controller
+            name="prefixFilter"
+            control={control}
+            render={({ field }) => (
+              <Controller
+                name="prefixCaseInsensitive"
+                control={control}
+                render={({ field: ciField }) => (
+                  <PrefixFilter
+                    inputFolder={watchedInputFolder}
+                    value={field.value ?? []}
+                    onChange={field.onChange}
+                    caseInsensitive={ciField.value ?? true}
+                    onCaseInsensitiveChange={ciField.onChange}
+                  />
+                )}
+              />
+            )}
+          />
+        </motion.div>
+      )}
     </div>
   );
 
@@ -721,29 +777,63 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         )}
       </AnimatePresence>
 
-      {/* Style Preference */}
+      {/* Style Preference & Reference Image */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6"
+        className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6 space-y-6"
       >
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-          <Info className="w-4 h-4 text-amber-500" />
-          Style preference (optional)
-        </label>
-        <Controller
-          name="preferenceText"
-          control={control}
-          render={({ field }) => (
-            <textarea
-              {...field}
-              rows={3}
-              placeholder="e.g. sharp, well-lit portraits with natural light, candid moments"
-              className="w-full bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
-            />
-          )}
-        />
+        {/* Section header */}
+        <div className="flex items-center gap-3 mb-1">
+          <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+            <ImageIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Custom Instructions & Reference Image</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Guide the AI with your preferred style</p>
+          </div>
+        </div>
+
+        {/* Style preference textarea */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+            <Info className="w-4 h-4 text-amber-500" />
+            Style preference (optional)
+          </label>
+          <Controller
+            name="preferenceText"
+            control={control}
+            render={({ field }) => (
+              <textarea
+                {...field}
+                rows={3}
+                placeholder="e.g. sharp, well-lit portraits with natural light, candid moments"
+                className="w-full bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition"
+              />
+            )}
+          />
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-gray-100 dark:border-[#1e2535]" />
+
+        {/* Reference Image Upload */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Reference Image (optional)
+          </label>
+          <Controller
+            name="referenceImage"
+            control={control}
+            render={({ field }) => (
+              <ReferenceImageUpload
+                value={field.value ?? null}
+                onChange={(img) => field.onChange(img)}
+              />
+            )}
+          />
+        </div>
       </motion.div>
     </div>
   );
@@ -1240,6 +1330,24 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               <span className="text-gray-500 dark:text-gray-400">XMP sidecar export</span>
               <span className={`text-sm font-medium ${watch('enableXmpExport') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
                 {watch('enableXmpExport') ? 'Enabled' : 'Disabled'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+              <span className="text-gray-500 dark:text-gray-400">Reference image</span>
+              <span className={`text-sm font-medium ${watch('referenceImage') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                {watch('referenceImage')?.filename || 'None'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+              <span className="text-gray-500 dark:text-gray-400">File types</span>
+              <span className="text-gray-900 dark:text-white text-sm truncate max-w-[200px]" title={watch('extensionFilter')?.length ? watch('extensionFilter')?.join(', ') : 'All formats'}>
+                {watch('extensionFilter')?.length ? watch('extensionFilter')?.join(', ') : 'All formats'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+              <span className="text-gray-500 dark:text-gray-400">Prefix filter</span>
+              <span className="text-gray-900 dark:text-white text-sm truncate max-w-[200px]" title={watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case-insensitive' : 'case-sensitive'})` : 'None'}>
+                {watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case-insensitive' : 'case-sensitive'})` : 'None'}
               </span>
             </div>
             <div className="flex justify-between items-center py-2">

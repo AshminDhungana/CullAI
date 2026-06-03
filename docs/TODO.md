@@ -203,31 +203,31 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.6 Add Extension Filter Component
 
-- [ ] Create `src/renderer/components/ExtensionFilter.tsx`
-- [ ] Render a multi‑select dropdown with checkboxes for each extension found in the selected input folder
-- [ ] Extensions are discovered by scanning the input folder (call `'scan-folder-extensions'` IPC)
-- [ ] Each extension shows a count badge, e.g. `CR3 (142)`
-- [ ] Buttons: "Select all", "Clear all", "Apply"
-- [ ] Store selected extensions in `AppSettings.extensionFilter`
-- [ ] When folder changes, re‑scan and reset filter to all supported by default
+- [x] Create `src/renderer/components/ExtensionFilter.tsx`
+- [x] Render a multi‑select dropdown with checkboxes for each extension found in the selected input folder
+- [x] Extensions are discovered by scanning the input folder (call `'scan-folder-extensions'` IPC)
+- [x] Each extension shows a count badge, e.g. `CR3 (142)`
+- [x] Buttons: "Select all", "Clear all", "Apply"
+- [x] Store selected extensions in `AppSettings.extensionFilter`
+- [x] When folder changes, re‑scan and reset filter to all supported by default
 
 ### 2.7 Add Filename Prefix Filter Component
 
-- [ ] Create `src/renderer/components/PrefixFilter.tsx`
-- [ ] Text input with placeholder: `IMG_, DSC_, _MG_` (comma or space separated)
-- [ ] Real‑time preview: "Matches: 47 files"
-- [ ] Case‑insensitive matching toggle (checkbox)
-- [ ] Store prefixes as `string[]` in `AppSettings.prefixFilter`
+- [x] Create `src/renderer/components/PrefixFilter.tsx`
+- [x] Text input with placeholder: `IMG_, DSC_, _MG_` (comma or space separated)
+- [x] Real‑time preview: "Matches: 47 files"
+- [x] Case‑insensitive matching toggle (checkbox)
+- [x] Store prefixes as `string[]` in `AppSettings.prefixFilter`
 
 ### 2.8 Add Reference Image Upload
 
-- [ ] Add a section to Setup screen: **Custom Instructions & Reference Image**
-- [ ] Textarea for custom instructions (already above)
-- [ ] Button: "Upload Reference Image" – opens file dialog (JPEG/PNG only)
-- [ ] After upload, display thumbnail preview and filename
-- [ ] Store reference image as base64 (resized to 512px) in `AppSettings.referenceImage`
-- [ ] Add a "Clear" button to remove the reference image
-- [ ] Show info tooltip: _"Reference image will be sent to AI during Discovery Pass to guide scoring."_
+- [x] Add a section to Setup screen: **Custom Instructions & Reference Image**
+- [x] Textarea for custom instructions (already above)
+- [x] Button: "Upload Reference Image" – opens file dialog (JPEG/PNG only)
+- [x] After upload, display thumbnail preview and filename
+- [x] Store reference image as base64 (resized to 512px) in `AppSettings.referenceImage`
+- [x] Add a "Clear" button to remove the reference image
+- [x] Show info tooltip: _"Reference image will be sent to AI during Discovery Pass to guide scoring."_
 
 ### 2.9 Wire App Routing
 
