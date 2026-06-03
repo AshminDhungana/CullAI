@@ -1322,6 +1322,63 @@ PROVIDER_DEFAULTS = {
 
 ✅ **Done Criteria:** All 5 providers (Claude, OpenAI, Gemini, Ollama, Custom) complete a full 5-image scoring run without error. "Test Connection" gives accurate pass/fail for valid and invalid keys.
 
+## Phase 15.5 — Dynamic Model Selection (Fetch from API)
+
+> Goal: Instead of a free‑text model name, the user selects from a dropdown populated by the provider’s models endpoint (where available). This prevents typos and shows only compatible vision models.
+
+### 15.5.1 Add IPC Endpoint for Fetching Models
+
+- [ ] Create IPC handler `'fetch-models'` in `src/main/ipc-handlers.ts`
+  - Accepts `{ provider: AIProvider, apiKey: string, baseUrl: string }`
+  - Routes to appropriate API:
+
+    **OpenAI / Custom (OpenAI‑compatible)**
+    - `GET {baseUrl}/models`
+    - Headers: `Authorization: Bearer {apiKey}`
+    - Filter to vision‑capable models (e.g., `gpt-4-vision`, `gpt-4o`, etc.)
+
+    **Claude (Anthropic)**
+    - `GET https://api.anthropic.com/v1/models`
+    - Headers: `x-api-key: {apiKey}`, `anthropic-version: 2023-06-01`
+    - All Claude models support vision from Claude 3 onward.
+
+    **Gemini (Google) – Native REST API**
+    - Endpoint: `https://generativelanguage.googleapis.com/v1beta/models`
+    - Query param: `key={apiKey}`
+    - Filter to models where `supportsVision: true` (response field `supportedGenerationMethods` includes `"generateContent"` and model name contains `vision` or `gemini-1.5`/`gemini-2.0` which all support vision)
+    - Example URL: `https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY`
+
+    **Ollama**
+    - Already implemented in Phase 15.3: `GET /api/tags`
+    - Filter to vision models (llava, moondream, bakllava, etc.)
+
+- [ ] Cache model list for 1 hour per provider (avoid repeated API calls)
+- [ ] On failure (auth / network / invalid endpoint), fall back to the default model text input – keep manual entry possible for Custom providers or when API fails
+
+### 15.5.2 Extend Setup Screen UI
+
+- [ ] Replace the free‑text “Model name” field with a **dropdown + “Manual” toggle**
+  - Default: dropdown shows models fetched from provider (and shows “Loading…” while fetching)
+  - User can click “Enter custom model” to switch to a text input (for unsupported, preview, or local models)
+- [ ] When provider changes, auto‑fetch models if API key is present (and for Ollama, if service is reachable)
+- [ ] While fetching, show a spinner and disable the dropdown
+- [ ] If fetch fails, show a small error icon and keep the manual text input visible (pre‑filled with the provider’s default model)
+
+### 15.5.3 Persist Selected Model
+
+- [ ] Store the selected model ID (or custom string) in `AppSettings.model` as before (no schema change needed)
+- [ ] When reloading settings, if the stored model exists in the fetched list, pre‑select it in the dropdown
+- [ ] If the stored model is not in the list (or fetch failed), switch to manual mode and populate the text input with the stored model name
+
+### 15.5.4 Gemini‑Specific Handling
+
+- [ ] Use the native Google endpoint (not the OpenAI‑compatible one) for model listing
+- [ ] Parse response: `models[].name` (remove `models/` prefix) and `supportedGenerationMethods`
+- [ ] Filter to models that include `"generateContent"` (all generative models) and optionally check `"vision"` in name or description
+- [ ] Test with a valid Gemini API key – ensure the dropdown shows `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-2.0-flash-exp`, etc.
+
+✅ **Done Criteria:** For OpenAI, Claude, Gemini, and Ollama, the model dropdown populates with real, vision‑capable models. Selecting a model stores it correctly. Manual override works for all providers. Gemini’s model list fetches successfully using the native REST API. If any fetch fails, the UI gracefully falls back to the original text input without blocking setup.
+
 ---
 
 ## Phase 16 — Polish & Error Handling
