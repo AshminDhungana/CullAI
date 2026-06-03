@@ -286,19 +286,27 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   };
 
   const handleBrowseInput = async () => {
-    // @ts-expect-error
-    const folder = await window.electronAPI.openFolderDialog();
-    if (folder) {
-      setValue('inputFolder', folder, { shouldDirty: true, shouldValidate: true });
-      await validateInputFolder(folder);
+    try {
+      // @ts-expect-error
+      const folder = await window.electronAPI.openFolderDialog();
+      if (folder) {
+        setValue('inputFolder', folder, { shouldDirty: true, shouldValidate: true });
+        await validateInputFolder(folder);
+      }
+    } catch (err) {
+      console.error('Failed to open folder dialog:', err);
     }
   };
 
   const handleBrowseOutput = async () => {
-    // @ts-expect-error
-    const folder = await window.electronAPI.openFolderDialog();
-    if (folder) {
-      setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
+    try {
+      // @ts-expect-error
+      const folder = await window.electronAPI.openFolderDialog();
+      if (folder) {
+        setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
+      }
+    } catch (err) {
+      console.error('Failed to open folder dialog:', err);
     }
   };
 

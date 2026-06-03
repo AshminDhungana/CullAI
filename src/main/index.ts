@@ -13,13 +13,16 @@ const storePromise = import('electron-store').then(({ default: Store }) => {
 // ---------------------------------------------------------------------------
 // Window creation
 // ---------------------------------------------------------------------------
+let mainWindow: BrowserWindow | null = null;
 function createWindow() {
   const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+  // Preload scripts run in a sandboxed context where the tsx loader doesn't
+  // apply, so we always use the plain .js version (CommonJS require syntax).
   const preloadPath = isDev
-    ? path.join(__dirname, 'preload.ts')
+    ? path.join(__dirname, 'preload.js')
     : path.join(__dirname, 'preload.js');
 
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -51,12 +54,16 @@ ipcMain.handle('open-file-dialog', async (_event, options?: {
   filters?: { name: string; extensions: string[] }[];
   properties?: string[];
 }) => {
-  const result = await dialog.showOpenDialog({
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
+  const dialogOptions = {
     filters: options?.filters ?? [
       { name: 'Images', extensions: ['jpg', 'jpeg', 'png'] },
     ],
-    properties: ['openFile'],
-  });
+    properties: ['openFile'] as ('openFile')[],
+  };
+  const result = win
+    ? await dialog.showOpenDialog(win, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
 
   if (result.canceled || result.filePaths.length === 0) {
     return { cancelled: true, filePath: undefined };
@@ -197,9 +204,11 @@ ipcMain.handle('scan-folder', async (_event, folderPath: string, extensions?: st
  * Opens a native folder selection dialog.
  */
 ipcMain.handle('open-folder-dialog', async () => {
-  const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
-  });
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
+  const dialogOptions = { properties: ['openDirectory'] as ('openDirectory')[] };
+  const result = win
+    ? await dialog.showOpenDialog(win, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
 
   if (result.canceled || result.filePaths.length === 0) {
     return undefined;
