@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { z } from 'zod';
 import {
   FolderOpen,
+  FolderOutput,
   Save,
   Sliders,
   Key,
@@ -159,6 +160,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [connectionError, setConnectionError] = useState<string>('');
   const [showAdvancedWeights, setShowAdvancedWeights] = useState(false);
   const [isValidatingStep, setIsValidatingStep] = useState(false);
+  // Brief "shake-red" feedback when the user clicks Reveal with no path set
+  const [revealError, setRevealError] = useState<{ input: boolean; output: boolean }>({ input: false, output: false });
 
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
   const directionRef = useRef<1 | -1>(1);
@@ -328,6 +331,27 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const handleSelectRecentOutput = async (folder: string) => {
     setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
     await addRecentOutput(folder);
+  };
+
+  /**
+   * Reveals `folderPath` in the native file manager via the `shell-show-item`
+   * IPC handler. If the path is empty we briefly flash the button red (shake
+   * animation driven by the `revealError` state) instead of opening a modal.
+   */
+  const revealFolder = async (kind: 'input' | 'output', folderPath: string) => {
+    if (!folderPath) {
+      setRevealError(prev => ({ ...prev, [kind]: true }));
+      setTimeout(() => setRevealError(prev => ({ ...prev, [kind]: false })), 820);
+      return;
+    }
+    try {
+      // @ts-expect-error - electronAPI
+      await window.electronAPI.shellShowItem(folderPath);
+    } catch (err: any) {
+      // NOT_FOUND is surfaced silently — the folder display already shows the
+      // stale path; no need for an additional error overlay.
+      console.warn('[revealFolder]', err?.message ?? err);
+    }
   };
 
   const testConnection = async () => {
@@ -513,6 +537,21 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                         {field.value || 'No folder selected'}
                       </span>
                     </div>
+                    {/* Reveal in Explorer / Finder */}
+                    <button
+                      type="button"
+                      onClick={() => revealFolder('input', field.value)}
+                      title={field.value ? 'Reveal in Explorer / Finder' : 'No folder selected'}
+                      className={`
+                        shrink-0 flex items-center justify-center w-10 h-10 rounded-lg border transition-all
+                        ${revealError.input
+                          ? 'border-red-400 bg-red-50 dark:bg-red-950/30 text-red-500 animate-[shake_0.4s_ease-in-out]'
+                          : 'border-gray-200 dark:border-[#1e2535] bg-gray-50 dark:bg-[#0f1117] text-gray-500 dark:text-gray-400 hover:border-amber-400 hover:text-amber-500 dark:hover:text-amber-400'
+                        }
+                      `}
+                    >
+                      <FolderOutput className="w-4 h-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={handleBrowseInput}
@@ -663,6 +702,21 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                         {field.value || 'No folder selected'}
                       </span>
                     </div>
+                    {/* Reveal in Explorer / Finder */}
+                    <button
+                      type="button"
+                      onClick={() => revealFolder('output', field.value)}
+                      title={field.value ? 'Reveal in Explorer / Finder' : 'No folder selected'}
+                      className={`
+                        shrink-0 flex items-center justify-center w-10 h-10 rounded-lg border transition-all
+                        ${revealError.output
+                          ? 'border-red-400 bg-red-50 dark:bg-red-950/30 text-red-500 animate-[shake_0.4s_ease-in-out]'
+                          : 'border-gray-200 dark:border-[#1e2535] bg-gray-50 dark:bg-[#0f1117] text-gray-500 dark:text-gray-400 hover:border-amber-400 hover:text-amber-500 dark:hover:text-amber-400'
+                        }
+                      `}
+                    >
+                      <FolderOutput className="w-4 h-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={handleBrowseOutput}

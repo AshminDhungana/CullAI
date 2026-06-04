@@ -9,7 +9,7 @@
  * because this module is only imported and called once (from app.whenReady).
  */
 
-import { dialog, ipcMain, BrowserWindow } from 'electron';
+import { dialog, ipcMain, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import type Store from 'electron-store';
@@ -285,5 +285,34 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
   /** Smoke-test handler — confirms IPC bridge is alive. */
   ipcMain.handle('test-connection', async () => {
     return { success: true };
+  });
+
+  // -------------------------------------------------------------------------
+  // Shell helpers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Reveals `folderPath` in the native file manager (Explorer / Finder /
+   * Nautilus). Uses `shell.showItemInFolder` so the folder itself is selected
+   * in its parent — more useful than just opening it.
+   *
+   * Throws a typed error so the renderer can distinguish "path empty" from
+   * "path not found" and surface the right inline warning.
+   */
+  ipcMain.handle('shell-show-item', async (_event, folderPath: string) => {
+    if (!folderPath || typeof folderPath !== 'string' || !folderPath.trim()) {
+      throw Object.assign(new Error('shell-show-item: path is empty'), { code: 'EMPTY_PATH' });
+    }
+    const resolved = path.resolve(folderPath.trim());
+    try {
+      await fs.promises.access(resolved);
+    } catch {
+      throw Object.assign(
+        new Error(`shell-show-item: path does not exist — ${resolved}`),
+        { code: 'NOT_FOUND' },
+      );
+    }
+    shell.showItemInFolder(resolved);
+    return true;
   });
 }

@@ -29,6 +29,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFileAsBase64: (filePath)  => ipcRenderer.invoke('read-file-as-base64', filePath),
   openFileDialog:   (options)   => ipcRenderer.invoke('open-file-dialog', options),
 
+  // ── Shell ─────────────────────────────────────────────────────────────────
+  /**
+   * Reveals `folderPath` in the native file manager (Explorer / Finder).
+   * Throws with `{ code: 'EMPTY_PATH' }` or `{ code: 'NOT_FOUND' }` so the
+   * renderer can show an appropriate inline warning without a modal.
+   */
+  shellShowItem: (folderPath) => ipcRenderer.invoke('shell-show-item', folderPath),
+
   // ── Misc ──────────────────────────────────────────────────────────────────
   testConnection: (params) => ipcRenderer.invoke('test-connection', params),
 });
