@@ -163,6 +163,11 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   // Brief "shake-red" feedback when the user clicks Reveal with no path set
   const [revealError, setRevealError] = useState<{ input: boolean; output: boolean }>({ input: false, output: false });
 
+  // Output-folder safety check (2.13) — session-only, never persisted
+  type FolderRelationship = 'same' | 'output-inside-input' | 'input-inside-output' | 'ok' | null;
+  const [folderRelationship, setFolderRelationship] = useState<FolderRelationship>(null);
+  const [ignoreFolderWarning, setIgnoreFolderWarning] = useState(false);
+
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
   const directionRef = useRef<1 | -1>(1);
 
@@ -279,6 +284,13 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     }
   }, [watchedProvider, setValue]);
 
+  // Re-run folder relationship check whenever either path changes (e.g. typed
+  // directly or loaded from persisted settings on mount).
+  useEffect(() => {
+    runFolderRelationshipCheck(watchedInputFolder, watchedOutputFolder);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedInputFolder, watchedOutputFolder]);
+
   // Validate input folder
   const validateInputFolder = async (folder: string) => {
     if (!folder) return false;
@@ -316,6 +328,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       if (folder) {
         setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
         await addRecentOutput(folder);
+        await runFolderRelationshipCheck(watchedInputFolder, folder);
       }
     } catch (err) {
       console.error('Failed to open folder dialog:', err);
@@ -331,6 +344,28 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const handleSelectRecentOutput = async (folder: string) => {
     setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
     await addRecentOutput(folder);
+    await runFolderRelationshipCheck(watchedInputFolder, folder);
+  };
+
+  /**
+   * Checks whether output is nested inside input (or vice-versa) via the
+   * main-process `check-folder-relationship` IPC handler.
+   * Always resets `ignoreFolderWarning` so the user must re-acknowledge
+   * after changing either path.
+   */
+  const runFolderRelationshipCheck = async (input: string, output: string) => {
+    setIgnoreFolderWarning(false);
+    if (!input || !output) {
+      setFolderRelationship(null);
+      return;
+    }
+    try {
+      // @ts-expect-error - electronAPI
+      const rel = await window.electronAPI.checkFolderRelationship(input, output);
+      setFolderRelationship(rel);
+    } catch {
+      setFolderRelationship('ok'); // fail open
+    }
   };
 
   /**
@@ -412,7 +447,11 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     if (step === 'welcome') return true;
     if (step === 'project') {
       const valid = await trigger(['inputFolder', 'outputFolder']);
-      return valid && watchedInputFolder && watchedOutputFolder;
+      if (!valid || !watchedInputFolder || !watchedOutputFolder) return false;
+      // Block if there is an unacknowledged folder conflict (2.13)
+      const hasConflict = folderRelationship === 'same' || folderRelationship === 'output-inside-input';
+      if (hasConflict && !ignoreFolderWarning) return false;
+      return true;
     }
     if (step === 'scoring') return true;
     if (step === 'ai') {
@@ -746,6 +785,43 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               </p>
             )}
           </div>
+
+          {/* Folder Conflict Warning Banner (2.13) */}
+          {(folderRelationship === 'same' || folderRelationship === 'output-inside-input') && (
+            <div className="bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-300 dark:border-amber-700/50 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    {folderRelationship === 'same'
+                      ? 'Output folder is the same as the input folder'
+                      : 'Output folder is inside the input folder'}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                    This may cause recursion or accidental overwrites. Continue?
+                  </p>
+                  <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
+                    <div
+                      className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                        ignoreFolderWarning
+                          ? 'bg-amber-500 border-amber-500'
+                          : 'border-amber-400 dark:border-amber-600 hover:border-amber-500'
+                      }`}
+                      onClick={() => setIgnoreFolderWarning(v => !v)}
+                    >
+                      {ignoreFolderWarning && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                    <span
+                      className="text-xs text-amber-800 dark:text-amber-300"
+                      onClick={() => setIgnoreFolderWarning(v => !v)}
+                    >
+                      Ignore for this session and continue anyway
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Extension Filter Card */}
           {watchedInputFolder && (

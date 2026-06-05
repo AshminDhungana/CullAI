@@ -29,6 +29,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFileAsBase64: (filePath)  => ipcRenderer.invoke('read-file-as-base64', filePath),
   openFileDialog:   (options)   => ipcRenderer.invoke('open-file-dialog', options),
 
+  // ── Folder safety ─────────────────────────────────────────────────────────
+  /**
+   * Returns 'same' | 'output-inside-input' | 'input-inside-output' | 'ok'.
+   * Session-only use — not persisted.
+   */
+  checkFolderRelationship: (input, output) =>
+    ipcRenderer.invoke('check-folder-relationship', { input, output }),
+
   // ── Shell ─────────────────────────────────────────────────────────────────
   /**
    * Reveals `folderPath` in the native file manager (Explorer / Finder).

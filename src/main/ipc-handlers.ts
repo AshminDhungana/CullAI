@@ -292,6 +292,43 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
   // -------------------------------------------------------------------------
 
   /**
+   * Checks the relationship between an input and output folder.
+   * Returns one of:
+   *   'same'               — both paths resolve to the same directory
+   *   'output-inside-input'— output is a subdirectory of input (risk of recursion)
+   *   'input-inside-output'— input is a subdirectory of output (unusual but flagged)
+   *   'ok'                 — no conflict
+   *
+   * Uses Node's `path.resolve` for normalization so that relative paths,
+   * trailing slashes, and case differences (on case-insensitive filesystems
+   * like macOS / Windows) are all handled correctly.
+   */
+  ipcMain.handle(
+    'check-folder-relationship',
+    (_event, payload: { input: string; output: string }) => {
+      const { input, output } = payload ?? {};
+      if (!input || !output) return 'ok';
+
+      // Normalise: resolve to absolute, lowercase for case-insensitive compare.
+      // path.resolve on an already-absolute path is a no-op, so this is safe
+      // whether the renderer sends relative or absolute paths.
+      const norm = (p: string) => path.resolve(p).toLowerCase().replace(/[/\\]+$/, '');
+      const a = norm(input);
+      const b = norm(output);
+
+      if (a === b) return 'same';
+
+      // Use the OS path separator so we don't falsely match e.g.
+      // /photos/vacation vs /photos/vacationExtras on a single-sep check.
+      const sep = path.sep;
+      if (b.startsWith(a + sep)) return 'output-inside-input';
+      if (a.startsWith(b + sep)) return 'input-inside-output';
+
+      return 'ok';
+    },
+  );
+
+  /**
    * Reveals `folderPath` in the native file manager (Explorer / Finder /
    * Nautilus). Uses `shell.showItemInFolder` so the folder itself is selected
    * in its parent — more useful than just opening it.
