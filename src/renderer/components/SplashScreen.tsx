@@ -49,7 +49,7 @@ export function SplashScreen({ onDismiss }: SplashScreenProps) {
         fixed inset-0 z-50
         flex items-center justify-center
         overflow-hidden
-        bg-white dark:bg-zinc-950
+        bg-black
         transition-all duration-700 ease-out
         ${
           dismissing
@@ -58,11 +58,6 @@ export function SplashScreen({ onDismiss }: SplashScreenProps) {
         }
       `}
     >
-      {/* Background Glow */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-[500px] h-[500px] rounded-full bg-amber-500/10 dark:bg-indigo-500/10 blur-3xl animate-pulse" />
-      </div>
-
       {/* Content */}
       <div className="relative flex flex-col items-center gap-6">
         {/* Logo */}
@@ -92,7 +87,7 @@ export function SplashScreen({ onDismiss }: SplashScreenProps) {
           <span
             className={`
               text-4xl font-semibold tracking-tight
-              text-gray-900 dark:text-zinc-100
+              text-white
               transition-all duration-1000 ease-out
               ${
                 stage === "text" ||
@@ -104,7 +99,7 @@ export function SplashScreen({ onDismiss }: SplashScreenProps) {
             `}
           >
             Cull
-            <span className="text-amber-500 dark:text-indigo-400">
+            <span className="text-indigo-400">
               AI
             </span>
           </span>
@@ -112,7 +107,7 @@ export function SplashScreen({ onDismiss }: SplashScreenProps) {
           <p
             className={`
               text-xs tracking-[0.25em] uppercase
-              text-gray-500 dark:text-zinc-500
+              text-zinc-500
               transition-all duration-1000 ease-out
               ${
                 stage === "tagline" ||
@@ -135,12 +130,12 @@ export function SplashScreen({ onDismiss }: SplashScreenProps) {
               }
             `}
           >
-            <p className="text-[11px] tracking-wide text-gray-400 dark:text-zinc-600 mb-3">
+            <p className="text-[11px] tracking-wide text-zinc-600 mb-3">
               Initializing AI Engine...
             </p>
 
-            <div className="w-48 h-[2px] bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-              <div className="loading-bar h-full w-1/3 bg-amber-500 dark:bg-indigo-400" />
+            <div className="w-48 h-[2px] bg-zinc-900 rounded-full overflow-hidden">
+              <div className="loading-bar h-full w-1/3 bg-indigo-400" />
             </div>
           </div>
         </div>

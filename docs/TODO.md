@@ -254,15 +254,15 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.12 🔥 "Open in Explorer/Finder" Buttons
 
-- [ ] Add a small folder icon button next to each folder text input
-- [ ] On click, call IPC `'shell-show-item'` with the folder path (if empty, show a warning)
-- [ ] Uses Electron `shell.showItemInFolder` for the folder itself (or `openPath` if preferred)
+- [x] Add a small folder icon button next to each folder text input
+- [x] On click, call IPC `'shell-show-item'` with the folder path (if empty, show a warning)
+- [x] Uses Electron `shell.showItemInFolder` for the folder itself (or `openPath` if preferred)
 
 ### 2.13 🔥 Output Folder Safety Check
 
-- [ ] When user selects or types an output folder, validate that it is **not** a subdirectory of the input folder (case‑insensitive path comparison)
-- [ ] If conflict detected, show a yellow warning banner: "Output folder is inside input folder – this may cause recursion or accidental overwrites. Continue?"
-- [ ] Add an "Ignore" checkbox that persists for the session (does not auto‑save to global settings)
+- [x] When user selects or types an output folder, validate that it is **not** a subdirectory of the input folder (case‑insensitive path comparison)
+- [x] If conflict detected, show a yellow warning banner: "Output folder is inside input folder – this may cause recursion or accidental overwrites. Continue?"
+- [x] Add an "Ignore" checkbox that persists for the session (does not auto‑save to global settings)
 
 ### 2.14 🔥 Face Count Limit Setting
 
