@@ -908,7 +908,20 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                 <Controller
                   name="weights"
                   control={control}
-                  render={({ field }) => <ScoringWeightsPanel weights={field.value} onChange={field.onChange} />}
+                  render={({ field }) => (
+                    <Controller
+                      name="maxFacesPerImage"
+                      control={control}
+                      render={({ field: facesField }) => (
+                        <ScoringWeightsPanel
+                          weights={field.value}
+                          onChange={field.onChange}
+                          maxFacesPerImage={facesField.value ?? 0}
+                          onMaxFacesChange={facesField.onChange}
+                        />
+                      )}
+                    />
+                  )}
                 />
               </motion.div>
             )}
@@ -1418,26 +1431,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                     <span>50 (moderate)</span>
                     <span>100 (loose)</span>
                   </div>
-                </div>
-              )}
-            />
-
-            <Controller
-              name="maxFacesPerImage"
-              control={control}
-              render={({ field }) => (
-                <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
-                    Max faces per image <span className="text-xs text-gray-400">(0 = unlimited)</span>
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={50}
-                    value={field.value}
-                    onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
-                    className="w-32 bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-3 py-1.5 text-sm"
-                  />
                 </div>
               )}
             />

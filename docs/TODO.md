@@ -266,10 +266,10 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.14 🔥 Face Count Limit Setting
 
-- [ ] Add a slider + number input in the Scoring Weights panel area: "Max faces per image (ignore group shots)"
-- [ ] Range 0–50, default 0 (disabled, meaning no limit)
-- [ ] Store in `AppSettings` as `maxFacesPerImage`
-- [ ] In Phase 6, during face detection, if `maxFacesPerImage > 0` and `faceCount > maxFacesPerImage`, mark image as rejected (or set `faceEyes` score to 0) — implemented in Phase 6.
+- [x] Add a slider + number input in the Scoring Weights panel area: "Max faces per image (ignore group shots)"
+- [x] Range 0–50, default 0 (disabled, meaning no limit)
+- [x] Store in `AppSettings` as `maxFacesPerImage`
+- [x] In Phase 6, during face detection, if `maxFacesPerImage > 0` and `faceCount > maxFacesPerImage`, mark image as rejected (or set `faceEyes` score to 0) — implemented in Phase 6.
 
 ### 2.15 🔥 Test Face Detection on Reference Image
 

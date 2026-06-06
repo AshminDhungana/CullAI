@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ScoringWeights } from "../../shared/types";
-import { Lock, Unlock } from "lucide-react";
+import { Lock, Unlock, Users } from "lucide-react";
 
 type WeightKey = keyof ScoringWeights;
 
@@ -25,7 +25,6 @@ export function normalize(
   const otherKeys = SLIDER_KEYS.map((s) => s.key).filter((k) => k !== changedKey);
   const unlockedOthers = otherKeys.filter((k) => !lockedKeys.has(k));
 
-  // If changed key is locked, we need to unlock it first
   const effectiveChangedKey = changedKey;
   const distributionKeys = unlockedOthers.length > 0 ? unlockedOthers : otherKeys;
 
@@ -62,9 +61,11 @@ export function normalize(
 interface Props {
   weights: ScoringWeights;
   onChange: (weights: ScoringWeights) => void;
+  maxFacesPerImage: number;
+  onMaxFacesChange: (value: number) => void;
 }
 
-export default function ScoringWeightsPanel({ weights, onChange }: Props) {
+export default function ScoringWeightsPanel({ weights, onChange, maxFacesPerImage, onMaxFacesChange }: Props) {
   const [lockedKeys, setLockedKeys] = useState<Set<WeightKey>>(new Set());
   const total = Object.values(weights).reduce((s, v) => s + v, 0);
   const totalOk = total === 100;
@@ -84,6 +85,19 @@ export default function ScoringWeightsPanel({ weights, onChange }: Props) {
   const handleChange = (key: WeightKey, value: number) => {
     onChange(normalize(weights, key, value, lockedKeys));
   };
+
+  const handleMaxFacesSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onMaxFacesChange(parseInt(e.target.value, 10));
+  };
+
+  const handleMaxFacesInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = parseInt(e.target.value, 10);
+    if (!isNaN(v)) {
+      onMaxFacesChange(Math.max(0, Math.min(50, v)));
+    }
+  };
+
+  const isDisabled = maxFacesPerImage === 0;
 
   return (
     <div className="bg-white dark:bg-[#161b27] border border-gray-200 dark:border-[#1e2535] rounded-xl p-5 flex flex-col gap-4 font-mono min-w-[320px] max-w-[480px] transition-colors shadow-sm">
@@ -183,9 +197,102 @@ export default function ScoringWeightsPanel({ weights, onChange }: Props) {
         })}
       </div>
 
-      <p className="text-gray-400 dark:text-zinc-600 text-[10px] tracking-wide border-t border-gray-200 dark:border-[#1e2535] pt-3 m-0 transition-colors">
+      {/* Normalize hint */}
+      <p className="text-gray-400 dark:text-zinc-600 text-[10px] tracking-wide border-b border-gray-200 dark:border-[#1e2535] pb-3 m-0 transition-colors">
         Weights auto-normalize to 100% when any slider changes. Lock weights to exclude from redistribution.
       </p>
+
+      {/* ── Max Faces Per Image ─────────────────────────────────────────── */}
+      <div className="flex flex-col gap-2.5">
+        {/* Section header */}
+        <div className="flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-500 shrink-0" />
+          <span className="text-gray-500 dark:text-gray-400 text-[11px] font-semibold tracking-widest uppercase flex-1">
+            Face Count Limit
+          </span>
+          {/* Live value badge */}
+          <span
+            className={`text-[11px] font-bold tracking-wide rounded px-2 py-0.5 transition-colors ${
+              isDisabled
+                ? "text-gray-400 dark:text-zinc-600 bg-gray-100 dark:bg-zinc-800/60"
+                : "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30"
+            }`}
+          >
+            {isDisabled ? "Off" : `≤ ${maxFacesPerImage}`}
+          </span>
+        </div>
+
+        {/* Slider row */}
+        <div className="flex flex-col gap-1.5">
+          <div className="relative h-5 flex items-center">
+            {/* Track */}
+            <div className="absolute w-full h-1 rounded-full bg-gray-200 dark:bg-zinc-700 transition-colors" />
+            {/* Fill — orange accent to visually distinguish from weight sliders */}
+            <div
+              className="absolute h-1 rounded-full transition-[width] duration-75"
+              style={{
+                width: `${(maxFacesPerImage / 50) * 100}%`,
+                opacity: isDisabled ? 0 : 1,
+                background: 'linear-gradient(to right, #f97316, #fb923c)',
+              }}
+            />
+            {/* Thumb */}
+            <div
+              className="absolute w-4 h-4 rounded-full shadow-md pointer-events-none z-10 transition-all duration-75"
+              style={{
+                left: `calc(${(maxFacesPerImage / 50) * 100}% - 8px)`,
+                background: isDisabled ? '#d1d5db' : '#f97316',
+                boxShadow: isDisabled ? 'none' : '0 2px 6px rgba(249,115,22,0.35)',
+              }}
+            />
+            <input
+              type="range"
+              min={0}
+              max={50}
+              step={1}
+              value={maxFacesPerImage}
+              aria-label="Max faces per image"
+              aria-valuenow={maxFacesPerImage}
+              aria-valuetext={maxFacesPerImage === 0 ? "disabled" : `${maxFacesPerImage} faces`}
+              onChange={handleMaxFacesSlider}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+            />
+          </div>
+
+          {/* Tick labels */}
+          <div className="flex justify-between text-[10px] text-gray-400 dark:text-zinc-600">
+            <span>0 (off)</span>
+            <span>10</span>
+            <span>25</span>
+            <span>50</span>
+          </div>
+        </div>
+
+        {/* Number input + description row */}
+        <div className="flex items-center gap-3">
+          <input
+            type="number"
+            min={0}
+            max={50}
+            value={maxFacesPerImage}
+            onChange={handleMaxFacesInput}
+            aria-label="Max faces per image (number input)"
+            className={`
+              w-16 rounded-lg border px-2 py-1 text-xs font-bold font-mono text-center
+              transition-colors focus:outline-none focus:ring-2 focus:ring-orange-400/40
+              ${isDisabled
+                ? "border-gray-200 dark:border-zinc-700 text-gray-400 dark:text-zinc-600 bg-gray-50 dark:bg-zinc-800/40"
+                : "border-orange-300 dark:border-orange-700/60 text-orange-700 dark:text-orange-300 bg-orange-50/60 dark:bg-orange-950/20 focus:border-orange-500"
+              }
+            `}
+          />
+          <p className="text-[10px] text-gray-400 dark:text-zinc-600 leading-relaxed flex-1">
+            {isDisabled
+              ? "No limit — all group shots are scored normally."
+              : `Images with more than ${maxFacesPerImage} detected face${maxFacesPerImage === 1 ? "" : "s"} are auto-rejected before AI scoring.`}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
