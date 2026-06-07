@@ -279,6 +279,62 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
   });
 
   // -------------------------------------------------------------------------
+  // Face detection
+  // -------------------------------------------------------------------------
+
+  /**
+   * Runs face detection on a base64-encoded JPEG image.
+   *
+   * Phase 6 replaces the stub body below with real @vladmandic/human detection.
+   * The IPC channel, payload shape, and return shape are locked here so the
+   * renderer (ReferenceImageUpload "Test face detection" button) can call it
+   * without any changes when Phase 6 lands.
+   *
+   * Payload:  { base64: string; maxFacesPerImage?: number }
+   * Returns:  FaceMetadata (matches src/shared/types.ts exactly)
+   */
+  ipcMain.handle(
+    'scan-faces',
+    async (
+      _event,
+      payload: { base64: string; maxFacesPerImage?: number },
+    ) => {
+      if (!payload?.base64 || typeof payload.base64 !== 'string') {
+        throw new Error('scan-faces: base64 image data is required');
+      }
+
+      // ── Phase 6 TODO ───────────────────────────────────────────────────────
+      // Replace everything below this comment with real detection logic:
+      //
+      //   import { detectFaces } from './face-detector';
+      //   const buffer = Buffer.from(payload.base64, 'base64');
+      //   return await detectFaces(buffer, payload.maxFacesPerImage ?? 0);
+      //
+      // The stub deliberately decodes the buffer to validate it is a real
+      // base64 string (throws on garbage input) without importing libraw or
+      // @vladmandic/human, which are not available until Phase 6.
+      // ──────────────────────────────────────────────────────────────────────
+
+      // Validate: must be a decodeable base64 string.
+      const buffer = Buffer.from(payload.base64, 'base64');
+      if (buffer.length === 0) {
+        throw new Error('scan-faces: decoded buffer is empty');
+      }
+
+      // Stub response — shape matches FaceMetadata from src/shared/types.ts.
+      return {
+        hasFaces: false,
+        faceCount: 0,
+        eyesOpen: true,
+        blinkDetected: false,
+        expressionNeutral: true,
+        boundingBoxes: [],
+        exceedsFaceLimit: false,
+      };
+    },
+  );
+
+  // -------------------------------------------------------------------------
   // Misc
   // -------------------------------------------------------------------------
 
@@ -298,10 +354,6 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
    *   'output-inside-input'— output is a subdirectory of input (risk of recursion)
    *   'input-inside-output'— input is a subdirectory of output (unusual but flagged)
    *   'ok'                 — no conflict
-   *
-   * Uses Node's `path.resolve` for normalization so that relative paths,
-   * trailing slashes, and case differences (on case-insensitive filesystems
-   * like macOS / Windows) are all handled correctly.
    */
   ipcMain.handle(
     'check-folder-relationship',
@@ -309,17 +361,12 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
       const { input, output } = payload ?? {};
       if (!input || !output) return 'ok';
 
-      // Normalise: resolve to absolute, lowercase for case-insensitive compare.
-      // path.resolve on an already-absolute path is a no-op, so this is safe
-      // whether the renderer sends relative or absolute paths.
       const norm = (p: string) => path.resolve(p).toLowerCase().replace(/[/\\]+$/, '');
       const a = norm(input);
       const b = norm(output);
 
       if (a === b) return 'same';
 
-      // Use the OS path separator so we don't falsely match e.g.
-      // /photos/vacation vs /photos/vacationExtras on a single-sep check.
       const sep = path.sep;
       if (b.startsWith(a + sep)) return 'output-inside-input';
       if (a.startsWith(b + sep)) return 'input-inside-output';
@@ -332,9 +379,6 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
    * Reveals `folderPath` in the native file manager (Explorer / Finder /
    * Nautilus). Uses `shell.showItemInFolder` so the folder itself is selected
    * in its parent — more useful than just opening it.
-   *
-   * Throws a typed error so the renderer can distinguish "path empty" from
-   * "path not found" and surface the right inline warning.
    */
   ipcMain.handle('shell-show-item', async (_event, folderPath: string) => {
     if (!folderPath || typeof folderPath !== 'string' || !folderPath.trim()) {

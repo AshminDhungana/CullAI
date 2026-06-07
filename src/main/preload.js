@@ -29,6 +29,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFileAsBase64: (filePath)  => ipcRenderer.invoke('read-file-as-base64', filePath),
   openFileDialog:   (options)   => ipcRenderer.invoke('open-file-dialog', options),
 
+  // ── Face detection ────────────────────────────────────────────────────────
+  /**
+   * Runs face detection on a base64-encoded JPEG and returns a FaceMetadata
+   * object. Phase 6 replaces the main-process stub with real detection;
+   * this preload binding requires no changes when that happens.
+   *
+   * @param {string}  base64           Plain base64 JPEG (no data-URI prefix).
+   * @param {number}  [maxFacesPerImage=0]  0 = no limit check.
+   * @returns {Promise<FaceMetadata>}
+   */
+  scanFaces: (base64, maxFacesPerImage = 0) =>
+    ipcRenderer.invoke('scan-faces', { base64, maxFacesPerImage }),
+
   // ── Folder safety ─────────────────────────────────────────────────────────
   /**
    * Returns 'same' | 'output-inside-input' | 'input-inside-output' | 'ok'.

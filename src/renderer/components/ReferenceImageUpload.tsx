@@ -1,8 +1,11 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AlertTriangle,
+  CheckCircle2,
   Image as ImageIcon,
   Info,
   Loader2,
+  ScanFace,
   Upload,
   X,
 } from 'lucide-react';
@@ -17,6 +20,23 @@ export interface ReferenceImageUploadProps {
   /** Called when a new image is uploaded or the current one is cleared. */
   onChange: (img: ReferenceImage) => void;
 }
+
+/** Result shape returned by the 'scan-faces' IPC handler. Mirrors FaceMetadata. */
+interface FaceDetectionResult {
+  hasFaces: boolean;
+  faceCount: number;
+  eyesOpen: boolean;
+  blinkDetected: boolean;
+  expressionNeutral: boolean;
+  exceedsFaceLimit: boolean;
+}
+
+/** Local state machine for the face-detection test. */
+type FaceTestState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'result'; data: FaceDetectionResult }
+  | { status: 'error'; message: string };
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -77,7 +97,128 @@ function resizeImageToBase64(
 }
 
 // ---------------------------------------------------------------------------
-// Component
+// Sub-component: FaceTestResult
+// ---------------------------------------------------------------------------
+
+interface FaceTestResultProps {
+  data: FaceDetectionResult;
+  onDismiss: () => void;
+}
+
+function FaceTestResult({ data, onDismiss }: FaceTestResultProps) {
+  const noFaces = data.faceCount === 0;
+
+  return (
+    <div
+      className={`
+        rounded-xl border p-3 text-xs transition-colors
+        ${noFaces
+          ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/40'
+          : 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40'
+        }
+      `}
+    >
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          {noFaces ? (
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          )}
+          <span
+            className={`font-semibold ${
+              noFaces
+                ? 'text-amber-800 dark:text-amber-300'
+                : 'text-emerald-800 dark:text-emerald-300'
+            }`}
+          >
+            Face detection complete
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss face detection result"
+          className="
+            text-gray-400 dark:text-gray-500
+            hover:text-gray-600 dark:hover:text-gray-300
+            transition-colors rounded
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500
+          "
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Result rows */}
+      <div className="space-y-1">
+        <ResultRow
+          label="Faces detected"
+          value={String(data.faceCount)}
+          valueClass={
+            noFaces
+              ? 'text-amber-700 dark:text-amber-400'
+              : 'text-emerald-700 dark:text-emerald-400 font-semibold'
+          }
+        />
+        <ResultRow
+          label="Eyes open"
+          value={noFaces ? '—' : data.eyesOpen ? 'Yes' : 'No'}
+          valueClass={
+            noFaces
+              ? 'text-gray-400 dark:text-gray-600'
+              : data.eyesOpen
+              ? 'text-emerald-700 dark:text-emerald-400'
+              : 'text-red-600 dark:text-red-400'
+          }
+        />
+        <ResultRow
+          label="Blink detected"
+          value={noFaces ? '—' : data.blinkDetected ? 'Yes' : 'No'}
+          valueClass={
+            noFaces
+              ? 'text-gray-400 dark:text-gray-600'
+              : data.blinkDetected
+              ? 'text-amber-600 dark:text-amber-400'
+              : 'text-emerald-700 dark:text-emerald-400'
+          }
+        />
+      </div>
+
+      {/* Advisory — only when no faces found */}
+      {noFaces && (
+        <p className="mt-2.5 pt-2.5 border-t border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400 leading-relaxed">
+          No faces detected. Consider setting the{' '}
+          <span className="font-semibold">Face &amp; Eyes</span> weight to{' '}
+          <span className="font-semibold">0%</span> for this session, or try a
+          different reference image with a clearly visible face.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Single label/value row inside FaceTestResult. */
+function ResultRow({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  valueClass: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-gray-500 dark:text-gray-400">{label}</span>
+      <span className={`font-medium tabular-nums ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component: ReferenceImageUpload
 // ---------------------------------------------------------------------------
 export default function ReferenceImageUpload({
   value,
@@ -87,6 +228,14 @@ export default function ReferenceImageUpload({
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+
+  // ── Face detection state ─────────────────────────────────────────────────
+  const [faceTest, setFaceTest] = useState<FaceTestState>({ status: 'idle' });
+
+  // Reset face-test state whenever the image changes (new upload or cleared).
+  useEffect(() => {
+    setFaceTest({ status: 'idle' });
+  }, [value]);
 
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -231,6 +380,29 @@ export default function ReferenceImageUpload({
     setError(null);
   }, [onChange]);
 
+  // ── Test face detection ───────────────────────────────────────────────────
+  const handleTestFaces = useCallback(async () => {
+    if (!value) return;
+    setFaceTest({ status: 'loading' });
+    try {
+      const result = await (window as any).electronAPI?.scanFaces?.(
+        value.base64,
+        0, // maxFacesPerImage: 0 = no limit check during reference image test
+      ) as FaceDetectionResult | undefined;
+
+      if (!result) {
+        throw new Error('No response from face detector');
+      }
+
+      setFaceTest({ status: 'result', data: result });
+    } catch (err) {
+      setFaceTest({
+        status: 'error',
+        message: err instanceof Error ? err.message : 'Face detection unavailable',
+      });
+    }
+  }, [value]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   // When an image is set, show the thumbnail preview
@@ -290,6 +462,73 @@ export default function ReferenceImageUpload({
               Remove
             </button>
           </div>
+        </div>
+
+        {/* ── Test face detection ── */}
+        <div>
+          {/* Button — shown when idle or loading */}
+          {(faceTest.status === 'idle' || faceTest.status === 'loading') && (
+            <button
+              type="button"
+              onClick={handleTestFaces}
+              disabled={faceTest.status === 'loading'}
+              className="
+                flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium
+                border border-gray-200 dark:border-[#1e2535]
+                bg-white dark:bg-[#161b27]
+                text-gray-600 dark:text-gray-300
+                hover:border-amber-400 dark:hover:border-amber-600
+                hover:text-amber-600 dark:hover:text-amber-400
+                disabled:opacity-50 disabled:cursor-not-allowed
+                transition-all
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2
+                dark:focus-visible:ring-offset-[#161b27]
+              "
+            >
+              {faceTest.status === 'loading' ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                  Detecting…
+                </>
+              ) : (
+                <>
+                  <ScanFace className="w-3.5 h-3.5" />
+                  Test face detection
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Result panel */}
+          {faceTest.status === 'result' && (
+            <FaceTestResult
+              data={faceTest.data}
+              onDismiss={() => setFaceTest({ status: 'idle' })}
+            />
+          )}
+
+          {/* Error state */}
+          {faceTest.status === 'error' && (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20 px-3 py-2">
+              <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {faceTest.message}
+              </p>
+              <button
+                type="button"
+                onClick={() => setFaceTest({ status: 'idle' })}
+                aria-label="Dismiss error"
+                className="
+                  text-red-400 dark:text-red-600
+                  hover:text-red-600 dark:hover:text-red-400
+                  transition-colors rounded
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500
+                "
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Info tooltip */}
@@ -388,7 +627,7 @@ export default function ReferenceImageUpload({
 }
 
 // ---------------------------------------------------------------------------
-// Info tooltip sub-component
+// Info tooltip sub-component (unchanged)
 // ---------------------------------------------------------------------------
 function InfoTooltipRow({
   showTooltip,
