@@ -5,16 +5,18 @@
  *
  * Responsibilities:
  *   1. Create the BrowserWindow.
- *   2. Initialise electron-store.
- *   3. Register all IPC handlers (only after the store is ready, so handlers
- *      receive a fully-initialised store — no null checks, no race condition).
+ *   2. Initialise electron-store (main settings) and the secure store
+ *      (encrypted API keys — separate file, never logged).
+ *   3. Register all IPC handlers only after both stores are ready.
  *
  * All handler implementations live in ./ipc-handlers.ts.
+ * Secure-storage helpers live in ./safe-storage.ts.
  */
 
 import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
+import { initSecureStore } from './safe-storage';
 
 // ---------------------------------------------------------------------------
 // Window creation
@@ -56,15 +58,20 @@ function createWindow(): void {
 //
 // electron-store is ESM-only (v9+), so we import() it dynamically.
 //
-// Handlers are registered inside the .then() callback, which means:
-//   • The store object passed to registerIpcHandlers is always initialised.
-//   • No handler can be called before the store is ready (Electron queues
-//     renderer IPC calls until the window is ready, and window creation
-//     happens in app.whenReady which fires after this chain begins).
+// Both stores (main settings + secure API keys) are constructed here and
+// passed to their respective modules. Handlers are registered only after
+// both are ready so no handler can race against an uninitialised store.
 // ---------------------------------------------------------------------------
 import('electron-store')
   .then(({ default: Store }) => {
+    // Main settings store — plain JSON, never contains raw API keys.
     const store = new Store();
+
+    // Secure store — physically separate file ("secure.json").
+    // Encrypted blobs live here; the file itself is never logged.
+    const secureStore = new Store({ name: 'secure' });
+    initSecureStore(secureStore);
+
     registerIpcHandlers(store);
   })
   .catch((err: unknown) => {

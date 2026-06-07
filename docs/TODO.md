@@ -13,8 +13,8 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | Phase | Title                                  | Status         |
 | ----- | -------------------------------------- | -------------- |
 | 1     | Project Scaffold                       | ✅ Complete    |
-| 1.5   | Splash Screen & Launch Animation       | ⬜ Not Started |
-| 2     | Setup Screen UI (Enhanced)             | ⬜ Not Started |
+| 1.5   | Splash Screen & Launch Animation       | ✅ Complete    |
+| 2     | Setup Screen UI (Enhanced)             | ✅ Complete    |
 | 3     | Secure Storage & License               | ⬜ Not Started |
 | 4     | RAW Decoding Pipeline                  | ⬜ Not Started |
 | 5     | Image Processing Pipeline (Enhanced)   | ⬜ Not Started |
@@ -289,17 +289,17 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.17 🔥 Burst Handling Toggle
 
-- [ ] Add a checkbox: "Keep all burst shots (disable duplicate grouping)"
-- [ ] Default: unchecked (duplicate grouping active)
-- [ ] Store in `AppSettings` as `disableDuplicateGrouping`
-- [ ] When checked, Phase 7 will skip duplicate grouping and treat every image as a separate candidate
+- [x] Add a checkbox: "Keep all burst shots (disable duplicate grouping)"
+- [x] Default: unchecked (duplicate grouping active)
+- [x] Store in `AppSettings` as `disableDuplicateGrouping`
+- [x] When checked, Phase 7 will skip duplicate grouping and treat every image as a separate candidate
 
 ### 2.18 🔥 Similarity Threshold Slider (Duplicate Detection)
 
-- [ ] Add a slider labeled "Burst similarity threshold (bits)" with range 5–20, default 10
-- [ ] Add info tooltip: "Lower = stricter grouping (only nearly identical images). Higher = looser grouping (more images considered duplicates)."
-- [ ] Store in `AppSettings` as `duplicateThreshold`
-- [ ] Used in Phase 7 instead of the hardcoded constant
+- [x] Add a slider labeled "Burst similarity threshold (bits)" with range 5–20, default 10
+- [x] Add info tooltip: "Lower = stricter grouping (only nearly identical images). Higher = looser grouping (more images considered duplicates)."
+- [x] Store in `AppSettings` as `duplicateThreshold`
+- [x] Used in Phase 7 instead of the hardcoded constant
 
 ✅ **Done Criteria:** All Setup screen fields render correctly, genre preset auto-populates sliders, weights always sum to 100, settings persist across restarts. Extension filter, prefix filter, and reference image upload work and save.
 
@@ -312,18 +312,18 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 > ⚠️ **README Gap:** The license system (Free / Pro / Lifetime tiers, feature gates, monthly
 > image caps) is not documented in `README.md`. Before shipping, `README.md` must be updated
 > to describe the tiered model, what each tier unlocks, and how to purchase/activate a license.
-> Failing to do this will cause user confusion about locked features.
+> Failing to do this will cause user confusion about locked features. For now we will give full access license to all user.
 
 ### 3.1 Implement API Key Secure Storage
 
-- [ ] Create `src/main/safe-storage.ts`
-- [ ] Implement `storeApiKey(provider: AIProvider, key: string): void` using `safeStorage.encryptString()`
-- [ ] Implement `getApiKey(provider: AIProvider): string | null` using `safeStorage.decryptString()`
-- [ ] Implement `deleteApiKey(provider: AIProvider): void`
-- [ ] Store encrypted bytes in `electron-store` under key `apiKeys.{provider}`
-- [ ] Ensure raw key string is never written to any log or file
-- [ ] Add IPC handlers: `'api-key-store'`, `'api-key-get'`, `'api-key-delete'`
-- [ ] Wire Setup screen API key input to these IPC handlers — save on blur, load masked value on mount
+- [x] Create `src/main/safe-storage.ts`
+- [x] Implement `storeApiKey(provider: AIProvider, key: string): void` using `safeStorage.encryptString()`
+- [x] Implement `getApiKey(provider: AIProvider): string | null` using `safeStorage.decryptString()`
+- [x] Implement `deleteApiKey(provider: AIProvider): void`
+- [x] Store encrypted bytes in `electron-store` under key `apiKeys.{provider}`
+- [x] Ensure raw key string is never written to any log or file
+- [x] Add IPC handlers: `'api-key-store'`, `'api-key-get'`, `'api-key-delete'`
+- [x] Wire Setup screen API key input to these IPC handlers — save on blur, load masked value on mount
 
 ### 3.2 Platform Verification
 

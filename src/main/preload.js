@@ -79,6 +79,38 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   shellShowItem: (folderPath) => ipcRenderer.invoke('shell-show-item', folderPath),
 
+  // ── Secure API key storage ────────────────────────────────────────────────
+  /**
+   * Encrypts and persists the API key for `provider` in the OS keychain.
+   * The raw key is never written to any settings file or log.
+   *
+   * @param {string} provider  AIProvider string ('claude', 'openai', etc.)
+   * @param {string} key       The raw API key entered by the user.
+   * @returns {Promise<true>}
+   */
+  storeApiKey: (provider, key) =>
+    ipcRenderer.invoke('api-key-store', provider, key),
+
+  /**
+   * Decrypts and returns the stored key for `provider`, or null if none
+   * is stored. The renderer must immediately mask this value — it should
+   * never be persisted back to the settings store or logged.
+   *
+   * @param {string} provider  AIProvider string.
+   * @returns {Promise<string | null>}
+   */
+  getApiKey: (provider) =>
+    ipcRenderer.invoke('api-key-get', provider),
+
+  /**
+   * Permanently removes the stored key for `provider`.
+   *
+   * @param {string} provider  AIProvider string.
+   * @returns {Promise<true | undefined>}
+   */
+  deleteApiKey: (provider) =>
+    ipcRenderer.invoke('api-key-delete', provider),
+
   // ── Misc ──────────────────────────────────────────────────────────────────
   testConnection: (params) => ipcRenderer.invoke('test-connection', params),
 });

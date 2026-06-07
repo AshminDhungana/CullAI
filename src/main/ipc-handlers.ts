@@ -22,6 +22,7 @@
 import { dialog, ipcMain, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { storeApiKey, getApiKey, deleteApiKey } from './safe-storage';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -507,6 +508,64 @@ export function registerIpcHandlers(store: AppStore): void {
       if (a.startsWith(b + sep)) return 'input-inside-output';
 
       return 'ok';
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Secure API key storage
+  //
+  // Keys are encrypted via the OS keychain (Electron safeStorage) and stored
+  // in a separate "secure.json" store — never in the main settings file, never
+  // logged. The renderer receives only a boolean "key exists" signal on mount;
+  // the decrypted value is returned once on an explicit 'api-key-get' call and
+  // is immediately masked to a sentinel in the form state so it is never
+  // persisted back through 'settings-set'.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Encrypts and stores the API key for `provider`.
+   * Throws (and the renderer surfaces a toast) if the OS keychain is
+   * unavailable — this is an explicit, recoverable error, not a silent swallow.
+   */
+  ipcMain.handle(
+    'api-key-store',
+    (_event, provider: string, key: string) => {
+      if (!provider || typeof provider !== 'string') {
+        throw new Error('api-key-store: provider must be a non-empty string');
+      }
+      if (!key || typeof key !== 'string') {
+        throw new Error('api-key-store: key must be a non-empty string');
+      }
+      // storeApiKey() never logs the raw key — it goes straight to safeStorage.
+      storeApiKey(provider as any, key);
+      return true;
+    },
+  );
+
+  /**
+   * Decrypts and returns the stored API key for `provider`, or null if none
+   * is stored. The renderer immediately replaces the returned value with a
+   * masked sentinel so it never re-enters any persisted state.
+   *
+   * Dev note: we intentionally do NOT log the return value here.
+   */
+  ipcMain.handle(
+    'api-key-get',
+    (_event, provider: string) => {
+      if (!provider || typeof provider !== 'string') return null;
+      return getApiKey(provider as any);
+    },
+  );
+
+  /**
+   * Deletes the stored key for `provider`. No-op if nothing is stored.
+   */
+  ipcMain.handle(
+    'api-key-delete',
+    (_event, provider: string) => {
+      if (!provider || typeof provider !== 'string') return;
+      deleteApiKey(provider as any);
+      return true;
     },
   );
 

@@ -115,6 +115,22 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
 }
 
 // -----------------------------------------------------------------------------
+// API key masking
+//
+// The real key is stored in the OS keychain via safeStorage (main process).
+// The form field never holds the real value after the first blur — it is
+// immediately replaced with this sentinel string so it cannot leak through
+// auto-save, React DevTools, or any serialisation path.
+// -----------------------------------------------------------------------------
+const MASKED_SENTINEL = '__MASKED__';
+
+/** Returns a display-safe mask string showing only the last 4 chars. */
+function maskKey(key: string): string {
+  if (key.length <= 4) return '••••••••';
+  return `••••••••${key.slice(-4)}`;
+}
+
+// -----------------------------------------------------------------------------
 // Wizard steps
 // -----------------------------------------------------------------------------
 type WizardStep = 'welcome' | 'project' | 'scoring' | 'ai' | 'options' | 'review';
@@ -171,6 +187,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [folderRelationship, setFolderRelationship] = useState<FolderRelationship>(null);
   const [ignoreFolderWarning, setIgnoreFolderWarning] = useState(false);
   const [showDuplicateTooltip, setShowDuplicateTooltip] = useState(false);
+  // Shown below the API key field when safeStorage encryption is unavailable.
+  const [apiKeySaveError, setApiKeySaveError] = useState<string>('');
 
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
 
@@ -254,8 +272,12 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const saveSettings = useCallback(
     debounce(async (values: SetupFormValues) => {
       try {
+        // Deliberately omit apiKey — it is never stored in the plain settings
+        // file. The real key lives exclusively in the OS keychain (safeStorage).
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { apiKey: _omit, ...rest } = values;
         const toStore = {
-          ...values,
+          ...rest,
           extensionFilter: values.extensionFilter || [],
           prefixFilter: values.prefixFilter || [],
           prefixCaseInsensitive: values.prefixCaseInsensitive ?? true,
@@ -298,8 +320,33 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       setValue('baseUrl', defaults.baseUrl, { shouldDirty: true });
       setValue('model', defaults.defaultModel, { shouldDirty: true });
       setShowApiKey(false);
+      setApiKeySaveError('');
     }
   }, [watchedProvider, setValue]);
+
+  // On mount and whenever the provider changes, check whether a key is stored
+  // and set the form field to the masked sentinel if so. This means the user
+  // sees "••••••••abcd" (last 4 chars) without us ever putting the real key
+  // into React form state or the renderer DOM.
+  useEffect(() => {
+    if (isLoading) return;
+    async function loadStoredKey() {
+      try {
+        // @ts-expect-error - electronAPI
+        const stored: string | null = await window.electronAPI.getApiKey(watchedProvider);
+        if (stored) {
+          // Replace form field with sentinel — the real value stays in the keychain.
+          setValue('apiKey', MASKED_SENTINEL, { shouldDirty: false });
+        } else {
+          // No key stored — ensure the field is blank (handles provider switches).
+          setValue('apiKey', '', { shouldDirty: false });
+        }
+      } catch {
+        setValue('apiKey', '', { shouldDirty: false });
+      }
+    }
+    loadStoredKey();
+  }, [watchedProvider, isLoading, setValue]);
 
   // Re-run folder relationship check whenever either path changes (e.g. typed
   // directly or loaded from persisted settings on mount).
@@ -406,16 +453,33 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     }
   };
 
+  /**
+   * Resolves the API key to pass to main-process calls.
+   * If the form field holds the masked sentinel (user hasn't re-typed the key),
+   * we fetch the real value from safeStorage. Returns '' if nothing is stored.
+   */
+  const resolveApiKey = async (provider: AIProvider, formValue: string | undefined): Promise<string> => {
+    if (formValue && formValue !== MASKED_SENTINEL) return formValue;
+    try {
+      // @ts-expect-error - electronAPI
+      const stored: string | null = await window.electronAPI.getApiKey(provider);
+      return stored ?? '';
+    } catch {
+      return '';
+    }
+  };
+
   const testConnection = async () => {
     setConnectionStatus('testing');
     setConnectionError('');
     try {
       const values = getValues();
+      const apiKey = await resolveApiKey(values.provider, values.apiKey);
       // @ts-expect-error
       const result = await window.electronAPI.testConnection?.({
         provider: values.provider,
         baseUrl: values.baseUrl,
-        apiKey: values.apiKey,
+        apiKey,
         model: values.model,
       });
       if (result?.success) {
@@ -438,9 +502,14 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       setStep('project');
       return;
     }
+    // Resolve the real key from safeStorage if the field holds the sentinel.
+    // The resolved value enters AppSettings here and flows straight to the
+    // processing pipeline — it is never written back to disk.
+    const resolvedApiKey = await resolveApiKey(data.provider, data.apiKey);
     const fullSettings: AppSettings = {
       ...defaultAppSettings(),
       ...data,
+      apiKey: resolvedApiKey,
       extensionFilter: data.extensionFilter || [],
       prefixFilter: data.prefixFilter || [],
       prefixCaseInsensitive: data.prefixCaseInsensitive ?? true,
@@ -1136,7 +1205,13 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         <div className="space-y-6">
           {watchedProvider !== 'ollama' && (
             <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">API Key</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                API Key
+                <span className="inline-flex items-center gap-1 text-xs font-normal text-emerald-600 dark:text-emerald-400">
+                  <Key className="w-3 h-3" />
+                  Stored in OS keychain
+                </span>
+              </label>
               <div className="flex gap-2">
                 <Controller
                   name="apiKey"
@@ -1144,8 +1219,62 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   render={({ field }) => (
                     <input
                       {...field}
+                      // When the sentinel is set, show a human-readable mask
+                      // in the input rather than the raw sentinel string.
+                      value={field.value === MASKED_SENTINEL ? maskKey(field.value) : (field.value ?? '')}
+                      onChange={(e) => {
+                        // As soon as the user types, switch from sentinel to
+                        // the live value so they can re-enter a new key.
+                        field.onChange(e.target.value);
+                        setApiKeySaveError('');
+                      }}
+                      onFocus={() => {
+                        // Clear the mask when the user focuses so they get a
+                        // clean field to type a new key into.
+                        if (field.value === MASKED_SENTINEL) {
+                          field.onChange('');
+                        }
+                      }}
+                      onBlur={async (e) => {
+                        field.onBlur(); // keep RHF internal state consistent
+                        const val = e.target.value.trim();
+
+                        if (val === '' || val === maskKey(MASKED_SENTINEL)) {
+                          // User cleared the field — delete the stored key.
+                          if (val === '') {
+                            try {
+                              // @ts-expect-error - electronAPI
+                              await window.electronAPI.deleteApiKey(watchedProvider);
+                            } catch { /* non-fatal */ }
+                          }
+                          return;
+                        }
+
+                        // Skip if the user didn't actually change anything.
+                        if (val === MASKED_SENTINEL) return;
+
+                        // Save the new key to safeStorage, then immediately
+                        // replace the form field value with the sentinel so
+                        // the real key never persists in React state.
+                        try {
+                          setApiKeySaveError('');
+                          // @ts-expect-error - electronAPI
+                          await window.electronAPI.storeApiKey(watchedProvider, val);
+                          setValue('apiKey', MASKED_SENTINEL, { shouldDirty: false });
+                        } catch (err: any) {
+                          setApiKeySaveError(
+                            err?.message?.includes('not available')
+                              ? 'OS keychain unavailable — key held in memory only for this session.'
+                              : 'Failed to save API key securely.',
+                          );
+                          // Leave the real value in the field so the user can
+                          // see it's still there and try again.
+                        }
+                      }}
                       type={showApiKey ? 'text' : 'password'}
                       placeholder="sk-..."
+                      autoComplete="off"
+                      spellCheck={false}
                       className="flex-1 bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                     />
                   )}
@@ -1158,6 +1287,13 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {/* Inline save-error message — only shown when OS keychain is unavailable */}
+              {apiKeySaveError && (
+                <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  {apiKeySaveError}
+                </p>
+              )}
             </div>
           )}
 
