@@ -312,7 +312,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 > ⚠️ **README Gap:** The license system (Free / Pro / Lifetime tiers, feature gates, monthly
 > image caps) is not documented in `README.md`. Before shipping, `README.md` must be updated
 > to describe the tiered model, what each tier unlocks, and how to purchase/activate a license.
-> Failing to do this will cause user confusion about locked features. For now we will give full access license to all user.
+> Failing to do this will cause user confusion about locked features.
 
 ### 3.1 Implement API Key Secure Storage
 
@@ -340,6 +340,19 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 - [ ] If no license file found, default to `Free`
 - [ ] Implement `getLicenseTier(): LicenseTier` — cached getter
 - [ ] Add IPC handler: `'license-get-tier'` — returns current tier to renderer
+
+## 3.3.5 Implement License File Generator
+
+- [ ] Add a place in Options in `Setup.tsx` where user can enter license key
+- [ ] Set default license key as `"ashmindhunganafree"` for free, `"ashmindhunganapro"` for pro, `"ashmindhunganalifetime"` for lifetime
+- [ ] Place license key check logic in `src/main/license.ts` (or relevant file where later functions/license key can be added)
+- [ ] Allow user to add license key and persist it until user changes it, indicate the tier in the same place where user enters the license key
+- [ ] When user types any key that matches any of the license key, generate or update the .cullai-license file in app data dir
+- [ ] Free Tier will be able to use 500 photos a month, pro tier 5000 photos a month, lifetime tier unlimited photos
+- [ ] For free users, there will be a separate count of photos used in a month
+- [ ] For pro users, there will be a separate count of photos used in a month
+- [ ] For lifetime users, there will be no limit on photos
+- [ ] Take time information from the web as wel as from the system and use the web info if conflict
 
 ### 3.4 Implement Feature Gates
 

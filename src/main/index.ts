@@ -17,6 +17,7 @@ import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
 import { initSecureStore } from './safe-storage';
+import { loadLicense } from './license-manager';
 
 // ---------------------------------------------------------------------------
 // Window creation
@@ -80,7 +81,14 @@ import('electron-store')
     // persistence). The renderer will receive null from settings-get.
     console.error('[main] Failed to initialise electron-store:', err);
   });
-
+  
+      // Startup license validation
+    const license = loadLicense();
+    if (license) {
+      console.log(`[main] License loaded: ${license.tier}`);
+    } else {
+      console.log('[main] No valid license — running in Free tier');
+    }
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------

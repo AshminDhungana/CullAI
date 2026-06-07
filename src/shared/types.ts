@@ -138,6 +138,7 @@ export type AppSettings = {
   // ── Folders ────────────────────────────────────────────────────────────────
   inputFolder: string;
   outputFolder: string;
+  licenseTier?: 'free' | 'pro' | 'lifetime';
 
   // ── Selection target ───────────────────────────────────────────────────────
   /**

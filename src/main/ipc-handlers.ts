@@ -14,15 +14,25 @@
  * transform that ESM code inside a CJS pipeline ("type":"commonjs" in
  * package.json), which blows up with `Unexpected "."`.
  *
- * The fix: describe the store's interface structurally (AppStore below).
- * The real electron-store instance passed from index.ts satisfies it
- * automatically — no cast, no workaround, full type safety preserved.
  */
 
 import { dialog, ipcMain, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { storeApiKey, getApiKey, deleteApiKey } from './safe-storage';
+import {
+  getLicenseStatus,
+  getLicenseTier,
+  saveLicense,
+  deleteLicense,
+  clearLicenseCache,
+} from './license-manager';
+import {
+  initUsageTracker,
+  getUsageStatus,
+  preloadUsageForSession,
+  incrementUsage,
+} from './usage-tracker';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -131,6 +141,7 @@ const RECENT_FOLDERS_MAX = 10;
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
+ initUsageTracker(store);
 
 export function registerIpcHandlers(store: AppStore): void {
 
@@ -219,6 +230,46 @@ export function registerIpcHandlers(store: AppStore): void {
 
     if (result.canceled || result.filePaths.length === 0) return undefined;
     return result.filePaths[0];
+  });
+
+    // -------------------------------------------------------------------------
+  // License system
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle('license:activate', (_event, rawKey: string) => {
+    if (!rawKey || typeof rawKey !== 'string') {
+      return { success: false, error: 'Key required' };
+    }
+    const result = saveLicense(rawKey.trim());
+    if (result.success) clearLicenseCache();
+    return result;
+  });
+
+  ipcMain.handle('license:deactivate', () => {
+    deleteLicense();
+    return { success: true };
+  });
+
+  ipcMain.handle('license:get-status', async () => {
+    const status = getLicenseStatus();
+    const usage = await getUsageStatus();
+    return { ...status, usage };
+  });
+
+  ipcMain.handle('license:get-tier', () => getLicenseTier());
+
+  ipcMain.handle('license:check-quota', async (_event, requestedCount: number) => {
+    if (typeof requestedCount !== 'number' || requestedCount < 0) {
+      return { allowed: false, remaining: 0, error: 'Invalid count' };
+    }
+    return preloadUsageForSession(requestedCount);
+  });
+
+  ipcMain.handle('license:increment-usage', async (_event, count: number) => {
+    if (typeof count !== 'number' || count < 0) {
+      return { success: false, remaining: 0, error: 'Invalid count' };
+    }
+    return incrementUsage(count);
   });
 
   /** Returns true if `folderPath` is an existing directory. */

@@ -4,6 +4,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Settings ──────────────────────────────────────────────────────────────
   getSettings:  ()           => ipcRenderer.invoke('settings-get'),
   saveSettings: (settings)   => ipcRenderer.invoke('settings-set', settings),
+  
+  // ── License ───────────────────────────────────────────────────────────────
+  licenseActivate:    (key)   => ipcRenderer.invoke('license:activate', key),
+  licenseDeactivate:  ()      => ipcRenderer.invoke('license:deactivate'),
+  licenseGetStatus:   ()      => ipcRenderer.invoke('license:get-status'),
+  licenseGetTier:     ()      => ipcRenderer.invoke('license:get-tier'),
+  licenseCheckQuota:  (count) => ipcRenderer.invoke('license:check-quota', count),
+  licenseIncrementUsage: (count) => ipcRenderer.invoke('license:increment-usage', count),
 
   // ── Recent folders ────────────────────────────────────────────────────────
   /** Returns { input: string[], output: string[] } — both lists, newest-first. */

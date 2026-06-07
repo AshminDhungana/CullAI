@@ -51,6 +51,8 @@ import { useIgnoreRules } from '../hooks/useIgnoreRules';
 import type { AppSettings, AIProvider, ReferenceImage } from '../../shared/types';
 import { defaultAppSettings } from '../../shared/types';
 import { GENRE_PRESETS } from '../../shared/genre-presets';
+import LicensePanel from '../components/LicensePanel';
+import type { LicenseStatus as LicenseStatusType } from '../../shared/license';
 
 // -----------------------------------------------------------------------------
 // Provider defaults
@@ -189,6 +191,21 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [showDuplicateTooltip, setShowDuplicateTooltip] = useState(false);
   // Shown below the API key field when safeStorage encryption is unavailable.
   const [apiKeySaveError, setApiKeySaveError] = useState<string>('');
+  const [licenseStatus, setLicenseStatus] = useState<LicenseStatusType | null>(null);
+
+  const fetchLicenseStatus = useCallback(async () => {
+    try {
+      // @ts-expect-error
+      const status = await window.electronAPI.licenseGetStatus();
+      setLicenseStatus(status);
+    } catch (err) {
+      console.warn('Failed to load license status:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) fetchLicenseStatus();
+  }, [isLoading, fetchLicenseStatus]);
 
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
 
@@ -1415,6 +1432,18 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const renderOptions = () => (
     <div className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* License Card */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                License
+              </label>
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+              Manage your CullAI tier and monthly quota
+            </p>
+            <LicensePanel status={licenseStatus} onStatusChange={fetchLicenseStatus} />
+          </div>
         {/* Left column: Style Profile, Dry Run, XMP Export */}
         <div className="space-y-6">
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
@@ -1468,17 +1497,25 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             />
           </div>
 
-          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+                    <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <Controller
               name="enableXmpExport"
               control={control}
               render={({ field }) => (
-                <label className="flex items-start gap-3 cursor-pointer group">
+                <label
+                  className={`flex items-start gap-3 group ${
+                    licenseStatus?.tier === 'free' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  }`}
+                >
                   <div className="relative mt-0.5 shrink-0">
                     <input
                       type="checkbox"
                       checked={field.value}
-                      onChange={(e) => field.onChange(e.target.checked)}
+                      onChange={(e) => {
+                        if (licenseStatus?.tier === 'free') return;
+                        field.onChange(e.target.checked);
+                      }}
+                      disabled={licenseStatus?.tier === 'free'}
                       className="sr-only"
                     />
                     <div
@@ -1486,13 +1523,22 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                         field.value
                           ? 'bg-amber-500 border-amber-500'
                           : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
-                      }`}
+                      } ${licenseStatus?.tier === 'free' ? 'opacity-50' : ''}`}
                     >
                       {field.value && <Check className="w-3 h-3 text-white" />}
                     </div>
                   </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Write Lightroom / Capture One sidecar files</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        Write Lightroom / Capture One sidecar files
+                      </span>
+                      {licenseStatus?.tier === 'free' && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-medium">
+                          PRO
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       Generates .xmp sidecar files with star ratings alongside your images.
                     </p>
@@ -1501,7 +1547,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               )}
             />
           </div>
-        </div>
 
         {/* Right column: Lightroom Mode, Shortfall Strategy, Duplicate Detection */}
         <div className="space-y-6">
@@ -1795,6 +1840,20 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                 <span className="text-gray-500 dark:text-gray-400">Prefix filter</span>
                 <span className="text-gray-900 dark:text-white text-sm truncate max-w-[200px]" title={watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case-insensitive' : 'case-sensitive'})` : 'None'}>
                   {watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case‑insensitive' : 'case‑sensitive'})` : 'None'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">License</span>
+                <span
+                  className={`text-sm font-medium capitalize ${
+                    licenseStatus?.tier === 'pro'
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : licenseStatus?.tier === 'lifetime'
+                      ? 'text-purple-600 dark:text-purple-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  {licenseStatus?.tier || 'Free'}
                 </span>
               </div>
               <div className="flex justify-between items-center py-2">
