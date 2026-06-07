@@ -173,16 +173,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
 
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
 
-  // .cullaiignore support — reads and parses the ignore file whenever the
-  // input folder changes. `reload` is exposed to the "Reload" button in the
-  // Project step UI so the user can refresh after editing the file on disk.
-  const {
-    patterns: ignorePatterns,
-    matchCount: ignoreMatchCount,
-    found: ignoreFound,
-    loading: ignoreLoading,
-    reload: reloadIgnore,
-  } = useIgnoreRules(watchedInputFolder);
   const directionRef = useRef<1 | -1>(1);
 
   const {
@@ -217,6 +207,17 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const watchedWeights = useWatch({ control, name: 'weights' });
   const watchedNumImages = useWatch({ control, name: 'numImagesToSelect' });
   const watchedDryRun = useWatch({ control, name: 'dryRun' });
+
+  // .cullaiignore support — reads and parses the ignore file whenever the
+  // input folder changes. `reload` is exposed to the "Reload" button in the
+  // Project step UI so the user can refresh after editing the file on disk.
+  const {
+    patterns: ignorePatterns,
+    matchCount: ignoreMatchCount,
+    found: ignoreFound,
+    loading: ignoreLoading,
+    reload: reloadIgnore,
+  } = useIgnoreRules(watchedInputFolder);
 
   // Load persisted settings
   useEffect(() => {
