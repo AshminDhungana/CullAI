@@ -97,7 +97,7 @@ const setupSchema = z.object({
     base64: z.string(),
   }).nullable().optional(),
   disableDuplicateGrouping: z.boolean().optional(),
-  duplicateThreshold: z.number().optional(),
+  duplicateThreshold: z.number().min(5).max(20).optional(),
   maxFacesPerImage: z.number().optional(),
 });
 
@@ -170,6 +170,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   type FolderRelationship = 'same' | 'output-inside-input' | 'input-inside-output' | 'ok' | null;
   const [folderRelationship, setFolderRelationship] = useState<FolderRelationship>(null);
   const [ignoreFolderWarning, setIgnoreFolderWarning] = useState(false);
+  const [showDuplicateTooltip, setShowDuplicateTooltip] = useState(false);
 
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
 
@@ -207,6 +208,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const watchedWeights = useWatch({ control, name: 'weights' });
   const watchedNumImages = useWatch({ control, name: 'numImagesToSelect' });
   const watchedDryRun = useWatch({ control, name: 'dryRun' });
+  const watchedDisableDuplicateGrouping = useWatch({ control, name: 'disableDuplicateGrouping' });
 
   // .cullaiignore support — reads and parses the ignore file whenever the
   // input folder changes. `reload` is exposed to the "Reload" button in the
@@ -1517,23 +1519,64 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               name="duplicateThreshold"
               control={control}
               render={({ field }) => (
-                <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
-                    Duplicate threshold <span className="text-xs text-gray-400">(0–100, default 10)</span>
-                  </label>
+                <div className={`transition-opacity duration-200 ${watchedDisableDuplicateGrouping ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                  <div className="flex items-center gap-1.5 mb-1 relative">
+                    <label className="block text-sm text-gray-700 dark:text-gray-300 font-medium">
+                      Burst similarity threshold: <span className="font-semibold text-amber-500 dark:text-amber-400">{field.value ?? 10} bits</span>
+                    </label>
+                    <div className="relative inline-flex items-center">
+                      <button
+                        type="button"
+                        onMouseEnter={() => setShowDuplicateTooltip(true)}
+                        onMouseLeave={() => setShowDuplicateTooltip(false)}
+                        onFocus={() => setShowDuplicateTooltip(true)}
+                        onBlur={() => setShowDuplicateTooltip(false)}
+                        aria-label="Burst similarity threshold info"
+                        className="
+                          text-gray-400 dark:text-gray-500
+                          hover:text-amber-500 dark:hover:text-amber-400
+                          transition-colors rounded
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500
+                        "
+                        disabled={watchedDisableDuplicateGrouping}
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Tooltip popup */}
+                      {showDuplicateTooltip && (
+                        <div
+                          role="tooltip"
+                          className="
+                            absolute left-1/2 bottom-full mb-2 -translate-x-1/2 z-30
+                            w-72 px-3 py-2.5
+                            bg-gray-900 dark:bg-[#1e2535]
+                            text-white text-xs leading-relaxed font-normal
+                            rounded-lg shadow-xl shadow-black/20
+                            pointer-events-none
+                          "
+                        >
+                          Lower = stricter grouping (only nearly identical images). Higher = looser grouping (more images considered duplicates).
+                          {/* Arrow */}
+                          <div className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0 border-x-[6px] border-x-transparent border-t-[6px] border-t-gray-900 dark:border-t-[#1e2535]" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <input
                     type="range"
-                    min={0}
-                    max={100}
+                    min={5}
+                    max={20}
                     step={1}
-                    value={field.value}
+                    value={field.value ?? 10}
                     onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
-                    className="w-full h-1.5 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    disabled={watchedDisableDuplicateGrouping}
+                    className="w-full h-1.5 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>0 (strict)</span>
-                    <span>50 (moderate)</span>
-                    <span>100 (loose)</span>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1 select-none">
+                    <span>5 (strict)</span>
+                    <span>10 (default)</span>
+                    <span>20 (loose)</span>
                   </div>
                 </div>
               )}

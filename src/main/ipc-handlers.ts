@@ -7,12 +7,33 @@
  *
  * Registration is idempotent-safe: each handler is only registered once
  * because this module is only imported and called once (from app.whenReady).
+ *
+ * NOTE: We intentionally do NOT import anything from 'electron-store' here.
+ * electron-store v9+ is pure ESM and contains `import.meta` in its source.
+ * Importing it (even as `import type`) causes tsx/esbuild to attempt to
+ * transform that ESM code inside a CJS pipeline ("type":"commonjs" in
+ * package.json), which blows up with `Unexpected "."`.
+ *
+ * The fix: describe the store's interface structurally (AppStore below).
+ * The real electron-store instance passed from index.ts satisfies it
+ * automatically — no cast, no workaround, full type safety preserved.
  */
 
 import { dialog, ipcMain, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import type Store from 'electron-store';
+
+// ---------------------------------------------------------------------------
+// Structural interface for the electron-store instance.
+// Mirrors only the methods this file actually calls: get and set.
+// electron-store's real class satisfies this interface exactly, so the
+// call-site in index.ts needs no cast.
+// ---------------------------------------------------------------------------
+interface AppStore {
+  get(key: string): unknown;
+  get(key: string, defaultValue: string[]): string[];
+  set(key: string, value: unknown): void;
+}
 
 // ---------------------------------------------------------------------------
 // Glob matching — no extra npm dep, covers the four pattern types:
@@ -25,12 +46,6 @@ import type Store from 'electron-store';
 /**
  * Converts a single glob pattern string to a RegExp that tests a filename
  * (or relative path, for ** patterns).
- *
- * Rules:
- *  - Leading `**/` is treated as "in any subdirectory" — matches from the
- *    start of the filename or any slash-preceded position.
- *  - A bare `*.ext` or `name.*` pattern matches the filename only (no `/`).
- *  - Patterns with no special chars are treated as exact-name matches.
  */
 function globToRegex(pattern: string): RegExp {
   // Normalise separators to forward-slash for cross-platform safety.
@@ -116,7 +131,7 @@ const RECENT_FOLDERS_MAX = 10;
 // Main export
 // ---------------------------------------------------------------------------
 
-export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
+export function registerIpcHandlers(store: AppStore): void {
 
   // -------------------------------------------------------------------------
   // Settings persistence
