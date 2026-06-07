@@ -39,6 +39,7 @@
     "test": "echo \"Tests coming in Phase 17\" && exit 0"
   },
   "devDependencies": {
+    "@types/node": "^25.9.2",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.5.2",

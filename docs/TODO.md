@@ -333,26 +333,26 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 3.3 Implement License System
 
-- [ ] Create `src/main/license.ts`
-- [ ] Define `LicenseTier` enum: `Free | Pro | Lifetime`
-- [ ] Define `LicenseFile` type: `{ tier, email, issuedAt, expiresAt? }`
-- [ ] Implement `loadLicense(): LicenseTier` — reads a local `.cullai-license` file from app data dir
-- [ ] If no license file found, default to `Free`
-- [ ] Implement `getLicenseTier(): LicenseTier` — cached getter
-- [ ] Add IPC handler: `'license-get-tier'` — returns current tier to renderer
+- [x] Create `src/main/license.ts`
+- [x] Define `LicenseTier` enum: `Free | Pro | Lifetime`
+- [x] Define `LicenseFile` type: `{ tier, email, issuedAt, expiresAt? }`
+- [x] Implement `loadLicense(): LicenseTier` — reads a local `.cullai-license` file from app data dir
+- [x] If no license file found, default to `Free`
+- [x] Implement `getLicenseTier(): LicenseTier` — cached getter
+- [x] Add IPC handler: `'license-get-tier'` — returns current tier to renderer
 
 ## 3.3.5 Implement License File Generator
 
-- [ ] Add a place in Options in `Setup.tsx` where user can enter license key
-- [ ] Set default license key as `"ashmindhunganafree"` for free, `"ashmindhunganapro"` for pro, `"ashmindhunganalifetime"` for lifetime
-- [ ] Place license key check logic in `src/main/license.ts` (or relevant file where later functions/license key can be added)
-- [ ] Allow user to add license key and persist it until user changes it, indicate the tier in the same place where user enters the license key
-- [ ] When user types any key that matches any of the license key, generate or update the .cullai-license file in app data dir
-- [ ] Free Tier will be able to use 500 photos a month, pro tier 5000 photos a month, lifetime tier unlimited photos
-- [ ] For free users, there will be a separate count of photos used in a month
-- [ ] For pro users, there will be a separate count of photos used in a month
-- [ ] For lifetime users, there will be no limit on photos
-- [ ] Take time information from the web as wel as from the system and use the web info if conflict
+- [x] Add a place in Options in `Setup.tsx` where user can enter license key
+- [x] Set default license key as `"ashmindhunganafree"` for free, `"ashmindhunganapro"` for pro, `"ashmindhunganalifetime"` for lifetime
+- [x] Place license key check logic in `src/main/license.ts` (or relevant file where later functions/license key can be added)
+- [x] Allow user to add license key and persist it until user changes it, indicate the tier in the same place where user enters the license key
+- [x] When user types any key that matches any of the license key, generate or update the .cullai-license file in app data dir
+- [x] Free Tier will be able to use 500 photos a month, pro tier 5000 photos a month, lifetime tier unlimited photos
+- [x] For free users, there will be a separate count of photos used in a month
+- [x] For pro users, there will be a separate count of photos used in a month
+- [x] For lifetime users, there will be no limit on photos
+- [x] Take time information from the web as wel as from the system and use the web info if conflict
 
 ### 3.4 Implement Feature Gates
 

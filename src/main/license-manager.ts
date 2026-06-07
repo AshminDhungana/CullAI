@@ -18,12 +18,13 @@ import type { LicenseTier, LicenseFile, LicenseStatus } from '../shared/license'
 const LICENSE_PEPPER = process.env.LICENSE_SECRET || 'cullai-license-pepper-v1-2024';
 
 // ---------------------------------------------------------------------------
-// Pre-computed hashes (run `npx ts-node scripts/hash-license-keys.ts` to regen)
+// From Project Root i.e `\CullAI`
+// Pre-computed hashes (run `npx ts-node --project tsconfig.main.json src/scripts/hash-license-keys.ts` to regen)
 // ---------------------------------------------------------------------------
 // NOTE: Replace these placeholders with real hashes from the build script.
-const FREE_KEY_HASH     = 'REPLACE_WITH_BUILD_SCRIPT_OUTPUT';
-const PRO_KEY_HASH      = 'REPLACE_WITH_BUILD_SCRIPT_OUTPUT';
-const LIFETIME_KEY_HASH = 'REPLACE_WITH_BUILD_SCRIPT_OUTPUT';
+const FREE_KEY_HASH     = '8a697e0c9133bd08594eece0e853b2dfae4eb930c206b31de225b165ba2acb4a';
+const PRO_KEY_HASH      = '0211897a95a06046474ed2a61812fef002b5e0caef7a28cd9713e53fc85c3981';
+const LIFETIME_KEY_HASH = 'aaf2a3f55e93bd59373023f0d6186d8124451d7d0772a507a1af34396e9ef843';
 
 const VALID_KEY_HASHES: Record<string, LicenseTier> = {
   [FREE_KEY_HASH]: 'free',

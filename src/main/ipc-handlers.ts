@@ -141,9 +141,9 @@ const RECENT_FOLDERS_MAX = 10;
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
- initUsageTracker(store);
 
 export function registerIpcHandlers(store: AppStore): void {
+  initUsageTracker(store);
 
   // -------------------------------------------------------------------------
   // Settings persistence
@@ -232,7 +232,7 @@ export function registerIpcHandlers(store: AppStore): void {
     return result.filePaths[0];
   });
 
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
   // License system
   // -------------------------------------------------------------------------
 

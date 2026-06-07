@@ -1,7 +1,9 @@
 /**
  * scripts/hash-license-keys.ts
- *
- * Run: npx ts-node scripts/hash-license-keys.ts
+ * 
+ * Run: npx ts-node scripts/hash-license-keys.ts or 
+ * From Project Root i.e `\CullAI`
+ * Pre-computed hashes (run `npx ts-node --project tsconfig.main.json src/scripts/hash-license-keys.ts` to regen)
  * Paste the output into src/main/license-manager.ts
  */
 

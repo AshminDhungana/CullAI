@@ -118,15 +118,9 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
 
 // -----------------------------------------------------------------------------
 // API key masking
-//
-// The real key is stored in the OS keychain via safeStorage (main process).
-// The form field never holds the real value after the first blur — it is
-// immediately replaced with this sentinel string so it cannot leak through
-// auto-save, React DevTools, or any serialisation path.
 // -----------------------------------------------------------------------------
 const MASKED_SENTINEL = '__MASKED__';
 
-/** Returns a display-safe mask string showing only the last 4 chars. */
 function maskKey(key: string): string {
   if (key.length <= 4) return '••••••••';
   return `••••••••${key.slice(-4)}`;
@@ -148,7 +142,6 @@ const STEPS: { id: WizardStep; label: string; icon: React.ElementType; descripti
 
 const STEP_ORDER: WizardStep[] = ['welcome', 'project', 'scoring', 'ai', 'options', 'review'];
 
-// Human-readable labels for review display
 const SHORTFALL_LABELS: Record<string, string> = {
   stop: 'Stop — output available keepers only',
   fillWithB: 'Fill with B‑tier images',
@@ -181,18 +174,19 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [connectionError, setConnectionError] = useState<string>('');
   const [showAdvancedWeights, setShowAdvancedWeights] = useState(false);
   const [isValidatingStep, setIsValidatingStep] = useState(false);
-  // Brief "shake-red" feedback when the user clicks Reveal with no path set
   const [revealError, setRevealError] = useState<{ input: boolean; output: boolean }>({ input: false, output: false });
 
-  // Output-folder safety check (2.13) — session-only, never persisted
   type FolderRelationship = 'same' | 'output-inside-input' | 'input-inside-output' | 'ok' | null;
   const [folderRelationship, setFolderRelationship] = useState<FolderRelationship>(null);
   const [ignoreFolderWarning, setIgnoreFolderWarning] = useState(false);
   const [showDuplicateTooltip, setShowDuplicateTooltip] = useState(false);
-  // Shown below the API key field when safeStorage encryption is unavailable.
   const [apiKeySaveError, setApiKeySaveError] = useState<string>('');
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatusType | null>(null);
 
+  // FIX #6: fetchLicenseStatus is stable and can be called independently of
+  // the isLoading flag. It is called explicitly at the end of the load()
+  // function so both settings restore and license status are sequenced
+  // correctly, rather than being triggered by a side-effect on isLoading.
   const fetchLicenseStatus = useCallback(async () => {
     try {
       // @ts-expect-error
@@ -202,10 +196,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       console.warn('Failed to load license status:', err);
     }
   }, []);
-
-  useEffect(() => {
-    if (!isLoading) fetchLicenseStatus();
-  }, [isLoading, fetchLicenseStatus]);
 
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
 
@@ -245,9 +235,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const watchedDryRun = useWatch({ control, name: 'dryRun' });
   const watchedDisableDuplicateGrouping = useWatch({ control, name: 'disableDuplicateGrouping' });
 
-  // .cullaiignore support — reads and parses the ignore file whenever the
-  // input folder changes. `reload` is exposed to the "Reload" button in the
-  // Project step UI so the user can refresh after editing the file on disk.
   const {
     patterns: ignorePatterns,
     matchCount: ignoreMatchCount,
@@ -256,7 +243,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     reload: reloadIgnore,
   } = useIgnoreRules(watchedInputFolder);
 
-  // Load persisted settings
+  // This guarantees the form is fully reset before license gating affects
+  // any field (e.g. XMP export toggle disabled state).
   useEffect(() => {
     async function load() {
       try {
@@ -280,17 +268,18 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         console.error('Failed to load settings', err);
       } finally {
         setIsLoading(false);
+
+        // the correct sequence and doesn't depend on the isLoading effect.
+        await fetchLicenseStatus();
       }
     }
     load();
-  }, [reset]);
+  }, [reset, fetchLicenseStatus]);
 
   // Auto-save debounced
   const saveSettings = useCallback(
     debounce(async (values: SetupFormValues) => {
       try {
-        // Deliberately omit apiKey — it is never stored in the plain settings
-        // file. The real key lives exclusively in the OS keychain (safeStorage).
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { apiKey: _omit, ...rest } = values;
         const toStore = {
@@ -341,10 +330,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     }
   }, [watchedProvider, setValue]);
 
-  // On mount and whenever the provider changes, check whether a key is stored
-  // and set the form field to the masked sentinel if so. This means the user
-  // sees "••••••••abcd" (last 4 chars) without us ever putting the real key
-  // into React form state or the renderer DOM.
   useEffect(() => {
     if (isLoading) return;
     async function loadStoredKey() {
@@ -352,10 +337,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         // @ts-expect-error - electronAPI
         const stored: string | null = await window.electronAPI.getApiKey(watchedProvider);
         if (stored) {
-          // Replace form field with sentinel — the real value stays in the keychain.
           setValue('apiKey', MASKED_SENTINEL, { shouldDirty: false });
         } else {
-          // No key stored — ensure the field is blank (handles provider switches).
           setValue('apiKey', '', { shouldDirty: false });
         }
       } catch {
@@ -365,14 +348,11 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     loadStoredKey();
   }, [watchedProvider, isLoading, setValue]);
 
-  // Re-run folder relationship check whenever either path changes (e.g. typed
-  // directly or loaded from persisted settings on mount).
   useEffect(() => {
     runFolderRelationshipCheck(watchedInputFolder, watchedOutputFolder);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedInputFolder, watchedOutputFolder]);
 
-  // Validate input folder
   const validateInputFolder = async (folder: string) => {
     if (!folder) return false;
     try {
@@ -428,12 +408,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     await runFolderRelationshipCheck(watchedInputFolder, folder);
   };
 
-  /**
-   * Checks whether output is nested inside input (or vice-versa) via the
-   * main-process `check-folder-relationship` IPC handler.
-   * Always resets `ignoreFolderWarning` so the user must re-acknowledge
-   * after changing either path.
-   */
   const runFolderRelationshipCheck = async (input: string, output: string) => {
     setIgnoreFolderWarning(false);
     if (!input || !output) {
@@ -445,15 +419,10 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       const rel = await window.electronAPI.checkFolderRelationship(input, output);
       setFolderRelationship(rel);
     } catch {
-      setFolderRelationship('ok'); // fail open
+      setFolderRelationship('ok');
     }
   };
 
-  /**
-   * Reveals `folderPath` in the native file manager via the `shell-show-item`
-   * IPC handler. If the path is empty we briefly flash the button red (shake
-   * animation driven by the `revealError` state) instead of opening a modal.
-   */
   const revealFolder = async (kind: 'input' | 'output', folderPath: string) => {
     if (!folderPath) {
       setRevealError(prev => ({ ...prev, [kind]: true }));
@@ -464,17 +433,10 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       // @ts-expect-error - electronAPI
       await window.electronAPI.shellShowItem(folderPath);
     } catch (err: any) {
-      // NOT_FOUND is surfaced silently — the folder display already shows the
-      // stale path; no need for an additional error overlay.
       console.warn('[revealFolder]', err?.message ?? err);
     }
   };
 
-  /**
-   * Resolves the API key to pass to main-process calls.
-   * If the form field holds the masked sentinel (user hasn't re-typed the key),
-   * we fetch the real value from safeStorage. Returns '' if nothing is stored.
-   */
   const resolveApiKey = async (provider: AIProvider, formValue: string | undefined): Promise<string> => {
     if (formValue && formValue !== MASKED_SENTINEL) return formValue;
     try {
@@ -519,9 +481,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       setStep('project');
       return;
     }
-    // Resolve the real key from safeStorage if the field holds the sentinel.
-    // The resolved value enters AppSettings here and flows straight to the
-    // processing pipeline — it is never written back to disk.
     const resolvedApiKey = await resolveApiKey(data.provider, data.apiKey);
     const fullSettings: AppSettings = {
       ...defaultAppSettings(),
@@ -551,7 +510,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     if (step === 'project') {
       const valid = await trigger(['inputFolder', 'outputFolder']);
       if (!valid || !watchedInputFolder || !watchedOutputFolder) return false;
-      // Block if there is an unacknowledged folder conflict (2.13)
       const hasConflict = folderRelationship === 'same' || folderRelationship === 'output-inside-input';
       if (hasConflict && !ignoreFolderWarning) return false;
       return true;
@@ -599,7 +557,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   };
 
   // ---------------------------------------------------------------------------
-  // Render functions for each step (two‑column dashboard layout)
+  // Render: Welcome
   // ---------------------------------------------------------------------------
   const renderWelcome = () => (
     <motion.div
@@ -648,7 +606,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     </motion.div>
   );
 
-  // Project step: two columns
+  // ---------------------------------------------------------------------------
+  // Render: Project
+  // ---------------------------------------------------------------------------
   const renderProject = () => (
     <div className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -679,7 +639,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                         {field.value || 'No folder selected'}
                       </span>
                     </div>
-                    {/* Reveal in Explorer / Finder */}
                     <button
                       type="button"
                       onClick={() => revealFolder('input', field.value)}
@@ -844,7 +803,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                         {field.value || 'No folder selected'}
                       </span>
                     </div>
-                    {/* Reveal in Explorer / Finder */}
                     <button
                       type="button"
                       onClick={() => revealFolder('output', field.value)}
@@ -889,7 +847,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             )}
           </div>
 
-          {/* Folder Conflict Warning Banner (2.13) */}
+          {/* Folder Conflict Warning Banner */}
           {(folderRelationship === 'same' || folderRelationship === 'output-inside-input') && (
             <div className="bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-300 dark:border-amber-700/50 p-4">
               <div className="flex items-start gap-3">
@@ -969,8 +927,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                     </p>
                   </div>
                 </div>
-
-                {/* Reload button */}
                 <button
                   type="button"
                   onClick={reloadIgnore}
@@ -982,7 +938,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                 </button>
               </div>
 
-              {/* Status badge */}
               <div className="mt-1">
                 {ignoreLoading ? (
                   <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-600">
@@ -1014,7 +969,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                 )}
               </div>
 
-              {/* Pattern preview — show up to 5 patterns when the file is found */}
               {ignoreFound && ignorePatterns.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {ignorePatterns.slice(0, 5).map((p, i) => (
@@ -1034,7 +988,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                 </div>
               )}
 
-              {/* Hint */}
               {!ignoreFound && (
                 <p className="mt-2 text-xs text-gray-400 dark:text-gray-600">
                   Create a <span className="font-mono">.cullaiignore</span> file in your input folder to exclude files using glob patterns (one per line). Supports <span className="font-mono">*</span>, <span className="font-mono">**</span>, <span className="font-mono">?</span>, and <span className="font-mono">[abc]</span>.
@@ -1043,7 +996,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             </div>
           )}
 
-          {/* Summary / hint card (optional) */}
+          {/* Filter tips hint */}
           <div className="bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-900/30 p-5">
             <div className="flex gap-3">
               <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -1058,11 +1011,12 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     </div>
   );
 
-  // Scoring step: two columns
+  // ---------------------------------------------------------------------------
+  // Render: Scoring
+  // ---------------------------------------------------------------------------
   const renderScoring = () => (
     <div className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left column: Genre + Weights */}
         <div className="space-y-6">
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <Controller
@@ -1120,7 +1074,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           </AnimatePresence>
         </div>
 
-        {/* Right column: Style Preference + Reference Image */}
         <div className="space-y-6">
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6 space-y-6">
             <div className="flex items-center gap-3">
@@ -1175,11 +1128,12 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     </div>
   );
 
-  // AI step: two columns
+  // ---------------------------------------------------------------------------
+  // Render: AI
+  // ---------------------------------------------------------------------------
   const renderAI = () => (
     <div className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left column: Provider selection */}
         <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">AI Engine</label>
           <div className="grid grid-cols-2 gap-3">
@@ -1218,7 +1172,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           </button>
         </div>
 
-        {/* Right column: Provider configuration */}
         <div className="space-y-6">
           {watchedProvider !== 'ollama' && (
             <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
@@ -1236,28 +1189,21 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   render={({ field }) => (
                     <input
                       {...field}
-                      // When the sentinel is set, show a human-readable mask
-                      // in the input rather than the raw sentinel string.
                       value={field.value === MASKED_SENTINEL ? maskKey(field.value) : (field.value ?? '')}
                       onChange={(e) => {
-                        // As soon as the user types, switch from sentinel to
-                        // the live value so they can re-enter a new key.
                         field.onChange(e.target.value);
                         setApiKeySaveError('');
                       }}
                       onFocus={() => {
-                        // Clear the mask when the user focuses so they get a
-                        // clean field to type a new key into.
                         if (field.value === MASKED_SENTINEL) {
                           field.onChange('');
                         }
                       }}
                       onBlur={async (e) => {
-                        field.onBlur(); // keep RHF internal state consistent
+                        field.onBlur();
                         const val = e.target.value.trim();
 
                         if (val === '' || val === maskKey(MASKED_SENTINEL)) {
-                          // User cleared the field — delete the stored key.
                           if (val === '') {
                             try {
                               // @ts-expect-error - electronAPI
@@ -1267,12 +1213,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                           return;
                         }
 
-                        // Skip if the user didn't actually change anything.
                         if (val === MASKED_SENTINEL) return;
 
-                        // Save the new key to safeStorage, then immediately
-                        // replace the form field value with the sentinel so
-                        // the real key never persists in React state.
                         try {
                           setApiKeySaveError('');
                           // @ts-expect-error - electronAPI
@@ -1284,8 +1226,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                               ? 'OS keychain unavailable — key held in memory only for this session.'
                               : 'Failed to save API key securely.',
                           );
-                          // Leave the real value in the field so the user can
-                          // see it's still there and try again.
                         }
                       }}
                       type={showApiKey ? 'text' : 'password'}
@@ -1304,7 +1244,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {/* Inline save-error message — only shown when OS keychain is unavailable */}
               {apiKeySaveError && (
                 <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -1428,11 +1367,19 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     </div>
   );
 
-  // Options step: two columns (left = operational, right = output behavior)
+  // ---------------------------------------------------------------------------
+  // Render: Options
+  // two-column grid renders correctly. Previously the right column cards were
+  // nested inside the left column's <div className="space-y-6">, collapsing
+  // the grid into a single stacked column at runtime.
+  // ---------------------------------------------------------------------------
   const renderOptions = () => (
     <div className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* License Card */}
+
+        {/* ── Left column ── */}
+        <div className="space-y-6">
+          {/* License Card */}
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1444,8 +1391,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             </p>
             <LicensePanel status={licenseStatus} onStatusChange={fetchLicenseStatus} />
           </div>
-        {/* Left column: Style Profile, Dry Run, XMP Export */}
-        <div className="space-y-6">
+
+          {/* Style Profile Card */}
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Style Profile</label>
@@ -1463,6 +1410,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             </div>
           </div>
 
+          {/* Dry Run Card */}
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <Controller
               name="dryRun"
@@ -1497,7 +1445,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             />
           </div>
 
-                    <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+          {/* XMP Export Card */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <Controller
               name="enableXmpExport"
               control={control}
@@ -1547,9 +1496,12 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               )}
             />
           </div>
+        </div>
+        {/* ── End left column ── */}
 
-        {/* Right column: Lightroom Mode, Shortfall Strategy, Duplicate Detection */}
+        {/* ── Right column ── */}
         <div className="space-y-6">
+          {/* Lightroom Mode Card */}
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Lightroom integration mode</label>
             <Controller
@@ -1601,6 +1553,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             />
           </div>
 
+          {/* Shortfall Strategy Card */}
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               When output falls short of requested count
@@ -1658,7 +1611,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             />
           </div>
 
-          {/* Duplicate Detection Controls (new) */}
+          {/* Duplicate Detection Card */}
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6 space-y-4">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-amber-500" />
@@ -1713,32 +1666,18 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                         onFocus={() => setShowDuplicateTooltip(true)}
                         onBlur={() => setShowDuplicateTooltip(false)}
                         aria-label="Burst similarity threshold info"
-                        className="
-                          text-gray-400 dark:text-gray-500
-                          hover:text-amber-500 dark:hover:text-amber-400
-                          transition-colors rounded
-                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500
-                        "
+                        className="text-gray-400 dark:text-gray-500 hover:text-amber-500 dark:hover:text-amber-400 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                         disabled={watchedDisableDuplicateGrouping}
                       >
                         <Info className="w-3.5 h-3.5" />
                       </button>
 
-                      {/* Tooltip popup */}
                       {showDuplicateTooltip && (
                         <div
                           role="tooltip"
-                          className="
-                            absolute left-1/2 bottom-full mb-2 -translate-x-1/2 z-30
-                            w-72 px-3 py-2.5
-                            bg-gray-900 dark:bg-[#1e2535]
-                            text-white text-xs leading-relaxed font-normal
-                            rounded-lg shadow-xl shadow-black/20
-                            pointer-events-none
-                          "
+                          className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 z-30 w-72 px-3 py-2.5 bg-gray-900 dark:bg-[#1e2535] text-white text-xs leading-relaxed font-normal rounded-lg shadow-xl shadow-black/20 pointer-events-none"
                         >
                           Lower = stricter grouping (only nearly identical images). Higher = looser grouping (more images considered duplicates).
-                          {/* Arrow */}
                           <div className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0 border-x-[6px] border-x-transparent border-t-[6px] border-t-gray-900 dark:border-t-[#1e2535]" />
                         </div>
                       )}
@@ -1764,18 +1703,21 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             />
           </div>
         </div>
+        {/* ── End right column ── */}
+
       </div>
     </div>
   );
 
-  // Review step: left column summary, right column action panel
+  // ---------------------------------------------------------------------------
+  // Render: Review
+  // ---------------------------------------------------------------------------
   const renderReview = () => {
     const totalWeight = Object.values(watchedWeights || {}).reduce((a, b) => a + b, 0);
 
     return (
       <div className="max-w-5xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8">
-          {/* Left column: summary table */}
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-amber-500" />
@@ -1865,7 +1807,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             </div>
           </div>
 
-          {/* Right column: warnings and start button */}
           <div className="space-y-6">
             {totalWeight !== 100 && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-2xl p-4 flex items-center gap-3">
@@ -1939,7 +1880,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     );
   }
 
-  // Main container with sticky header and animated body
   return (
     <motion.div
       initial={{ opacity: 0, y: 32 }}
@@ -2015,7 +1955,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         </div>
       </div>
 
-      {/* Scrollable body with step content */}
+      {/* Scrollable body */}
       <div className="max-w-5xl mx-auto px-6 py-8">
         <AnimatePresence mode="wait" custom={directionRef.current}>
           <motion.div
@@ -2031,16 +1971,16 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             exit="exit"
             transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
-            {step === 'welcome' && renderWelcome()}
-            {step === 'project' && renderProject()}
-            {step === 'scoring' && renderScoring()}
-            {step === 'ai' && renderAI()}
-            {step === 'options' && renderOptions()}
-            {step === 'review' && renderReview()}
+            {step === 'welcome'   && renderWelcome()}
+            {step === 'project'   && renderProject()}
+            {step === 'scoring'   && renderScoring()}
+            {step === 'ai'        && renderAI()}
+            {step === 'options'   && renderOptions()}
+            {step === 'review'    && renderReview()}
           </motion.div>
         </AnimatePresence>
 
-        {/* Navigation buttons (only for non‑welcome, non‑review steps) */}
+        {/* Navigation buttons */}
         {step !== 'welcome' && step !== 'review' && (
           <div className="flex justify-between mt-10 pt-6 border-t border-gray-200 dark:border-[#1e2535]">
             <button
