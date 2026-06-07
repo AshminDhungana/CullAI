@@ -273,19 +273,19 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 2.15 🔥 Test Face Detection on Reference Image
 
-- [ ] After a reference image is uploaded, add a "Test face detection" button next to the thumbnail
-- [ ] On click, send the reference image's base64 to `'scan-faces'` IPC and show a small modal/notification:
+- [x] After a reference image is uploaded, add a "Test face detection" button next to the thumbnail
+- [x] On click, send the reference image's base64 to `'scan-faces'` IPC and show a small modal/notification:
   - "Faces detected: X, eyes open: Yes/No, blink detected: Yes/No"
-- [ ] If no faces detected, suggest adjusting the reference image or continuing anyway
+- [x] If no faces detected, suggest adjusting the reference image or continuing anyway
 
 ### 2.16 🔥 Support for `.cullaiignore` File
 
-- [ ] During folder scan, look for a file named `.cullaiignore` in the **input folder root**
-- [ ] Parse it line by line (ignore empty lines and comments starting with `#`)
-- [ ] Support simple glob patterns (`*`, `?`, `[abc]`, `**` for directories)
-- [ ] Apply exclusions **in addition** to prefix filters and extension filters
-- [ ] Show a small badge on Setup screen: "Ignoring X files via .cullaiignore"
-- [ ] Add a "Reload ignore rules" button next to the badge (in case user edits the file manually)
+- [x] During folder scan, look for a file named `.cullaiignore` in the **input folder root**
+- [x] Parse it line by line (ignore empty lines and comments starting with `#`)
+- [x] Support simple glob patterns (`*`, `?`, `[abc]`, `**` for directories)
+- [x] Apply exclusions **in addition** to prefix filters and extension filters
+- [x] Show a small badge on Setup screen: "Ignoring X files via .cullaiignore"
+- [x] Add a "Reload ignore rules" button next to the badge (in case user edits the file manually)
 
 ### 2.17 🔥 Burst Handling Toggle
 

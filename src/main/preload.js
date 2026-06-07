@@ -19,11 +19,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('recent-folders-update', payload),
 
   // ── Folder helpers ────────────────────────────────────────────────────────
-  folderExists:         (folder)                          => ipcRenderer.invoke('folder-exists', folder),
-  scanFolder:           (folder, extensions, prefixes)    => ipcRenderer.invoke('scan-folder', folder, extensions, prefixes),
-  openFolderDialog:     ()                                => ipcRenderer.invoke('open-folder-dialog'),
-  scanFolderPrefixes:   (folder, prefixes, caseInsens)    => ipcRenderer.invoke('scan-folder-prefixes', folder, prefixes, caseInsens),
-  scanFolderExtensions: (folder)                          => ipcRenderer.invoke('scan-folder-extensions', folder),
+  folderExists:         (folder)                                    => ipcRenderer.invoke('folder-exists', folder),
+  /**
+   * Counts files in a folder that match optional extension, prefix, and ignore
+   * pattern filters. All arguments after `folder` are optional.
+   *
+   * @param {string}   folder          Absolute folder path.
+   * @param {string[]} [extensions]    Lowercase dot-prefixed extensions, e.g. ['.jpg', '.cr3'].
+   * @param {string[]} [prefixes]      Filename prefixes; empty = no prefix filter.
+   * @param {string[]} [ignorePatterns] Parsed `.cullaiignore` glob patterns; empty = no exclusions.
+   * @returns {Promise<{ count: number }>}
+   */
+  scanFolder:           (folder, extensions, prefixes, ignorePatterns) => ipcRenderer.invoke('scan-folder', folder, extensions, prefixes, ignorePatterns),
+  openFolderDialog:     ()                                          => ipcRenderer.invoke('open-folder-dialog'),
+  scanFolderPrefixes:   (folder, prefixes, caseInsens)              => ipcRenderer.invoke('scan-folder-prefixes', folder, prefixes, caseInsens),
+  scanFolderExtensions: (folder)                                    => ipcRenderer.invoke('scan-folder-extensions', folder),
+
+  /**
+   * Reads `.cullaiignore` from the root of `folderPath` and returns parsed
+   * pattern strings (non-empty, non-comment lines), or `null` if the file
+   * does not exist.
+   *
+   * @param {string} folderPath  Absolute path to the input folder.
+   * @returns {Promise<string[] | null>}
+   */
+  parseCullaiIgnore: (folderPath) =>
+    ipcRenderer.invoke('parse-cullaiignore', folderPath),
 
   // ── File helpers ──────────────────────────────────────────────────────────
   readFileAsBase64: (filePath)  => ipcRenderer.invoke('read-file-as-base64', filePath),

@@ -37,6 +37,8 @@ import {
   Globe,
   Star,
   Filter,
+  RotateCcw,
+  ShieldOff,
 } from 'lucide-react';
 import ExtensionFilter from '../components/ExtensionFilter';
 import PrefixFilter from '../components/PrefixFilter';
@@ -45,6 +47,7 @@ import ReferenceImageUpload from '../components/ReferenceImageUpload';
 import ScoringWeightsPanel from '../components/ScoringWeightsPanel';
 import RecentFoldersDropdown from '../components/RecentFoldersDropdown';
 import { useRecentFolders } from '../hooks/useRecentFolders';
+import { useIgnoreRules } from '../hooks/useIgnoreRules';
 import type { AppSettings, AIProvider, ReferenceImage } from '../../shared/types';
 import { defaultAppSettings } from '../../shared/types';
 import { GENRE_PRESETS } from '../../shared/genre-presets';
@@ -169,6 +172,17 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [ignoreFolderWarning, setIgnoreFolderWarning] = useState(false);
 
   const { recentInput, recentOutput, addRecentInput, addRecentOutput } = useRecentFolders();
+
+  // .cullaiignore support — reads and parses the ignore file whenever the
+  // input folder changes. `reload` is exposed to the "Reload" button in the
+  // Project step UI so the user can refresh after editing the file on disk.
+  const {
+    patterns: ignorePatterns,
+    matchCount: ignoreMatchCount,
+    found: ignoreFound,
+    loading: ignoreLoading,
+    reload: reloadIgnore,
+  } = useIgnoreRules(watchedInputFolder);
   const directionRef = useRef<1 | -1>(1);
 
   const {
@@ -299,7 +313,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       const exists = await window.electronAPI.folderExists(folder);
       if (!exists) return false;
       // @ts-expect-error
-      const scan = await window.electronAPI.scanFolder(folder, [], []);
+      const scan = await window.electronAPI.scanFolder(folder, [], [], ignorePatterns);
       setFolderScanCount(scan.count);
       return scan.count > 0;
     } catch {
@@ -848,6 +862,95 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   />
                 )}
               />
+            </div>
+          )}
+
+          {/* .cullaiignore Card */}
+          {watchedInputFolder && (
+            <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+                    <ShieldOff className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">.cullaiignore</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Exclude files via glob patterns
+                    </p>
+                  </div>
+                </div>
+
+                {/* Reload button */}
+                <button
+                  type="button"
+                  onClick={reloadIgnore}
+                  disabled={ignoreLoading}
+                  title="Re-read .cullaiignore from disk"
+                  className="flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 dark:border-[#1e2535] bg-gray-50 dark:bg-[#0f1117] text-gray-400 hover:text-amber-500 dark:hover:text-amber-400 hover:border-amber-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${ignoreLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+
+              {/* Status badge */}
+              <div className="mt-1">
+                {ignoreLoading ? (
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-600">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Reading .cullaiignore…
+                  </div>
+                ) : ignoreFound ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {ignoreMatchCount > 0 ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-medium">
+                        <ShieldOff className="w-3 h-3" />
+                        Ignoring {ignoreMatchCount} {ignoreMatchCount === 1 ? 'file' : 'files'} via .cullaiignore
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                        <CheckCircle2 className="w-3 h-3" />
+                        .cullaiignore found
+                        {ignorePatterns.length === 0
+                          ? ' — no active patterns'
+                          : ` — ${ignorePatterns.length} pattern${ignorePatterns.length === 1 ? '' : 's'}, no matches`}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-[#1e2535] text-gray-500 dark:text-gray-500 text-xs">
+                    <Info className="w-3 h-3" />
+                    No .cullaiignore found in this folder
+                  </span>
+                )}
+              </div>
+
+              {/* Pattern preview — show up to 5 patterns when the file is found */}
+              {ignoreFound && ignorePatterns.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  {ignorePatterns.slice(0, 5).map((p, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 px-2.5 py-1 bg-gray-50 dark:bg-[#0f1117] rounded-lg border border-gray-100 dark:border-[#1e2535]"
+                    >
+                      <span className="text-amber-400 text-xs select-none">×</span>
+                      <span className="font-mono text-xs text-gray-600 dark:text-gray-400 truncate">{p}</span>
+                    </div>
+                  ))}
+                  {ignorePatterns.length > 5 && (
+                    <p className="text-xs text-gray-400 dark:text-gray-600 pl-1">
+                      +{ignorePatterns.length - 5} more pattern{ignorePatterns.length - 5 === 1 ? '' : 's'}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Hint */}
+              {!ignoreFound && (
+                <p className="mt-2 text-xs text-gray-400 dark:text-gray-600">
+                  Create a <span className="font-mono">.cullaiignore</span> file in your input folder to exclude files using glob patterns (one per line). Supports <span className="font-mono">*</span>, <span className="font-mono">**</span>, <span className="font-mono">?</span>, and <span className="font-mono">[abc]</span>.
+                </p>
+              )}
             </div>
           )}
 

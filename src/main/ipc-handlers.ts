@@ -15,6 +15,88 @@ import * as fs from 'fs';
 import type Store from 'electron-store';
 
 // ---------------------------------------------------------------------------
+// Glob matching — no extra npm dep, covers the four pattern types:
+//   *   → any char sequence except path separator
+//   ?   → single char except path separator
+//   **  → any char sequence including path separators
+//   [abc] / [a-z] → character class (passed straight through to RegExp)
+// ---------------------------------------------------------------------------
+
+/**
+ * Converts a single glob pattern string to a RegExp that tests a filename
+ * (or relative path, for ** patterns).
+ *
+ * Rules:
+ *  - Leading `**/` is treated as "in any subdirectory" — matches from the
+ *    start of the filename or any slash-preceded position.
+ *  - A bare `*.ext` or `name.*` pattern matches the filename only (no `/`).
+ *  - Patterns with no special chars are treated as exact-name matches.
+ */
+function globToRegex(pattern: string): RegExp {
+  // Normalise separators to forward-slash for cross-platform safety.
+  const p = pattern.replace(/\\/g, '/').trim();
+
+  let re = '';
+  let i = 0;
+  while (i < p.length) {
+    const ch = p[i];
+
+    if (ch === '*' && p[i + 1] === '*') {
+      // `**` — matches anything, including slashes
+      re += '.*';
+      i += 2;
+      // Consume a following `/` so `**/foo` works
+      if (p[i] === '/') i++;
+    } else if (ch === '*') {
+      // `*` — matches anything except `/`
+      re += '[^/]*';
+      i++;
+    } else if (ch === '?') {
+      // `?` — matches one char except `/`
+      re += '[^/]';
+      i++;
+    } else if (ch === '[') {
+      // Character class — pass through verbatim until the closing `]`
+      const end = p.indexOf(']', i + 1);
+      if (end === -1) {
+        re += '\\[';
+        i++;
+      } else {
+        re += p.slice(i, end + 1); // e.g. [abc] or [a-z]
+        i = end + 1;
+      }
+    } else {
+      // Escape any regex metacharacters in the literal character
+      re += ch.replace(/[.+^${}()|\\]/g, '\\$&');
+      i++;
+    }
+  }
+
+  // Anchor: the pattern should match the full filename (or last path segment).
+  // If the pattern contained a `/` or `**`, match against the full relative
+  // path; otherwise match against the basename only.
+  const hasPathPart = p.includes('/');
+  if (hasPathPart) {
+    // Match the whole name (relative path from folder root)
+    return new RegExp(`^${re}$`, 'i');
+  } else {
+    // Match just the filename — anchor to the end; allow any leading segment
+    return new RegExp(`(?:^|/)${re}$`, 'i');
+  }
+}
+
+/**
+ * Filters a list of file names (relative paths from the folder root) against
+ * an array of parsed ignore patterns. A file is excluded if it matches any
+ * pattern. Returns only the files that should be kept.
+ */
+function applyIgnorePatterns(names: string[], patterns: string[]): string[] {
+  if (!patterns || patterns.length === 0) return names;
+  const regexes = patterns.map(globToRegex);
+  return names.filter(name => !regexes.some(rx => rx.test(name)));
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -135,7 +217,39 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
   });
 
   /**
-   * Counts files in a folder that match optional extension and prefix filters.
+   * Reads `.cullaiignore` from the root of `folderPath`.
+   *
+   * Returns an array of active pattern strings (non-empty, non-comment lines),
+   * or `null` if the file does not exist.
+   *
+   * The file format mirrors `.gitignore`:
+   *   - Lines starting with `#` are comments and are skipped.
+   *   - Blank / whitespace-only lines are skipped.
+   *   - All other trimmed lines are returned as-is for glob matching.
+   */
+  ipcMain.handle('parse-cullaiignore', async (_event, folderPath: string) => {
+    if (!folderPath || typeof folderPath !== 'string') {
+      throw new Error('parse-cullaiignore: invalid folder path');
+    }
+    const filePath = path.join(path.resolve(folderPath), '.cullaiignore');
+    try {
+      const raw = await fs.promises.readFile(filePath, 'utf8');
+      const patterns = raw
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line.length > 0 && !line.startsWith('#'));
+      return patterns; // string[] — may be empty if file only had comments
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') return null; // file not found — normal case
+      throw err; // unexpected error (permissions, etc.) — surface to renderer
+    }
+  });
+
+  /**
+   * Counts files in a folder that match optional extension and prefix filters,
+   * then excludes any names matched by `ignorePatterns` (glob strings from a
+   * parsed `.cullaiignore` file).
+   *
    * Returns `{ count: number }`.
    */
   ipcMain.handle(
@@ -145,6 +259,7 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
       folderPath: string,
       extensions?: string[],
       prefixes?: string[],
+      ignorePatterns?: string[],
     ) => {
       if (!folderPath || typeof folderPath !== 'string') {
         throw new Error('scan-folder: invalid folder path');
@@ -162,6 +277,11 @@ export function registerIpcHandlers(store: InstanceType<typeof Store>): void {
 
       if (prefixes && prefixes.length > 0) {
         names = names.filter(n => prefixes.some(p => n.startsWith(p)));
+      }
+
+      // Apply .cullaiignore patterns last, after extension and prefix filters.
+      if (ignorePatterns && ignorePatterns.length > 0) {
+        names = applyIgnorePatterns(names, ignorePatterns);
       }
 
       return { count: names.length };
