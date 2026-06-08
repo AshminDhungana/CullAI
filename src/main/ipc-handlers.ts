@@ -16,7 +16,7 @@
  *
  */
 
-import { dialog, ipcMain, shell, BrowserWindow } from 'electron';
+import { dialog, ipcMain, safeStorage, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { storeApiKey, getApiKey, deleteApiKey } from './safe-storage';
@@ -144,6 +144,22 @@ const RECENT_FOLDERS_MAX = 10;
 
 export function registerIpcHandlers(store: AppStore): void {
   initUsageTracker(store);
+
+  // -------------------------------------------------------------------------
+  // Phase 3.2 — Safe-storage availability query
+  //
+  // The renderer uses this to show an inline status badge in the AI step of
+  // Setup, giving visual confirmation of keychain availability on each
+  // platform. Returns a plain boolean — never exposes keys or backend details.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns true if OS keychain encryption is available on this machine.
+   * Safe to call from the renderer at any time after app ready.
+   */
+  ipcMain.handle('safe-storage-available', () => {
+    return safeStorage.isEncryptionAvailable();
+  });
 
   // -------------------------------------------------------------------------
   // Settings persistence

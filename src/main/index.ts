@@ -7,13 +7,14 @@
  *   1. Create the BrowserWindow.
  *   2. Initialise electron-store (main settings) and the secure store
  *      (encrypted API keys — separate file, never logged).
- *   3. Register all IPC handlers only after both stores are ready.
+ *   3. Verify OS keychain encryption is available; warn the user if not.
+ *   4. Register all IPC handlers only after both stores are ready.
  *
  * All handler implementations live in ./ipc-handlers.ts.
  * Secure-storage helpers live in ./safe-storage.ts.
  */
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog, safeStorage } from 'electron';
 import * as path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
 import { initSecureStore } from './safe-storage';
@@ -55,6 +56,56 @@ function createWindow(): void {
 }
 
 // ---------------------------------------------------------------------------
+// safeStorage availability check
+//
+// Must be called after app.whenReady() — safeStorage is only usable once the
+// app is ready and Electron has had a chance to connect to the OS keychain.
+//
+// If encryption is unavailable we show a blocking native dialog so the user
+// understands their API keys will NOT be persisted between sessions.
+// We never fall back to plaintext storage — that would be a silent security
+// regression. The user can choose to continue (keys held in memory only for
+// this session) or quit and fix their OS keyring.
+// ---------------------------------------------------------------------------
+async function checkSafeStorageAvailability(): Promise<void> {
+  const available = safeStorage.isEncryptionAvailable();
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      `[safe-storage] Encryption available: ${available}`,
+      `| backend: ${(safeStorage as any).getSelectedStorageBackend?.() ?? 'unknown'}`,
+    );
+  }
+
+  if (!available) {
+    const { response } = await dialog.showMessageBox({
+      type: 'warning',
+      title: 'OS Keychain Unavailable',
+      message: 'Secure API key storage is not available on this system.',
+      detail:
+        'CullAI uses your OS keychain (Windows DPAPI, macOS Keychain, or ' +
+        'Linux kwallet / gnome-libsecret) to encrypt API keys at rest.\n\n' +
+        'The keychain could not be reached, so API keys entered this session ' +
+        'will be held in memory only and will not persist between restarts.\n\n' +
+        'On Linux, ensure a keyring daemon is running:\n' +
+        '  • GNOME: gnome-keyring-daemon\n' +
+        '  • KDE:   kwalletd5 or kwalletd6\n\n' +
+        'You can continue without persistence or quit and resolve the issue first.',
+      buttons: ['Continue Without Persistence', 'Quit'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+
+    if (response === 1) {
+      app.quit();
+    }
+    // response === 0 → user chose to continue; app proceeds normally but
+    // storeApiKey() will throw on any attempt to save a key, which the
+    // renderer already handles gracefully (shows an inline amber warning).
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Store initialisation → IPC registration
 //
 // electron-store is ESM-only (v9+), so we import() it dynamically.
@@ -62,16 +113,16 @@ function createWindow(): void {
 // Both stores (main settings + secure API keys) are constructed here and
 // passed to their respective modules. Handlers are registered only after
 // both are ready so no handler can race against an uninitialised store.
-//
-// FIX #2: loadLicense() is now called INSIDE this .then() callback, after
-// app.whenReady() has already resolved (createWindow runs first) and after
-// the store is initialised. Calling app.getPath('userData') before app is
-// ready throws — moving it here guarantees safety.
 // ---------------------------------------------------------------------------
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Create the window first so the user sees something immediately while
   // the store initialises in the background.
   createWindow();
+
+  // Phase 3.2: verify OS keychain before registering any IPC handlers.
+  // This is async (shows a native dialog if needed) and must complete before
+  // we expose the 'api-key-store' IPC channel to the renderer.
+  await checkSafeStorageAvailability();
 
   import('electron-store')
     .then(({ default: Store }) => {
@@ -88,8 +139,8 @@ app.whenReady().then(() => {
       // real store instance, not an undefined module-scope reference.
       registerIpcHandlers(store);
 
-      // FIX #2: Startup license validation moved here — app is guaranteed
-      // ready, store is initialised, app.getPath('userData') is safe.
+      // Startup license validation — app is guaranteed ready here,
+      // store is initialised, app.getPath('userData') is safe.
       const license = loadLicense();
       if (license) {
         console.log(`[main] License loaded: ${license.tier}`);

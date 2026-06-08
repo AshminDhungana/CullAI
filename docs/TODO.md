@@ -327,9 +327,9 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 3.2 Platform Verification
 
-- [ ] Verify `safeStorage.isEncryptionAvailable()` returns `true` on each platform
-- [ ] Add a startup check — if encryption unavailable, show a warning dialog (do not fall back to plaintext)
-- [ ] Test on Windows (DPAPI), macOS (Keychain), and Linux (kwallet/gnome-libsecret) if available
+- [x] Verify `safeStorage.isEncryptionAvailable()` returns `true` on each platform
+- [x] Add a startup check — if encryption unavailable, show a warning dialog (do not fall back to plaintext)
+- [x] Test on Windows (DPAPI), macOS (Keychain), and Linux (kwallet/gnome-libsecret) if available
 
 ### 3.3 Implement License System
 
