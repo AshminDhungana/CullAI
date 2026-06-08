@@ -27,6 +27,8 @@ import {
   deleteLicense,
   clearLicenseCache,
 } from './license-manager';
+import { FEATURES, isAllowed } from '../shared/license';
+import type { Feature } from '../shared/license';
 import {
   initUsageTracker,
   getUsageStatus,
@@ -273,6 +275,14 @@ export function registerIpcHandlers(store: AppStore): void {
   });
 
   ipcMain.handle('license:get-tier', () => getLicenseTier());
+
+  ipcMain.handle('license:check-feature', (_event, feature: string) => {
+    if (!(FEATURES as readonly string[]).includes(feature)) {
+      return { allowed: false, error: `Unknown feature: "${feature}"` };
+    }
+    const tier = getLicenseTier();
+    return { allowed: isAllowed(feature as Feature, tier), tier };
+  });
 
   ipcMain.handle('license:check-quota', async (_event, requestedCount: number) => {
     if (typeof requestedCount !== 'number' || requestedCount < 0) {

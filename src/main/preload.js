@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   licenseDeactivate:  ()      => ipcRenderer.invoke('license:deactivate'),
   licenseGetStatus:   ()      => ipcRenderer.invoke('license:get-status'),
   licenseGetTier:     ()      => ipcRenderer.invoke('license:get-tier'),
+  licenseCheckFeature: (feature) => ipcRenderer.invoke('license:check-feature', feature),
   licenseCheckQuota:  (count) => ipcRenderer.invoke('license:check-quota', count),
   licenseIncrementUsage: (count) => ipcRenderer.invoke('license:increment-usage', count),
 

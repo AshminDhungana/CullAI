@@ -53,6 +53,7 @@ import { defaultAppSettings } from '../../shared/types';
 import { GENRE_PRESETS } from '../../shared/genre-presets';
 import LicensePanel from '../components/LicensePanel';
 import type { LicenseStatus as LicenseStatusType } from '../../shared/license';
+import { isAllowed } from '../../shared/license';
 
 // -----------------------------------------------------------------------------
 // Provider defaults
@@ -182,6 +183,14 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [showDuplicateTooltip, setShowDuplicateTooltip] = useState(false);
   const [apiKeySaveError, setApiKeySaveError] = useState<string>('');
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatusType | null>(null);
+
+  // Derived gate flags — single source of truth for all feature locks in this
+  // component. Both default to false (locked) until licenseStatus loads, which
+  // prevents a brief flash where gated controls appear enabled on mount.
+  const tier = licenseStatus?.tier ?? 'free';
+  const canUseXmp      = isAllowed('xmpExport',         tier);
+  const canUseRaw      = isAllowed('rawFormats',         tier);
+  const canAddProfiles = isAllowed('unlimitedProfiles',  tier);
 
   // FIX #6: fetchLicenseStatus is stable and can be called independently of
   // the isLoading flag. It is called explicitly at the end of the load()
@@ -891,10 +900,19 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                 <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
                   <FileImage className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm">File Type Filter</h3>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">File Type Filter</h3>
+                    {!canUseRaw && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-medium">
+                        RAW = PRO
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Choose which formats to include
+                    {canUseRaw
+                      ? 'Choose which formats to include'
+                      : 'JPEG/PNG/WebP included — upgrade to Pro to process RAW files'}
                   </p>
                 </div>
               </div>
@@ -906,6 +924,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                     inputFolder={watchedInputFolder}
                     value={field.value ?? []}
                     onChange={field.onChange}
+                    rawLocked={!canUseRaw}
                   />
                 )}
               />
@@ -1398,10 +1417,21 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Style Profile</label>
               <button
                 type="button"
-                className="text-xs text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                disabled={!canAddProfiles}
+                title={canAddProfiles ? 'Create a new style profile' : 'Upgrade to Pro to create more profiles'}
+                className={`text-xs flex items-center gap-1 transition-colors ${
+                  canAddProfiles
+                    ? 'text-amber-600 dark:text-amber-400 hover:underline'
+                    : 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                }`}
               >
                 <Settings className="w-3 h-3" />
                 Create New
+                {!canAddProfiles && (
+                  <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-medium">
+                    PRO
+                  </span>
+                )}
               </button>
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Saved preference sets for quick reuse</p>
@@ -1453,7 +1483,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               render={({ field }) => (
                 <label
                   className={`flex items-start gap-3 group ${
-                    licenseStatus?.tier === 'free' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                    !canUseXmp ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
                   }`}
                 >
                   <div className="relative mt-0.5 shrink-0">
@@ -1461,10 +1491,10 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                       type="checkbox"
                       checked={field.value}
                       onChange={(e) => {
-                        if (licenseStatus?.tier === 'free') return;
+                        if (!canUseXmp) return;
                         field.onChange(e.target.checked);
                       }}
-                      disabled={licenseStatus?.tier === 'free'}
+                      disabled={!canUseXmp}
                       className="sr-only"
                     />
                     <div
@@ -1472,7 +1502,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                         field.value
                           ? 'bg-amber-500 border-amber-500'
                           : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
-                      } ${licenseStatus?.tier === 'free' ? 'opacity-50' : ''}`}
+                      } ${!canUseXmp ? 'opacity-50' : ''}`}
                     >
                       {field.value && <Check className="w-3 h-3 text-white" />}
                     </div>
@@ -1482,7 +1512,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
                         Write Lightroom / Capture One sidecar files
                       </span>
-                      {licenseStatus?.tier === 'free' && (
+                      {!canUseXmp && (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-medium">
                           PRO
                         </span>

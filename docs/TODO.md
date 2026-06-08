@@ -356,17 +356,17 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 3.4 Implement Feature Gates
 
-- [ ] Define feature flag map in `license.ts`:
+- [x] Define feature flag map in `license.ts`:
   - `rawFormats` — Pro and Lifetime only
   - `xmpExport` — Pro and Lifetime only
   - `unlimitedImages` — Pro and Lifetime only (Free: 500 images **per calendar month** cap)
   - `unlimitedProfiles` — Pro and Lifetime only (Free: max 2 profiles)
   - `autoTagging` — Pro and Lifetime only (AI keyword tagging from Phase 13b)
-- [ ] Implement `isAllowed(feature: Feature, tier: LicenseTier): boolean`
-- [ ] Implement `getMonthlyImageCount(): number` — tracks usage in `electron-store`, resets on the first of each calendar month
-- [ ] Add IPC handler: `'license-check-feature'`
-- [ ] In Setup screen: show lock icon on RAW-related fields and XMP toggle if tier is Free
-- [ ] In Setup screen: show upgrade prompt if monthly limit is approaching (e.g. >80% used)
+- [x] Implement `isAllowed(feature: Feature, tier: LicenseTier): boolean`
+- [x] Implement `getMonthlyImageCount(): number` — tracks usage in `electron-store`, resets on the first of each calendar month
+- [x] Add IPC handler: `'license-check-feature'`
+- [x] In Setup screen: show lock icon on RAW-related fields and XMP toggle if tier is Free
+- [x] In Setup screen: show upgrade prompt if monthly limit is approaching (e.g. >80% used)
 
 ✅ **Done Criteria:** API key stores and loads encrypted; deleting it removes it cleanly. License tier reads from file; Free tier shows lock icons on Pro features. Monthly image counter resets correctly on a new month.
 
