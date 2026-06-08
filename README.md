@@ -139,7 +139,16 @@ Weights are fully adjustable via sliders in the Setup screen and auto-normalize 
 
 ### Build from Source
 
-**Prerequisites:** Node.js 18+, npm or yarn
+CullAI supports **Windows**, **macOS**, and **Linux** builds using Electron and electron-builder.
+
+### Prerequisites
+
+- Install **Node.js 18+**
+- Install **Git**
+- Platform-specific build tools:
+  - **Windows:** Visual Studio Build Tools
+  - **macOS:** Xcode Command Line Tools
+  - **Linux:** build-essential, gcc, g++, make
 
 ```bash
 # Clone the repository
@@ -151,12 +160,38 @@ npm install
 
 # Start in development mode
 npm run dev
+```
 
-# Build for your current platform
+### Build the Application
+
+Build for the current operating system:
+
+```bash
 npm run build
 ```
 
-> **Note:** `libraw` requires native compilation. Ensure you have the appropriate build tools installed (`build-essential` on Linux, Xcode CLI tools on macOS, Visual Studio Build Tools on Windows).
+Or build specific targets:
+
+```bash
+# Windows
+npx electron-builder --win
+
+# macOS
+npx electron-builder --mac
+
+# Linux
+npx electron-builder --linux
+```
+
+### Build Output
+
+Generated installers will be available in the `dist/` directory:
+
+- **Windows:** `.exe`
+- **macOS:** `.dmg`
+- **Linux:** `.AppImage`, `.deb`, or other configured formats
+
+> **Note:** `libraw` requires native compilation. Ensure you have the appropriate build tools installed (`build-essential` on Linux, Xcode CLI tools on macOS, Visual Studio Build Tools on Windows). Electron Builder also supports Docker and CI/CD workflows for automated cross-platform builds.
 
 ---
 
