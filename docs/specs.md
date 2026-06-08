@@ -43,7 +43,7 @@
 - Scan input folder for supported image formats (JPEG, PNG, HEIC, all major RAW).
 - Apply **extension filter** (e.g., only `.CR3`), **prefix filter** (e.g., `IMG_`), and `.cullaiignore` (glob patterns).
 - **Recursive subfolder processing** with option to preserve folder structure in output.
-- **RAW decoding** via `libraw` → embedded JPEG preview extraction for fast thumbnails, full decode for AI scoring.
+- **RAW decoding** via `lightdrift-libraw` → embedded JPEG preview extraction for fast thumbnails, full decode for AI scoring.
 - **Smart RAW caching** (per‑folder `.cullai_cache`) with size/age limits and manual cleanup.
 
 ### Epic 3: On‑Device Analysis
@@ -341,7 +341,7 @@ Represents a single image after processing (resized base64, metadata).
 | API key invalid (401) during scoring        | Pipeline aborts immediately; user sees “Invalid API key for provider X”.                             |
 | Ollama not running                          | “Test Connection” shows failure; start button disabled until Ollama responds.                        |
 | Network timeout during AI call              | Retry once; if still fails, mark image as scoring‑failed (reason in `reasoning`), continue pipeline. |
-| `libraw` fails to decode a RAW file         | Log error, skip image, add to `faceDetectionFailed` shortfall counter.                               |
+| `lightdrift-libraw` fails to decode a RAW file | Log error, skip image, add to `faceDetectionFailed` shortfall counter.                               |
 | Session file corruption (partial write)     | `loadSession()` returns `null`; user can start fresh or attempt manual repair (not automated).       |
 | User requests 200 images but only 180 exist | Confirmation dialog before start. After run, show shortfall reasons with “Add excluded?” option.     |
 | Free user exceeds 500 monthly limit         | Pipeline rejects additional images with error code; upgrade prompt shown.                            |
@@ -416,7 +416,7 @@ Represents a single image after processing (resized base64, metadata).
 | **Discovery Pass**  | Single AI call at the beginning of a session that analyses sample images to understand the shoot genre and user’s definition of “best”.                         |
 | **XMP Sidecar**     | XML metadata file that Lightroom and Capture One read to apply star ratings, labels, and keywords without altering original images.                             |
 | **Perceptual Hash** | Fingerprint of an image that is robust against small changes (compression, resize), used to group burst shots.                                                  |
-| **`libraw`**        | Open‑source RAW decoding library. CullAI uses its Node.js native binding.                                                                                       |
+| **`lightdrift-libraw`** | Open‑source RAW decoding library. CullAI uses its Node.js native binding (supports Node 24 + Electron 42).                                                  |
 | **`safeStorage`**   | Electron API that encrypts data using OS‑native keychain/DPAPI/kwallet.                                                                                         |
 | **Dry‑Run**         | Simulation that estimates token cost and probable output count without making API calls.                                                                        |
 

@@ -9,8 +9,8 @@
 
 | Category              | Technology   | Version / Constraint            |
 | --------------------- | ------------ | ------------------------------- |
-| **Runtime**           | Node.js      | 18.x or 20.x (LTS)              |
-| **Desktop Framework** | Electron     | Latest stable (29.x / 30.x)     |
+| **Runtime**           | Node.js      | 24.x (LTS)                      |
+| **Desktop Framework** | Electron     | 42.x                            |
 | **UI Library**        | React        | 18.2+                           |
 | **Language**          | TypeScript   | 5.0+                            |
 | **Build Tool**        | Vite         | 5.x (renderer) + `tsc` for main |
@@ -52,7 +52,7 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 
 ### 3.1 Process Separation
 
-- **Main process** (`src/main/`) – Electron main, Node.js APIs, native modules (`libraw`, `sharp`), file system, IPC handlers, face detection, session manager, AI client.
+- **Main process** (`src/main/`) – Electron main, Node.js APIs, native modules (`lightdrift-libraw`, `sharp`), file system, IPC handlers, face detection, session manager, AI client.
 - **Renderer process** (`src/renderer/`) – React UI, Tailwind styling, no direct Node.js imports. Organized into `/components`, `/screens`, and `/assets`. Communicates exclusively via `window.electronAPI` (preload script).
 - **Shared code** (`src/shared/`) – TypeScript types, constants, genre presets. **Must not import** any Node.js or browser‑only modules.
 
@@ -87,22 +87,22 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 
 ## 4. Key Libraries & Their Roles
 
-| Library                        | Purpose                                                             | Version Pin |
-| ------------------------------ | ------------------------------------------------------------------- | ----------- |
-| `sharp`                        | Resize, convert, encode JPEG/HEIC/WebP for AI & previews            | 0.33.x      |
-| `libraw` (native addon)        | Decode RAW files (CR3, NEF, ARW, RAF, DNG, etc.)                    | 0.21.x      |
-| `@vladmandic/human`            | On‑device face & eye detection (primary, CPU‑only)                  | 3.x         |
-| `face-api.js` (fallback)       | Fallback for platforms where `human` fails                          | 0.22.x      |
-| `imghash`                      | Perceptual hashing for duplicate / burst detection                  | 0.3.x       |
-| `electron-store`               | Persistent key‑value store for settings & profiles                  | 8.x         |
-| `electron-updater`             | Auto‑update via GitHub Releases                                     | 6.x         |
-| `react-window`                 | Virtualized grid for large result sets                              | 1.8.x       |
-| `lottie-react`                 | Splash screen animation (optional)                                  | 2.x         |
-| `archiver`                     | ZIP export of session bundle                                        | 6.x         |
-| `commander`                    | CLI argument parsing for headless mode                              | 12.x        |
-| `vitest`                       | Unit & integration test runner                                      | 1.x         |
-| `tailwindcss`                  | Utility CSS framework – **must use** for all styling                | 3.4.x       |
-| `xmp-metadata` (or custom XML) | Write XMP sidecars (if library fails, fall back to string template) | latest      |
+| Library                            | Purpose                                                             | Version Pin |
+| ---------------------------------- | ------------------------------------------------------------------- | ----------- |
+| `sharp`                            | Resize, convert, encode JPEG/HEIC/WebP for AI & previews            | 0.33.x      |
+| `lightdrift-libraw` (native addon) | Decode RAW files (CR3, NEF, ARW, RAF, DNG, etc.)                    | 1.x         |
+| `@vladmandic/human`                | On‑device face & eye detection (primary, CPU‑only)                  | 3.x         |
+| `face-api.js` (fallback)           | Fallback for platforms where `human` fails                          | 0.22.x      |
+| `imghash`                          | Perceptual hashing for duplicate / burst detection                  | 0.3.x       |
+| `electron-store`                   | Persistent key‑value store for settings & profiles                  | 8.x         |
+| `electron-updater`                 | Auto‑update via GitHub Releases                                     | 6.x         |
+| `react-window`                     | Virtualized grid for large result sets                              | 1.8.x       |
+| `lottie-react`                     | Splash screen animation (optional)                                  | 2.x         |
+| `archiver`                         | ZIP export of session bundle                                        | 6.x         |
+| `commander`                        | CLI argument parsing for headless mode                              | 12.x        |
+| `vitest`                           | Unit & integration test runner                                      | 1.x         |
+| `tailwindcss`                      | Utility CSS framework – **must use** for all styling                | 3.4.x       |
+| `xmp-metadata` (or custom XML)     | Write XMP sidecars (if library fails, fall back to string template) | latest      |
 
 ---
 
@@ -165,7 +165,7 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 
 - **Development:** `npm run dev` starts Vite dev server + Electron concurrently.
 - **Production build:** `npm run build` runs TypeScript compilation (`tsc -p tsconfig.main.json` and `tsc -p tsconfig.renderer.json`), then `electron-builder`.
-- **Native addons** (`libraw`) must be rebuilt for Electron using `electron-rebuild` (in `postinstall` script).
+- **Native addons** (`lightdrift-libraw`) must be rebuilt for Electron using `electron-rebuild` (in `postinstall` script).
 - **ASAR unpacking:** All `.node` files (native addons) must be listed in `asarUnpack` in `electron-builder.config.ts`.
 - **Platform targets:** Windows (NSIS installer + portable EXE), macOS (DMG + ZIP), Linux (AppImage).
 
@@ -192,7 +192,8 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 │                      MAIN PROCESS                            │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
 │  │ raw-decoder  │  │ face-detector│  │ duplicate-       │   │
-│  │ (libraw)     │  │ (@human/fallback)│ detector (phash)│   │
+│  │ (lightdrift-  │  │ (@human/fallback)│ detector (phash)│   │
+│  │  libraw)      │  │                  │                 │   │
 │  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘   │
 │         │                 │                   │              │
 │         └─────────┬───────┴───────────────────┘              │
@@ -231,7 +232,7 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 - All dependency versions are pinned in `package.json` (no `^` or `~` where possible, except for patch releases allowed for security fixes).
 - Before upgrading any major library (Electron, React, TypeScript), test the entire pipeline with the new version.
 - The following libraries are **frozen** until further notice:
-  - `libraw` – because native ABI compatibility with Electron is fragile.
+  - `lightdrift-libraw` – because native ABI compatibility with Electron is fragile.
   - `@vladmandic/human` – model files would need re‑download; only upgrade if critical bug fix.
 
 ---

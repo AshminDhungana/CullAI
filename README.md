@@ -37,7 +37,7 @@ Photographers call the process of manually sorting and selecting shots **culling
 
 ### Core Capabilities
 
-- 📁 **Full RAW format support** — CR3, NEF, ARW, RAF, DNG, ORF, RW2, PEF, 3FR and more via `libraw`
+- 📁 **Full RAW format support** — CR3, NEF, ARW, RAF, DNG, ORF, RW2, PEF, 3FR and more via `lightdrift-libraw`
 - 📱 **HEIC support** — iPhone and iPad photos work natively
 - 🤖 **Multi-provider AI** — use Claude, ChatGPT, Gemini, or Ollama (local/offline)
 - 👁️ **On-device face & eye detection** — blink detection, expression scoring, face sharpness — no face data sent to any API
@@ -118,20 +118,20 @@ Weights are fully adjustable via sliders in the Setup screen and auto-normalize 
 
 ## Supported Image Formats
 
-| Format                     | Camera Brand            | Processing      |
-| -------------------------- | ----------------------- | --------------- |
-| JPEG / JPG                 | All                     | Native (Sharp)  |
-| PNG, WebP, AVIF, TIFF, GIF | General                 | Native (Sharp)  |
-| HEIC                       | iPhone / iPad           | Sharp + libvips |
-| **CR2 / CR3**              | **Canon**               | libraw          |
-| **NEF / NRW**              | **Nikon**               | libraw          |
-| **ARW / SR2**              | **Sony**                | libraw          |
-| **RAF**                    | **Fujifilm**            | libraw          |
-| **DNG**                    | **Adobe / Leica / DJI** | libraw          |
-| **ORF**                    | **Olympus**             | libraw          |
-| **RW2**                    | **Panasonic**           | libraw          |
-| **PEF**                    | **Pentax**              | libraw          |
-| **3FR**                    | **Hasselblad**          | libraw          |
+| Format                     | Camera Brand            | Processing        |
+| -------------------------- | ----------------------- | ----------------- |
+| JPEG / JPG                 | All                     | Native (Sharp)    |
+| PNG, WebP, AVIF, TIFF, GIF | General                 | Native (Sharp)    |
+| HEIC                       | iPhone / iPad           | Sharp + libvips   |
+| **CR2 / CR3**              | **Canon**               | lightdrift-libraw |
+| **NEF / NRW**              | **Nikon**               | lightdrift-libraw |
+| **ARW / SR2**              | **Sony**                | lightdrift-libraw |
+| **RAF**                    | **Fujifilm**            | lightdrift-libraw |
+| **DNG**                    | **Adobe / Leica / DJI** | lightdrift-libraw |
+| **ORF**                    | **Olympus**             | lightdrift-libraw |
+| **RW2**                    | **Panasonic**           | lightdrift-libraw |
+| **PEF**                    | **Pentax**              | lightdrift-libraw |
+| **3FR**                    | **Hasselblad**          | lightdrift-libraw |
 
 ---
 
@@ -191,7 +191,7 @@ Generated installers will be available in the `dist/` directory:
 - **macOS:** `.dmg`
 - **Linux:** `.AppImage`, `.deb`, or other configured formats
 
-> **Note:** `libraw` requires native compilation. Ensure you have the appropriate build tools installed (`build-essential` on Linux, Xcode CLI tools on macOS, Visual Studio Build Tools on Windows). Electron Builder also supports Docker and CI/CD workflows for automated cross-platform builds.
+> **Note:** `lightdrift-libraw` requires native compilation. Ensure you have the appropriate build tools installed (`build-essential` on Linux, Xcode CLI tools on macOS, Visual Studio Build Tools 2022 with "Desktop development with C++" workload on Windows). Electron Builder also supports Docker and CI/CD workflows for automated cross-platform builds.
 
 ---
 
@@ -221,7 +221,7 @@ Results appear in the tiered gallery with scores, tier badges, and AI reasoning 
                        │
 ┌──────────────────────▼──────────────────────┐
 │  2. RAW DECODING                            │
-│     libraw decodes RAW files → JPEG         │
+│     lightdrift-libraw decodes RAW files → JPEG         │
 │     Sharp resizes to 1024px for API         │
 └──────────────────────┬──────────────────────┘
                        │
@@ -269,7 +269,7 @@ CullAI is designed privacy-first:
 - **API keys** are encrypted using Electron `safeStorage` — DPAPI on Windows, Keychain on macOS, kwallet/gnome-libsecret on Linux. Never written to disk in plaintext.
 - **Images never leave your machine** except as resized previews in AI API calls
 - **Face detection** runs 100% on-device — no face data is ever sent to any external API
-- **RAW decoding** runs 100% on-device via libraw
+- **RAW decoding** runs 100% on-device via `lightdrift-libraw`
 - **No telemetry or analytics** of any kind
 - **XMP sidecars** are written alongside originals — no image data is duplicated unnecessarily
 
@@ -283,7 +283,7 @@ CullAI is designed privacy-first:
 | UI                  | React + TypeScript                        |
 | Styling             | Tailwind CSS 3                            |
 | Image Processing    | Sharp (Node.js)                           |
-| RAW Decoding        | libraw (native Node addon)                |
+| RAW Decoding        | lightdrift-libraw (native Node addon)     |
 | HEIC Support        | Sharp + libvips                           |
 | Face Detection      | @vladmandic/human / face-api.js           |
 | AI Integration      | OpenAI-compatible API, Claude & Gemini    |

@@ -15,7 +15,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 1     | Project Scaffold                       | ✅ Complete    |
 | 1.5   | Splash Screen & Launch Animation       | ✅ Complete    |
 | 2     | Setup Screen UI (Enhanced)             | ✅ Complete    |
-| 3     | Secure Storage & License               | ⬜ Not Started |
+| 3     | Secure Storage & License               | ✅ Complete    |
 | 4     | RAW Decoding Pipeline                  | ⬜ Not Started |
 | 5     | Image Processing Pipeline (Enhanced)   | ⬜ Not Started |
 | 5b    | Smart RAW Caching                      | ⬜ Not Started |
@@ -376,14 +376,14 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 > Goal: Any supported RAW file can be decoded to a usable JPEG buffer.
 
-### 4.1 Install and Configure libraw
+### 4.1 Install and Configure lightdrift-libraw
 
-- [ ] Install `libraw` Node native addon: `npm install libraw`
+- [x] Install `lightdrift-libraw` Node native addon: `npm install lightdrift-libraw`
 - [ ] Verify native compilation succeeds on your dev platform
 - [ ] Note required system dependencies in `README.md` build section:
   - Linux: `build-essential`
   - macOS: Xcode CLI tools (`xcode-select --install`)
-  - Windows: Visual Studio Build Tools
+  - Windows: Visual Studio Build Tools 2022 with "Desktop development with C++" workload
 - [ ] Ensure `electron-builder` is configured to rebuild native addons for each target platform (add `electron-rebuild` to build script)
 
 ### 4.2 Create the RAW Decoder Module
@@ -392,11 +392,10 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 - [ ] Define `RAW_EXTENSIONS` constant: `['.cr2', '.cr3', '.nef', '.nrw', '.arw', '.sr2', '.raf', '.dng', '.orf', '.rw2', '.pef', '.3fr']`
 - [ ] Implement `isRawFile(filePath: string): boolean` — checks extension case-insensitively
 - [ ] Implement `decodeRaw(filePath: string): Promise<Buffer>`:
-  - Open file with libraw
-  - Unpack raw data
-  - Process through libraw's default pipeline
-  - Output as full-quality JPEG buffer
-  - Close libraw handle
+  - Use `lightdrift-libraw`'s `processRawThumbnail()` with `tryEmbedded: false` to force full decode
+  - Configure output as JPEG at full quality
+  - Return the resulting buffer
+  - Recycle/close the processor instance after use
 - [ ] Implement proper error handling — throw a typed `RawDecodeError` with filename and reason
 - [ ] Log decode time per file in dev mode for performance monitoring
 
@@ -410,7 +409,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 ### 4.4 🔥 Extract Embedded JPEG Preview (Fast Thumbnails)
 
 - [ ] In `raw-decoder.ts`, implement `extractEmbeddedJpeg(filePath: string): Promise<Buffer | null>`
-- [ ] Use `libraw`'s ability to extract the preview image (if present) without full decode
+- [ ] Use `lightdrift-libraw`'s `processRawThumbnail()` with `tryEmbedded: true` to extract the preview image (if present) without full decode
 - [ ] If successful, return the JPEG buffer; if not, fall back to `decodeRaw()`
 - [ ] Use this in `image-processor.ts` **only** for generating the base64 preview used in the Results screen (not for AI scoring)
 - [ ] For AI scoring, always use the full‑quality decoded buffer (or cached full preview)
@@ -551,7 +550,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 - [ ] Verify that cache limits are respected: create a huge cache (> limit), run cleanup, and check that size no longer exceeds limit.
 - [ ] Verify that cache works across app restarts and across different sessions using the same input folder.
 
-✅ **Done Criteria:** First decode of a RAW file stores a preview in `.cullai_cache/raw_previews/`. Second decode of the same file (even after app restart) loads from cache, never calls `libraw`. Cache status UI correctly reports size and file count. Automatic cleanup respects user‑defined size and age limits. "Clear cache now" removes all cached previews for the current input folder. Disabling caching works and no cache files are created.
+✅ **Done Criteria:** First decode of a RAW file stores a preview in `.cullai_cache/raw_previews/`. Second decode of the same file (even after app restart) loads from cache, never calls `lightdrift-libraw`. Cache status UI correctly reports size and file count. Automatic cleanup respects user‑defined size and age limits. "Clear cache now" removes all cached previews for the current input folder. Disabling caching works and no cache files are created.
 
 ---
 
@@ -1428,7 +1427,7 @@ PROVIDER_DEFAULTS = {
 
 - [ ] Wrap entire pipeline in try/catch — surface errors as user-readable messages in Processing screen
 - [ ] Create a typed `CullAIError` base class with `code`, `message`, `recoverable: boolean`
-- [ ] Error codes: `FREE_LIMIT_EXCEEDED`, `NO_IMAGES_FOUND`, `UNSUPPORTED_FORMATS_ONLY`, `AUTH_FAILED`, `OUTPUT_FOLDER_NOT_WRITABLE`, `LIBRAW_INSTALL_MISSING`, `OLLAMA_NOT_RUNNING`
+- [ ] Error codes: `FREE_LIMIT_EXCEEDED`, `NO_IMAGES_FOUND`, `UNSUPPORTED_FORMATS_ONLY`, `AUTH_FAILED`, `OUTPUT_FOLDER_NOT_WRITABLE`, `LIGHTDRIFT_LIBRAW_INSTALL_MISSING`, `OLLAMA_NOT_RUNNING`
 - [ ] For recoverable errors: show "Retry" button
 - [ ] For fatal errors: show full error message + "Back to Setup" button
 - [ ] Never show raw stack traces to the user
@@ -1559,7 +1558,7 @@ PROVIDER_DEFAULTS = {
 - [ ] Test extension filter: `scanFolder` with filter `{'.cr3'}` returns only CR3 files
 - [ ] Test prefix filter: `scanFolder` with prefix `['IMG_']` excludes `DSC_001.jpg`
 - [ ] Test subfolder processing: `walkFolders` returns correct depth of directories
-- [ ] Test RAW caching: second decode reads from cache, no libraw call
+- [ ] Test RAW caching: second decode reads from cache, no `lightdrift-libraw` call
 - [ ] Test output shortfall reasons: session stores and retrieves reason breakdown
 - [ ] Test undo stack: manual tier change can be reverted
 - [ ] Test keyword tagging: XMP sidecar contains valid `<dc:subject>` array
@@ -1602,10 +1601,10 @@ PROVIDER_DEFAULTS = {
 
 ### 18.3 Bundle Native Addons
 
-- [ ] Add `electron-rebuild` to `postinstall` npm script to rebuild libraw for Electron's Node version
-- [ ] Verify libraw addon is listed in `asarUnpack` so it extracts correctly at runtime
+- [ ] Add `electron-rebuild` to `postinstall` npm script to rebuild `lightdrift-libraw` for Electron's Node version
+- [ ] Verify `lightdrift-libraw` addon is listed in `asarUnpack` so it extracts correctly at runtime
 - [ ] Bundle `@vladmandic/human` model files — add model directory to `files` config
-- [ ] Test that the packaged app can decode a RAW file (libraw works after packaging)
+- [ ] Test that the packaged app can decode a RAW file (`lightdrift-libraw` works after packaging)
 - [ ] Test that face detection works after packaging (model files found at runtime)
 
 ### 18.4 Code Signing (macOS)
@@ -1672,10 +1671,10 @@ PROVIDER_DEFAULTS = {
 
 > Goal: Run CullAI entirely from the command line with no visible GUI window.
 >
-> **Architecture clarification (fix #10):** CullAI's pipeline (libraw, face detection, session manager)
+> **Architecture clarification (fix #10):** CullAI's pipeline (`lightdrift-libraw`, face detection, session manager)
 > runs in Electron's main process, which is a full Node.js environment. CLI mode re-uses this same
 > main process, but launches Electron with no visible `BrowserWindow`. This avoids duplicating the
-> pipeline in a separate Node.js binary and keeps the native addon (libraw) working correctly.
+> pipeline in a separate Node.js binary and keeps the native addon (`lightdrift-libraw`) working correctly.
 > Use `app.commandLine.hasSwitch('headless')` in `src/main/index.ts` to detect CLI mode and skip
 > creating the BrowserWindow when the flag is present.
 

@@ -59,6 +59,7 @@
     "@hookform/resolvers": "^5.4.0",
     "electron-store": "^11.0.2",
     "framer-motion": "^12.40.0",
+    "lightdrift-libraw": "^1.0.0-alpha.6",
     "lottie-react": "^2.4.1",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
