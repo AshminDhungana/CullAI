@@ -30,6 +30,7 @@
   "type": "commonjs",
   "main": "dist/main/index.js",
   "scripts": {
+    "postinstall": "electron-rebuild",
     "dev": "concurrently \"npm run dev:renderer\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
     "dev:renderer": "vite",
     "dev:electron": "electron -r tsx src/main/index.ts",
@@ -39,6 +40,7 @@
     "test": "echo \"Tests coming in Phase 17\" && exit 0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@types/node": "^25.9.2",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",

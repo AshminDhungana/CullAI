@@ -15,6 +15,8 @@ const config: Configuration = {
     'package.json'
   ],
 
+  asarUnpack: ['**/*.node'],
+
   // Targets left empty for now — configured in Phase build
   win: {},
   mac: {},
