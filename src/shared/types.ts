@@ -341,11 +341,26 @@ export type FaceMetadata = {
 };
 
 // -----------------------------------------------------------------------------
-// Image Record (populated in Phase 5)
+// Image Record (Phase 5)
 // -----------------------------------------------------------------------------
 
 export type ImageRecord = {
-  /** Unique identifier — typically a hash of the absolute file path. */
+  /**
+   * Stable session identifier.
+   *
+   * Generated as: `crypto.createHash('sha256').update(absoluteFilePath).digest('hex').slice(0, 16)`
+   *
+   * Design decisions:
+   *   • Based on absolute file path only — fast (no I/O), stable within a session
+   *     (files don't move mid-run), and consistent (same file always gets same ID
+   *     in the same session).
+   *   • NOT the same as the Phase 5b raw-cache key, which uses `path + mtime` to
+   *     detect file changes. Do not use `id` as a cache lookup key.
+   *   • With processSubfolders=true, two files named IMG_001.jpg in different
+   *     subdirectories will have different `id` values (paths differ) but identical
+   *     `filename` values. Phase 8 (Session Manager) keys ScoreRecord by `id`,
+   *     not `filename`, to avoid silent collision in Session.scores.
+   */
   id: string;
   /** Absolute path to the original file on disk. */
   filePath: string;
@@ -425,7 +440,13 @@ export type Session = {
   scoredCount: number;
   status: SessionStatus;
   settings: AppSettings;
-  /** Map of filename → ScoreRecord, written incrementally. */
+  /**
+   * Map of ImageRecord.id → ScoreRecord.
+   *
+   * NOTE: keyed by `id` (not `filename`) so that processSubfolders=true sessions
+   * with duplicate filenames across subdirectories are stored without collision.
+   * Phase 8 must use record.id as the key when writing scores.
+   */
   scores: Record<string, ScoreRecord>;
   /** Summary produced by the AI discovery pass. */
   discoveryContext: string;

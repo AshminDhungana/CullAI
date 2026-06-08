@@ -430,7 +430,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 5.1 Define ImageRecord Type
 
-- [ ] In `src/shared/types.ts`, add:
+- [x] In `src/shared/types.ts`, add:
   ```ts
   type ImageRecord = {
     id: string; // unique ID (e.g. filename hash)
@@ -448,28 +448,28 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 5.2 Create the Image Processor Module
 
-- [ ] Create `src/main/image-processor.ts`
-- [ ] Install `sharp`: `npm install sharp`
-- [ ] Implement `scanFolder(folderPath: string, extensionFilter?: Set<string>, prefixFilter?: string[]): Promise<string[]>`
+- [x] Create `src/main/image-processor.ts`
+- [x] Install `sharp`: `npm install sharp`
+- [x] Implement `scanFolder(folderPath: string, extensionFilter?: Set<string>, prefixFilter?: string[]): Promise<string[]>`
   - Supported extensions: `.jpg`, `.jpeg`, `.png`, `.webp`, `.heic`, `.heif`, `.gif`, `.avif`, `.tiff`, `.tif` + all RAW extensions
   - Apply extension filter (if provided, only those extensions; if empty, all supported)
   - Apply prefix filter (only filenames starting with any of the given prefixes)
   - Skip hidden files and system files (`.DS_Store`, `Thumbs.db`, `.cullai_cache`)
   - Sort alphabetically
-- [ ] Implement `processImage(filePath: string): Promise<ImageRecord>`:
+- [x] Implement `processImage(filePath: string): Promise<ImageRecord>`:
   - If `isRawFile(filePath)` → call `getCachedRawPreview(filePath)` first (from `raw-cache.ts`, Phase 5b). On cache miss, call `decodeRaw`, then `storeRawPreview`.
   - Else → read file with `fs.readFile()`
   - Pass buffer to Sharp: `sharp(buffer).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 })`
   - Encode Sharp output as base64
   - Return `ImageRecord`
-- [ ] Implement `processFolder(folderPath: string): AsyncGenerator<ImageRecord>` — yields one record at a time
+- [x] Implement `processFolder(folderPath: string): AsyncGenerator<ImageRecord>` — yields one record at a time
 
 ### 5.3 Wire IPC
 
-- [ ] Add IPC handler: `'scan-folder'` — takes folder path, extension filter, prefix filter → returns file count + list of filenames
-- [ ] Add IPC handler: `'process-images'` — streams `ImageRecord` objects back to renderer
-- [ ] Expose `window.electronAPI.scanFolder()` and `window.electronAPI.processImages()` in preload script
-- [ ] Handle free tier limit: if image count > 500 (this month) and tier is Free, reject with error code `FREE_LIMIT_EXCEEDED`
+- [x] Add IPC handler: `'scan-folder'` — takes folder path, extension filter, prefix filter → returns file count + list of filenames
+- [x] Add IPC handler: `'process-images'` — streams `ImageRecord` objects back to renderer
+- [x] Expose `window.electronAPI.scanFolder()` and `window.electronAPI.processImages()` in preload script
+- [x] Handle free tier limit: if image count > 500 (this month) and tier is Free, reject with error code `FREE_LIMIT_EXCEEDED`
 
 ✅ **Done Criteria:** Given a folder of mixed images, `processFolder()` yields correctly sized base64-encoded `ImageRecord` per image, respecting extension and prefix filters. On a second run with the same RAW files, it defers to Phase 5b cache (once implemented).
 

@@ -14,14 +14,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Settings ──────────────────────────────────────────────────────────────
   getSettings:  ()           => ipcRenderer.invoke('settings-get'),
   saveSettings: (settings)   => ipcRenderer.invoke('settings-set', settings),
-  
+
   // ── License ───────────────────────────────────────────────────────────────
-  licenseActivate:    (key)   => ipcRenderer.invoke('license:activate', key),
-  licenseDeactivate:  ()      => ipcRenderer.invoke('license:deactivate'),
-  licenseGetStatus:   ()      => ipcRenderer.invoke('license:get-status'),
-  licenseGetTier:     ()      => ipcRenderer.invoke('license:get-tier'),
+  licenseActivate:    (key)      => ipcRenderer.invoke('license:activate', key),
+  licenseDeactivate:  ()         => ipcRenderer.invoke('license:deactivate'),
+  licenseGetStatus:   ()         => ipcRenderer.invoke('license:get-status'),
+  licenseGetTier:     ()         => ipcRenderer.invoke('license:get-tier'),
   licenseCheckFeature: (feature) => ipcRenderer.invoke('license:check-feature', feature),
-  licenseCheckQuota:  (count) => ipcRenderer.invoke('license:check-quota', count),
+  licenseCheckQuota:  (count)    => ipcRenderer.invoke('license:check-quota', count),
   licenseIncrementUsage: (count) => ipcRenderer.invoke('license:increment-usage', count),
 
   // ── Recent folders ────────────────────────────────────────────────────────
@@ -40,14 +40,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Folder helpers ────────────────────────────────────────────────────────
   folderExists:         (folder)                                    => ipcRenderer.invoke('folder-exists', folder),
   /**
-   * Counts files in a folder that match optional extension, prefix, and ignore
-   * pattern filters. All arguments after `folder` are optional.
+   * Counts (and returns paths of) files in a folder matching optional filters.
+   * All arguments after `folder` are optional.
    *
    * @param {string}   folder          Absolute folder path.
    * @param {string[]} [extensions]    Lowercase dot-prefixed extensions, e.g. ['.jpg', '.cr3'].
    * @param {string[]} [prefixes]      Filename prefixes; empty = no prefix filter.
    * @param {string[]} [ignorePatterns] Parsed `.cullaiignore` glob patterns; empty = no exclusions.
-   * @returns {Promise<{ count: number }>}
+   * @returns {Promise<{ count: number, filePaths: string[] }>}
    */
   scanFolder:           (folder, extensions, prefixes, ignorePatterns) => ipcRenderer.invoke('scan-folder', folder, extensions, prefixes, ignorePatterns),
   openFolderDialog:     ()                                          => ipcRenderer.invoke('open-folder-dialog'),
@@ -64,6 +64,66 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   parseCullaiIgnore: (folderPath) =>
     ipcRenderer.invoke('parse-cullaiignore', folderPath),
+
+  // ── Phase 5 — Image processing pipeline ──────────────────────────────────
+
+  /**
+   * Processes all images in `folderPath` and streams each ImageRecord back to
+   * the renderer via the 'image-record' push event (see onImageRecord below).
+   *
+   * Call onImageRecord() BEFORE calling processImages() to ensure no records
+   * are missed.
+   *
+   * Rejects with { code: 'FREE_LIMIT_EXCEEDED' | 'QUOTA_PARTIAL', remaining }
+   * if the Free tier monthly quota would be exceeded.
+   *
+   * @param {string} folderPath  Absolute path to the input folder.
+   * @param {object} [options]   Filter and processing options:
+   *   extensions?          {string[]}  Dot-prefixed extensions to include.
+   *   prefixes?            {string[]}  Filename prefixes to include.
+   *   prefixCaseInsensitive? {boolean} Case-insensitive prefix match (default true).
+   *   ignorePatterns?      {string[]}  Parsed .cullaiignore patterns.
+   *   recursive?           {boolean}   Recurse into subfolders (default false).
+   *   useEmbeddedPreview?  {boolean}   Use embedded RAW preview (default true).
+   * @returns {Promise<{ processed: number, skipped: number, cancelled?: true }>}
+   */
+  processImages: (folderPath, options) =>
+    ipcRenderer.invoke('process-images', folderPath, options),
+
+  /**
+   * Registers a callback to receive ImageRecord objects streamed from the main
+   * process during a processImages() run.
+   *
+   * Returns an unsubscribe function — call it when the Processing screen
+   * unmounts (or when processing completes) to avoid listener leaks.
+   *
+   * Usage:
+   *   const unsub = window.electronAPI.onImageRecord((record) => {
+   *     // record: ImageRecord from src/shared/types.ts
+   *   });
+   *   // later:
+   *   unsub();
+   *
+   * @param {(record: ImageRecord) => void} callback
+   * @returns {() => void} Unsubscribe function.
+   */
+  onImageRecord: (callback) => {
+    const handler = (_event, record) => callback(record);
+    ipcRenderer.on('image-record', handler);
+    // Return an explicit unsubscribe so callers can clean up without knowing
+    // the internal channel name.
+    return () => ipcRenderer.removeListener('image-record', handler);
+  },
+
+  /**
+   * Cancels an in-flight processImages() run for this window.
+   * No-op if no run is active. The original processImages() promise will
+   * resolve (not reject) with { processed, skipped, cancelled: true }.
+   *
+   * @returns {Promise<true>}
+   */
+  processImagesCancel: () =>
+    ipcRenderer.invoke('process-images-cancel'),
 
   // ── File helpers ──────────────────────────────────────────────────────────
   readFileAsBase64: (filePath)  => ipcRenderer.invoke('read-file-as-base64', filePath),

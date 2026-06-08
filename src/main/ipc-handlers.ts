@@ -35,6 +35,7 @@ import {
   preloadUsageForSession,
   incrementUsage,
 } from './usage-tracker';
+import { scanFolder, processFolder } from './image-processor';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -139,6 +140,15 @@ type StoredSettings = Record<string, unknown>;
 
 /** Maximum number of recent folder paths to retain per kind. */
 const RECENT_FOLDERS_MAX = 10;
+
+// ---------------------------------------------------------------------------
+// Active process-images cancellation map
+//
+// Stores one AbortController per BrowserWindow webContents ID so that a
+// second 'process-images' call or a window close can cancel the in-flight
+// generator cleanly.
+// ---------------------------------------------------------------------------
+const activeProcessJobs = new Map<number, AbortController>();
 
 // ---------------------------------------------------------------------------
 // Main export
@@ -343,7 +353,12 @@ export function registerIpcHandlers(store: AppStore): void {
    * then excludes any names matched by `ignorePatterns` (glob strings from a
    * parsed `.cullaiignore` file).
    *
-   * Returns `{ count: number }`.
+   * Delegates to scanFolder() in image-processor.ts — single authoritative
+   * implementation. Returns `{ count: number, filePaths: string[] }`.
+   *
+   * Phase 5 change: now delegates to scanFolder() instead of inlining its own
+   * readdir logic. The response shape adds `filePaths` so callers that need
+   * the actual paths (e.g. process-images) can skip a second round-trip.
    */
   ipcMain.handle(
     'scan-folder',
@@ -357,27 +372,16 @@ export function registerIpcHandlers(store: AppStore): void {
       if (!folderPath || typeof folderPath !== 'string') {
         throw new Error('scan-folder: invalid folder path');
       }
-      const resolved = path.resolve(folderPath);
-      const entries = await fs.promises.readdir(resolved, { withFileTypes: true });
-      let names = entries
-        .filter(e => e.isFile() && !e.name.startsWith('.'))
-        .map(e => e.name);
 
-      if (extensions && extensions.length > 0) {
-        const extSet = new Set(extensions.map(e => e.toLowerCase()));
-        names = names.filter(n => extSet.has(path.extname(n).toLowerCase()));
-      }
+      const filePaths = await scanFolder(folderPath, {
+        extensions,
+        prefixes,
+        ignorePatterns,
+        // prefixCaseInsensitive defaults to true inside scanFolder
+        recursive: false,
+      });
 
-      if (prefixes && prefixes.length > 0) {
-        names = names.filter(n => prefixes.some(p => n.startsWith(p)));
-      }
-
-      // Apply .cullaiignore patterns last, after extension and prefix filters.
-      if (ignorePatterns && ignorePatterns.length > 0) {
-        names = applyIgnorePatterns(names, ignorePatterns);
-      }
-
-      return { count: names.length };
+      return { count: filePaths.length, filePaths };
     },
   );
 
@@ -433,6 +437,155 @@ export function registerIpcHandlers(store: AppStore): void {
       ).length;
     },
   );
+
+  // -------------------------------------------------------------------------
+  // Phase 5 — Image processing pipeline
+  //
+  // 'process-images' streams ImageRecord objects back to the renderer via
+  // push events ('image-record') rather than a single invoke reply, because
+  // a folder of 2000 images cannot be returned in one round-trip without
+  // blocking the main process for seconds.
+  //
+  // Protocol:
+  //   Renderer calls:  ipcRenderer.invoke('process-images', folderPath, options)
+  //   Main pushes:     event.sender.send('image-record', ImageRecord)
+  //   Main resolves:   { processed: number, skipped: number } when done
+  //
+  // Cancellation:
+  //   Renderer calls:  ipcRenderer.invoke('process-images-cancel')
+  //   Main aborts the generator for that webContents ID and resolves the
+  //   original invoke with { processed, skipped, cancelled: true }.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Processes all images in `folderPath` and streams each resulting ImageRecord
+   * back to the renderer via the 'image-record' push channel.
+   *
+   * Enforces the Free tier quota (500 images/month) before starting. If the
+   * folder contains more images than the remaining quota allows, rejects with
+   * error code FREE_LIMIT_EXCEEDED.
+   *
+   * @param folderPath  Absolute path to the folder to process.
+   * @param options     Filter and processing options (extensions, prefixes,
+   *                    ignorePatterns, recursive, useEmbeddedPreview).
+   * @returns           { processed: number, skipped: number, cancelled?: true }
+   */
+  ipcMain.handle(
+    'process-images',
+    async (
+      event,
+      folderPath: string,
+      options: {
+        extensions?: string[];
+        prefixes?: string[];
+        prefixCaseInsensitive?: boolean;
+        ignorePatterns?: string[];
+        recursive?: boolean;
+        useEmbeddedPreview?: boolean;
+      } = {},
+    ) => {
+      if (!folderPath || typeof folderPath !== 'string') {
+        throw new Error('process-images: invalid folder path');
+      }
+
+      const senderContentsId = event.sender.id;
+
+      // ── Cancel any existing job for this window ────────────────────────────
+      const existing = activeProcessJobs.get(senderContentsId);
+      if (existing) {
+        existing.abort();
+        activeProcessJobs.delete(senderContentsId);
+      }
+
+      // ── Quota pre-check (Free tier: 500 images/month) ─────────────────────
+      // First do a quick scan to get the file count so we can check quota
+      // before doing any expensive decode work.
+      const filePaths = await scanFolder(folderPath, {
+        extensions: options.extensions,
+        prefixes: options.prefixes,
+        prefixCaseInsensitive: options.prefixCaseInsensitive,
+        ignorePatterns: options.ignorePatterns,
+        recursive: options.recursive ?? false,
+      });
+
+      const fileCount = filePaths.length;
+      const quotaCheck = await preloadUsageForSession(fileCount);
+
+      if (!quotaCheck.allowed) {
+        const code = quotaCheck.error?.startsWith('QUOTA_PARTIAL')
+          ? 'QUOTA_PARTIAL'
+          : 'FREE_LIMIT_EXCEEDED';
+        throw Object.assign(
+          new Error(`process-images: quota exceeded — ${quotaCheck.error}`),
+          { code, remaining: quotaCheck.remaining },
+        );
+      }
+
+      // ── Set up cancellation ───────────────────────────────────────────────
+      const controller = new AbortController();
+      activeProcessJobs.set(senderContentsId, controller);
+
+      let processed = 0;
+      let skipped = 0;
+      let cancelled = false;
+
+      try {
+        // processFolder re-uses the same scanFolder call internally, but we
+        // pass the already-known filePaths indirectly via the same options.
+        // The slight redundancy (two scanFolder calls) is acceptable in Phase 5;
+        // Phase 10/11 will restructure this to pass filePaths directly.
+        for await (const record of processFolder(folderPath, {
+          extensions: options.extensions,
+          prefixes: options.prefixes,
+          prefixCaseInsensitive: options.prefixCaseInsensitive,
+          ignorePatterns: options.ignorePatterns,
+          recursive: options.recursive ?? false,
+          useEmbeddedPreview: options.useEmbeddedPreview ?? true,
+          signal: controller.signal,
+        })) {
+          if (controller.signal.aborted) {
+            cancelled = true;
+            break;
+          }
+
+          // Push the record to the renderer. If the webContents has been
+          // destroyed (window closed mid-run), stop gracefully.
+          if (event.sender.isDestroyed()) break;
+          event.sender.send('image-record', record);
+          processed++;
+        }
+      } catch (err) {
+        // Unexpected fatal error from the generator — clean up and re-throw
+        // so the renderer's invoke() promise rejects with the error.
+        activeProcessJobs.delete(senderContentsId);
+        throw err;
+      }
+
+      // Track the actual number of images processed against the quota.
+      // We use processed (not fileCount) because skipped files don't consume quota.
+      if (processed > 0) {
+        await incrementUsage(processed);
+      }
+
+      activeProcessJobs.delete(senderContentsId);
+
+      return { processed, skipped, ...(cancelled ? { cancelled: true } : {}) };
+    },
+  );
+
+  /**
+   * Cancels an in-flight 'process-images' job for the calling window.
+   * No-op if no job is running. The original invoke() will resolve with
+   * `{ processed, skipped, cancelled: true }`.
+   */
+  ipcMain.handle('process-images-cancel', (event) => {
+    const controller = activeProcessJobs.get(event.sender.id);
+    if (controller) {
+      controller.abort();
+      activeProcessJobs.delete(event.sender.id);
+    }
+    return true;
+  });
 
   // -------------------------------------------------------------------------
   // File helpers
