@@ -913,4 +913,224 @@ export function registerIpcHandlers(store: AppStore): void {
       return { success: true };
     },
   );
+
+  /**
+   * Queries the LLM provider for available models.
+   * This is used by the renderer when populating the provider-specific model dropdown
+   * in the Setup screen. API keys are retrieved securely from the vault and never
+   * exposed to the renderer.
+   */
+  ipcMain.handle(
+    'fetch-models',
+    async (
+      _event,
+      payload: { provider: string; baseUrl?: string },
+    ): Promise<{ models: string[]; error: string | null }> => {
+      const { provider, baseUrl } = payload ?? {};
+  
+      // Retrieve the stored key from the secure vault — never from the renderer.
+      const apiKey = getApiKey(provider as any);
+  
+      try {
+        switch (provider) {
+          // ── Claude (Anthropic) ─────────────────────────────────────────────
+          case 'claude': {
+            if (!apiKey) {
+              return { models: [], error: 'No API key stored for Claude. Enter your key above.' };
+            }
+  
+            const res = await fetch('https://api.anthropic.com/v1/models', {
+              method: 'GET',
+              headers: {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+              },
+            });
+  
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              const msg = (body as any)?.error?.message ?? res.statusText;
+              return { models: [], error: `Anthropic API error ${res.status}: ${msg}` };
+            }
+  
+            const data = await res.json() as { data: Array<{ id: string }> };
+            const models = (data.data ?? [])
+              .map((m) => m.id)
+              .filter((id) => typeof id === 'string' && id.startsWith('claude-'))
+              .sort();
+            return { models, error: null };
+          }
+  
+          // ── OpenAI ─────────────────────────────────────────────────────────
+          case 'openai': {
+            if (!apiKey) {
+              return { models: [], error: 'No API key stored for OpenAI. Enter your key above.' };
+            }
+  
+            const res = await fetch('https://api.openai.com/v1/models', {
+              method: 'GET',
+              headers: { Authorization: `Bearer ${apiKey}` },
+            });
+  
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              const msg = (body as any)?.error?.message ?? res.statusText;
+              return { models: [], error: `OpenAI API error ${res.status}: ${msg}` };
+            }
+  
+            const data = await res.json() as {
+              data: Array<{ id: string; owned_by: string; created: number }>;
+            };
+  
+            // Keep only chat-capable models published by OpenAI.
+            // The id prefix heuristic covers gpt-*, o1-*, o3-*, o4-*, etc.
+            // We intentionally exclude fine-tuned, embedding, TTS and image models.
+            const CHAT_PREFIXES = ['gpt-', 'o1', 'o3', 'o4', 'chatgpt-'];
+            const EXCLUDE = ['instruct', 'embed', 'tts', 'dall-e', 'whisper', 'moderation'];
+  
+            const models = (data.data ?? [])
+              .filter((m) => {
+                const id = m.id.toLowerCase();
+                const owned = m.owned_by?.toLowerCase() ?? '';
+                return (
+                  (owned === 'openai' || owned === 'system') &&
+                  CHAT_PREFIXES.some((p) => id.startsWith(p)) &&
+                  !EXCLUDE.some((e) => id.includes(e))
+                );
+              })
+              // Newest first
+              .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
+              .map((m) => m.id);
+  
+            return { models, error: null };
+          }
+  
+          // ── Gemini (Google AI) ─────────────────────────────────────────────
+          case 'gemini': {
+            if (!apiKey) {
+              return { models: [], error: 'No API key stored for Gemini. Enter your key above.' };
+            }
+  
+            // Key goes in the query string; the endpoint does NOT use a Bearer header.
+            const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}&pageSize=100`;
+            const res = await fetch(url, { method: 'GET' });
+  
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              const msg = (body as any)?.error?.message ?? res.statusText;
+              return { models: [], error: `Gemini API error ${res.status}: ${msg}` };
+            }
+  
+            const data = await res.json() as {
+              models: Array<{
+                name: string;
+                supportedGenerationMethods?: string[];
+              }>;
+            };
+  
+            const models = (data.models ?? [])
+              .filter(
+                (m) =>
+                  Array.isArray(m.supportedGenerationMethods) &&
+                  m.supportedGenerationMethods.includes('generateContent'),
+              )
+              // name is "models/gemini-2.5-flash" → strip the prefix
+              .map((m) => m.name.replace(/^models\//, ''))
+              .filter((id) => id.startsWith('gemini-'))
+              .sort();
+  
+            return { models, error: null };
+          }
+  
+          // ── Ollama (local) ─────────────────────────────────────────────────
+          case 'ollama': {
+            // Resolve the tags endpoint from the configured baseUrl.
+            // The renderer stores http://localhost:11434/v1 (OpenAI-compat path)
+            // but the tags endpoint lives at http://localhost:11434/api/tags.
+            let host = (baseUrl ?? 'http://localhost:11434').trim();
+            // Strip any /v1 or /openai/v1 suffix to get the bare host
+            host = host.replace(/\/(v\d+|openai\/v\d+)\/?$/, '').replace(/\/+$/, '');
+            const tagsUrl = `${host}/api/tags`;
+  
+            let res: Response;
+            try {
+              res = await fetch(tagsUrl, {
+                method: 'GET',
+                // 5 s timeout — Ollama may not be running
+                signal: AbortSignal.timeout(5000),
+              });
+            } catch (connErr: unknown) {
+              const msg =
+                connErr instanceof Error && connErr.name === 'TimeoutError'
+                  ? 'Ollama did not respond within 5 s — is it running?'
+                  : `Cannot reach Ollama at ${host} — is it running?`;
+              return { models: [], error: msg };
+            }
+  
+            if (!res.ok) {
+              return { models: [], error: `Ollama error ${res.status}: ${res.statusText}` };
+            }
+  
+            const data = await res.json() as {
+              models: Array<{ name: string; model: string }>;
+            };
+  
+            const models = (data.models ?? [])
+              .map((m) => m.name ?? m.model)
+              .filter((n): n is string => typeof n === 'string' && n.length > 0)
+              .sort();
+  
+            return { models, error: null };
+          }
+  
+          // ── Custom (OpenAI-compatible) ─────────────────────────────────────
+          case 'custom': {
+            if (!baseUrl) {
+              return { models: [], error: 'No base URL configured for custom provider.' };
+            }
+  
+            const modelsUrl = `${baseUrl.replace(/\/+$/, '')}/models`;
+            const headers: Record<string, string> = {};
+            if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  
+            let res: Response;
+            try {
+              res = await fetch(modelsUrl, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(8000),
+              });
+            } catch (connErr: unknown) {
+              return {
+                models: [],
+                error: `Cannot reach ${modelsUrl} — check your base URL.`,
+              };
+            }
+  
+            if (!res.ok) {
+              // Many custom endpoints don't implement /models — return [] silently
+              // so the user can still type their model name manually.
+              return { models: [], error: null };
+            }
+  
+            const data = await res.json().catch(() => ({}));
+            const list: unknown[] = (data as any)?.data ?? [];
+            const models = list
+              .map((m: any) => m?.id ?? m?.name)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0)
+              .sort();
+  
+            return { models, error: null };
+          }
+  
+          default:
+            return { models: [], error: `Unknown provider: ${provider}` };
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[fetch-models] Unexpected error:', msg);
+        return { models: [], error: `Unexpected error: ${msg}` };
+      }
+    },
+  );
 }

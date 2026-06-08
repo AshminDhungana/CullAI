@@ -14,15 +14,34 @@ cullai/
 │   │   ├── ipc-handlers.ts              # IPC communication
 │   │   ├── license-manager.ts           # License validation
 │   │   ├── raw-decoder.ts               # RAW → JPEG buffer decoder (Phase 4.2)
-│   │   └── ...                          # Other core system utilities
+│   │   ├── raw-cache.ts                 # RAW preview caching logic
+│   │   ├── image-processor.ts           # Image processing pipeline
+│   │   ├── cache-cleaner.ts             # Automatic cache cleanup
+│   │   ├── safe-storage.ts              # Secure storage utilities
+│   │   ├── time-sync.ts                 # Time synchronization
+│   │   ├── usage-tracker.ts             # Usage analytics/tracking
+│   │   └── preload.js                   # Electron preload script
 │   ├── renderer/                        # React UI (Electron window)
 │   │   ├── assets/                      # UI assets
 │   │   ├── components/                  # Shared UI Components
 │   │   │   ├── GenrePresetSelector.tsx
 │   │   │   ├── ScoringWeightsPanel.tsx
-│   │   │   └── ...                      # Other specialized UI components
+│   │   │   ├── CacheSettingsPanel.tsx
+│   │   │   ├── EncryptionStatusBadge.tsx
+│   │   │   ├── ExtensionFilter.tsx
+│   │   │   ├── LicensePanel.tsx
+│   │   │   ├── PrefixFilter.tsx
+│   │   │   ├── RecentFoldersDropdown.tsx
+│   │   │   ├── ReferenceImageUpload.tsx
+│   │   │   └── SplashScreen.tsx
 │   │   ├── hooks/                       # React custom hooks
+│   │   │   ├── useIgnoreRules.ts
+│   │   │   ├── useRecentFolders.ts
+│   │   │   └── useTheme.ts
 │   │   ├── screens/                     # App screens (Processing, Results, Setup)
+│   │   │   ├── Processing.tsx
+│   │   │   ├── Results.tsx
+│   │   │   └── Setup.tsx
 │   │   ├── App.tsx
 │   │   ├── index.css
 │   │   ├── index.html
@@ -39,9 +58,8 @@ cullai/
 │       └── types.ts
 ├── tests/                               # Test suite
 │   └── fixtures/                        # Sample images (JPEG, RAW, HEIC)
-│       ├── .gitignore                   # Excludes binary RAW files and output/ from git
 │       ├── README.md                    # How to populate fixtures, CC0 sources, visual checklist
-│       └── output/                      # Decoded JPEG output from test:raw (git-ignored)
+│       └── ...                          # Binary RAW sample files
 ├── electron-builder.config.ts
 ├── LICENSE
 ├── package.json

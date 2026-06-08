@@ -479,6 +479,13 @@ export type AIRawResponse = {
   };
 };
 
+export type FetchModelsResult = {
+  /** Sorted list of model ID strings returned by the provider. Empty on error. */
+  models: string[];
+  /** Human-readable error message, or null on success. */
+  error: string | null;
+};
+
 // -----------------------------------------------------------------------------
 // Pipeline Events (Phase 10)
 // -----------------------------------------------------------------------------

@@ -220,4 +220,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Misc ──────────────────────────────────────────────────────────────────
   testConnection: (params) => ipcRenderer.invoke('test-connection', params),
+  fetchModels: (payload) => ipcRenderer.invoke('fetch-models', payload),
 });

@@ -55,15 +55,16 @@ import LicensePanel from '../components/LicensePanel';
 import type { LicenseStatus as LicenseStatusType } from '../../shared/license';
 import { isAllowed } from '../../shared/license';
 import CacheSettingsPanel from '../components/CacheSettingsPanel';
+import ModelCombobox, { type ModelComboboxHandle } from '../components/ModelCombobox';
 
 // -----------------------------------------------------------------------------
 // Provider defaults
 // -----------------------------------------------------------------------------
 const PROVIDER_DEFAULTS: Record<AIProvider, { baseUrl: string; defaultModel: string }> = {
-  claude: { baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-sonnet-4-20250514' },
-  openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o' },
-  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-2.0-flash' },
-  ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'llava' },
+  claude: { baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-sonnet-4-6' },
+  openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-5.4' },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-3.5-flash' },
+  ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'llama3.2' },
   custom: { baseUrl: '', defaultModel: '' },
 };
 
@@ -186,6 +187,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [ignoreFolderWarning, setIgnoreFolderWarning] = useState(false);
   const [showDuplicateTooltip, setShowDuplicateTooltip] = useState(false);
   const [apiKeySaveError, setApiKeySaveError] = useState<string>('');
+  const modelComboboxRef = useRef<ModelComboboxHandle>(null);
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatusType | null>(null);
 
   // Derived gate flags — single source of truth for all feature locks in this
@@ -253,6 +255,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const watchedRawCacheMaxSizeGb = useWatch({ control, name: 'rawCacheMaxSizeGb' });
   const watchedRawCacheMaxAgeDays = useWatch({ control, name: 'rawCacheMaxAgeDays' });
   const watchedDisableRawCache = useWatch({ control, name: 'disableRawCache' });
+  const watchedBaseUrl = useWatch({ control, name: 'baseUrl' });
 
   const {
     patterns: ignorePatterns,
@@ -341,6 +344,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     }
   }, [watchedGenre, setValue]);
 
+  
   // When provider changes, update baseUrl and model defaults and reset key visibility
   useEffect(() => {
     if (watchedProvider) {
@@ -351,6 +355,15 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       setApiKeySaveError('');
     }
   }, [watchedProvider, setValue]);
+
+  useEffect(() => {
+    if (watchedProvider === 'ollama' && watchedBaseUrl) {
+      const timer = setTimeout(() => {
+        modelComboboxRef.current?.triggerFetch();
+      }, 800); // debounce to avoid hammering on every keystroke
+      return () => clearTimeout(timer);
+    }
+  }, [watchedBaseUrl, watchedProvider]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -1183,7 +1196,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                 <div className="font-medium capitalize text-gray-900 dark:text-white">{prov}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">
                   {prov === 'claude' && 'Anthropic'}
-                  {prov === 'openai' && 'GPT-4o / o1'}
+                  {prov === 'openai' && 'GPT'}
                   {prov === 'gemini' && 'Google Gemini'}
                   {prov === 'ollama' && 'Local (free)'}
                 </div>
@@ -1252,6 +1265,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                           // @ts-expect-error - electronAPI
                           await window.electronAPI.storeApiKey(watchedProvider, val);
                           setValue('apiKey', MASKED_SENTINEL, { shouldDirty: false });
+                          modelComboboxRef.current?.triggerFetch();
                         } catch (err: any) {
                           setApiKeySaveError(
                             err?.message?.includes('not available')
@@ -1309,14 +1323,19 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
               name="model"
               control={control}
               render={({ field }) => (
-                <input
-                  {...field}
-                  type="text"
-                  className="w-full bg-white dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                <ModelCombobox
+                  ref={modelComboboxRef}
+                  value={field.value}
+                onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  provider={watchedProvider}
+                  baseUrl={watch('baseUrl')}
+                  hasStoredKey={watch('apiKey') === MASKED_SENTINEL}
+                  disabled={false}
+                  error={errors.model?.message}
                 />
               )}
             />
-            {errors.model && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.model.message}</p>}
           </div>
 
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
