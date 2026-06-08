@@ -285,7 +285,7 @@ CullAI is designed privacy-first:
 | Image Processing    | Sharp (Node.js)                           |
 | RAW Decoding        | lightdrift-libraw (native Node addon)     |
 | HEIC Support        | Sharp + libvips                           |
-| Face Detection      | @vladmandic/human / face-api.js           |
+| Face Detection      | @vladmandic/human / modern-face-api       |
 | AI Integration      | OpenAI-compatible API, Claude & Gemini    |
 | Secure Storage      | Electron `safeStorage` + `electron-store` |
 | Duplicate Detection | Perceptual hashing (phash)                |

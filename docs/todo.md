@@ -558,9 +558,9 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 > Goal: Every image gets a `FaceMetadata` object populated before AI scoring. Zero face data leaves the device.
 >
-> **Library note (fix #9):** The README tech stack lists `@vladmandic/human / face-api.js` as
+> **Library note (fix #9):** The README tech stack lists `@vladmandic/human / modern-face-api` as
 > alternatives. Use `@vladmandic/human` as the primary choice. If it fails to initialize in
-> CPU-only mode on any platform, fall back to `face-api.js` (`npm install face-api.js`) which
+> CPU-only mode on any platform, fall back to `modern-face-api` (`npm install modern-face-api`) which
 > has broader compatibility but lower accuracy. Document which library is in use in a comment
 > at the top of `face-detector.ts`.
 
@@ -570,7 +570,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 - [ ] Download required model files (face detection + landmark + iris models) to `src/main/models/`
 - [ ] Configure Human with `backend: 'node'`, point `modelBasePath` to bundled models directory
 - [ ] Verify Human initializes without GPU — CPU-only mode must work on all three platforms
-- [ ] If Human fails CPU initialization on any platform, install `face-api.js` as the fallback and update `face-detector.ts` accordingly
+- [ ] If Human fails CPU initialization on any platform, install `modern-face-api` as the fallback and update `face-detector.ts` accordingly
 
 ### 6.2 Define FaceMetadata Type
 

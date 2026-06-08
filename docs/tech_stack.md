@@ -92,7 +92,7 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 | `sharp`                            | Resize, convert, encode JPEG/HEIC/WebP for AI & previews            | 0.33.x      |
 | `lightdrift-libraw` (native addon) | Decode RAW files (CR3, NEF, ARW, RAF, DNG, etc.)                    | 1.x         |
 | `@vladmandic/human`                | On‑device face & eye detection (primary, CPU‑only)                  | 3.x         |
-| `face-api.js` (fallback)           | Fallback for platforms where `human` fails                          | 0.22.x      |
+| `modern-face-api.js` (fallback)    | Fallback for platforms where `human` fails                          | 0.22.x      |
 | `imghash`                          | Perceptual hashing for duplicate / burst detection                  | 0.3.x       |
 | `electron-store`                   | Persistent key‑value store for settings & profiles                  | 8.x         |
 | `electron-updater`                 | Auto‑update via GitHub Releases                                     | 6.x         |
@@ -103,6 +103,8 @@ All TypeScript code must adhere to the following `tsconfig` settings (enforced i
 | `vitest`                           | Unit & integration test runner                                      | 1.x         |
 | `tailwindcss`                      | Utility CSS framework – **must use** for all styling                | 3.4.x       |
 | `xmp-metadata` (or custom XML)     | Write XMP sidecars (if library fails, fall back to string template) | latest      |
+
+> Note: Version Pin Can be different as it can change during development
 
 ---
 
