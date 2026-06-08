@@ -13,6 +13,7 @@ cullai/
 │   │   ├── index.ts                     # App entry point
 │   │   ├── ipc-handlers.ts              # IPC communication
 │   │   ├── license-manager.ts           # License validation
+│   │   ├── raw-decoder.ts               # RAW → JPEG buffer decoder (Phase 4.2)
 │   │   └── ...                          # Other core system utilities
 │   ├── renderer/                        # React UI (Electron window)
 │   │   ├── assets/                      # UI assets

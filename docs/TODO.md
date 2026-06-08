@@ -392,7 +392,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 - [ ] Define `RAW_EXTENSIONS` constant: `['.cr2', '.cr3', '.nef', '.nrw', '.arw', '.sr2', '.raf', '.dng', '.orf', '.rw2', '.pef', '.3fr']`
 - [ ] Implement `isRawFile(filePath: string): boolean` — checks extension case-insensitively
 - [ ] Implement `decodeRaw(filePath: string): Promise<Buffer>`:
-  - Use `lightdrift-libraw`'s `processRawThumbnail()` with `tryEmbedded: false` to force full decode
+  - Use `lightdrift-libraw`'s to force full decode
   - Configure output as JPEG at full quality
   - Return the resulting buffer
   - Recycle/close the processor instance after use
