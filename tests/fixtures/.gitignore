@@ -1,0 +1,34 @@
+# RAW fixture files — binary, not committed
+# Run `npm run download-fixtures` after cloning to repopulate.
+*.cr2
+*.cr3
+*.nef
+*.nrw
+*.arw
+*.sr2
+*.raf
+*.dng
+*.orf
+*.rw2
+*.pef
+*.3fr
+
+# Uppercase variants (some cameras write uppercase extensions)
+*.CR2
+*.CR3
+*.NEF
+*.NRW
+*.ARW
+*.SR2
+*.RAF
+*.DNG
+*.ORF
+*.RW2
+*.PEF
+*.3FR
+
+# Decoded JPEG output from test:raw — regenerated on demand
+output/
+
+# Temp files from interrupted downloads
+*.tmp

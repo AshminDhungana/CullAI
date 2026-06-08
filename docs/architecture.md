@@ -29,6 +29,9 @@ cullai/
 │   │   ├── index.tsx
 │   │   └── main.tsx
 │   ├── scripts/                         # Build/Dev scripts
+│   │   ├── download-fixtures.ts         # Downloads CC0 RAW samples (Phase 4.3)
+│   │   ├── hash-license-keys.ts         # Generates license key hashes for license-manager
+│   │   └── test-raw-decode.ts           # Manual RAW decode test + timing (Phase 4.3)
 │   └── shared/                          # Shared types and constants
 │       ├── constants.ts
 │       ├── genre-presets.ts
@@ -36,6 +39,9 @@ cullai/
 │       └── types.ts
 ├── tests/                               # Test suite
 │   └── fixtures/                        # Sample images (JPEG, RAW, HEIC)
+│       ├── .gitignore                   # Excludes binary RAW files and output/ from git
+│       ├── README.md                    # How to populate fixtures, CC0 sources, visual checklist
+│       └── output/                      # Decoded JPEG output from test:raw (git-ignored)
 ├── electron-builder.config.ts
 ├── LICENSE
 ├── package.json

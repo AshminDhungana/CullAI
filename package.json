@@ -37,7 +37,9 @@
     "build": "npm run build:main && npm run build:renderer && electron-builder",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
-    "test": "echo \"Tests coming in Phase 17\" && exit 0"
+    "test": "echo \"Tests coming in Phase 17\" && exit 0",
+    "download-fixtures": "npx tsx --tsconfig tsconfig.main.json src/scripts/download-fixtures.ts",
+    "test:raw": "npx tsx --tsconfig tsconfig.main.json src/scripts/test-raw-decode.ts"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
