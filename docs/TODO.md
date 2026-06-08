@@ -379,12 +379,12 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 ### 4.1 Install and Configure lightdrift-libraw
 
 - [x] Install `lightdrift-libraw` Node native addon: `npm install lightdrift-libraw`
-- [ ] Verify native compilation succeeds on your dev platform
-- [ ] Note required system dependencies in `README.md` build section:
+- [x] Verify native compilation succeeds on your dev platform
+- [x] Note required system dependencies in `README.md` build section:
   - Linux: `build-essential`
   - macOS: Xcode CLI tools (`xcode-select --install`)
   - Windows: Visual Studio Build Tools 2022 with "Desktop development with C++" workload
-- [ ] Ensure `electron-builder` is configured to rebuild native addons for each target platform (add `electron-rebuild` to build script)
+- [x] Ensure `electron-builder` is configured to rebuild native addons for each target platform (add `electron-rebuild` to build script)
 
 ### 4.2 Create the RAW Decoder Module
 
