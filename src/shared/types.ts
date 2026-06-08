@@ -230,6 +230,22 @@ export type AppSettings = {
   rawCacheMaxAgeDays: number;
   /** Disable RAW preview caching entirely. */
   disableRawCache: boolean;
+
+  // ── RAW Preview Strategy (Phase 4.4) ────────────────────────────────────────
+  /**
+   * When true, gallery previews (Results screen) are generated from the JPEG
+   * thumbnail embedded inside the RAW container by the camera at capture time.
+   * This is 5–20× faster than a full sensor decode and is the default.
+   *
+   * Set to false to force a full decodeRaw() for every preview. Useful if you
+   * notice colour or tonal inconsistencies between the gallery and the AI
+   * scoring results (e.g. camera-specific rendering on older bodies).
+   *
+   * AI scoring always uses a full decode regardless of this setting.
+   *
+   * Default: true
+   */
+  useEmbeddedPreview: boolean;
 };
 
 // -----------------------------------------------------------------------------
@@ -291,6 +307,8 @@ export function defaultAppSettings(): AppSettings {
     rawCacheMaxSizeGb: 5,
     rawCacheMaxAgeDays: 30,
     disableRawCache: false,
+
+    useEmbeddedPreview: true,
   };
 }
 
