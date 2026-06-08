@@ -36,6 +36,8 @@ import {
   incrementUsage,
 } from './usage-tracker';
 import { scanFolder, processFolder } from './image-processor';
+import { getCacheStats, clearCache, setCacheConfig } from './raw-cache';
+import { enforceCacheLimits } from './cache-cleaner';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -157,6 +159,10 @@ const activeProcessJobs = new Map<number, AbortController>();
 export function registerIpcHandlers(store: AppStore): void {
   initUsageTracker(store);
 
+  // ── Phase 5b: Initialise RAW cache config from stored settings ──────────
+  const storedSettings = store.get('settings') as Record<string, unknown> | undefined;
+  setCacheConfig({ disabled: !!(storedSettings?.disableRawCache) });
+
   // -------------------------------------------------------------------------
   // Phase 3.2 — Safe-storage availability query
   //
@@ -201,6 +207,9 @@ export function registerIpcHandlers(store: AppStore): void {
       throw new Error('settings-set: expected a plain object');
     }
     store.set('settings', settings);
+    // Keep in-memory cache config in sync so toggling "Disable RAW preview
+    // caching" takes effect immediately without requiring an app restart.
+    setCacheConfig({ disabled: !!(settings as any).disableRawCache });
     return true;
   });
 
@@ -567,6 +576,20 @@ export function registerIpcHandlers(store: AppStore): void {
         await incrementUsage(processed);
       }
 
+      // Phase 5b: non-blocking cache cleanup after processing completes.
+      // We fire-and-forget so the invoke() response isn't delayed by cleanup I/O.
+      const cacheLimits = store.get('rawCacheLimits') as { maxSizeGB: number; maxAgeDays: number } | undefined;
+      if (cacheLimits) {
+        enforceCacheLimits(folderPath, {
+          maxSizeBytes: cacheLimits.maxSizeGB * 1024 * 1024 * 1024,
+          maxAgeDays: cacheLimits.maxAgeDays,
+        }).catch((err: unknown) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[ipc] Post-process cache cleanup failed:', err);
+          }
+        });
+      }
+
       activeProcessJobs.delete(senderContentsId);
 
       return { processed, skipped, ...(cancelled ? { cancelled: true } : {}) };
@@ -820,4 +843,74 @@ export function registerIpcHandlers(store: AppStore): void {
     shell.showItemInFolder(resolved);
     return true;
   });
+
+  // -------------------------------------------------------------------------
+  // Phase 5b — RAW Cache Management
+  //
+  // Three handlers for the CacheSettingsPanel UI in Setup:
+  //   raw-cache-stats      → current cache size, file count, oldest entry
+  //   raw-cache-clear      → delete all cached previews for an input folder
+  //   raw-cache-set-limits → persist new limits and trigger async cleanup
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns cache statistics for the given input folder.
+   * If the folder has no cache, returns zeroed stats.
+   */
+  ipcMain.handle('raw-cache-stats', async (_event, inputFolder: string) => {
+    if (!inputFolder || typeof inputFolder !== 'string') {
+      return { sizeBytes: 0, fileCount: 0, oldestEntry: null };
+    }
+    return getCacheStats(path.resolve(inputFolder));
+  });
+
+  /**
+   * Clears all cached RAW previews for the given input folder.
+   * Deletes the entire .cullai_cache directory.
+   */
+  ipcMain.handle('raw-cache-clear', async (_event, inputFolder: string) => {
+    if (!inputFolder || typeof inputFolder !== 'string') {
+      throw new Error('raw-cache-clear: invalid input folder');
+    }
+    await clearCache(path.resolve(inputFolder));
+    return { success: true };
+  });
+
+  /**
+   * Updates cache size and age limits.
+   * Persists to electron-store and triggers a non-blocking cleanup pass
+   * across all recently used input folders.
+   */
+  ipcMain.handle(
+    'raw-cache-set-limits',
+    (_event, limits: { maxSizeGB: number; maxAgeDays: number }) => {
+      if (
+        !limits ||
+        typeof limits.maxSizeGB !== 'number' ||
+        typeof limits.maxAgeDays !== 'number'
+      ) {
+        throw new Error('raw-cache-set-limits: invalid limits object');
+      }
+
+      // Persist globally (not per-project)
+      store.set('rawCacheLimits', limits);
+
+      // Trigger non-blocking cleanup across all known input folders
+      const knownFolders = (store.get('recentInputFolders') as string[]) || [];
+      if (knownFolders.length > 0) {
+        const cleanupLimits = {
+          maxSizeBytes: limits.maxSizeGB * 1024 * 1024 * 1024,
+          maxAgeDays: limits.maxAgeDays,
+        };
+        // Fire and forget — don't block the IPC response
+        Promise.all(
+          knownFolders.map((folder) =>
+            enforceCacheLimits(folder, cleanupLimits).catch(() => {}),
+          ),
+        ).catch(() => {});
+      }
+
+      return { success: true };
+    },
+  );
 }

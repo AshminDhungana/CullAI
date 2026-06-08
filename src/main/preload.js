@@ -190,6 +190,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteApiKey: (provider) =>
     ipcRenderer.invoke('api-key-delete', provider),
 
+  // ── Phase 5b — RAW Cache Management ────────────────────────────────────
+
+  /**
+   * Returns cache statistics for the given input folder.
+   * @param {string} inputFolder  Absolute path to the input folder.
+   * @returns {Promise<{ sizeBytes: number, fileCount: number, oldestEntry: string|null }>}
+   */
+  getRawCacheStats: (inputFolder) =>
+    ipcRenderer.invoke('raw-cache-stats', inputFolder),
+
+  /**
+   * Clears all cached RAW previews for the given input folder.
+   * Deletes the entire .cullai_cache directory for that folder.
+   * @param {string} inputFolder  Absolute path to the input folder.
+   * @returns {Promise<{ success: true }>}
+   */
+  clearRawCache: (inputFolder) =>
+    ipcRenderer.invoke('raw-cache-clear', inputFolder),
+
+  /**
+   * Updates cache size and age limits globally (not per-folder).
+   * Triggers a non-blocking cleanup pass across all known input folders.
+   * @param {{ maxSizeGB: number, maxAgeDays: number }} limits
+   * @returns {Promise<{ success: true }>}
+   */
+  setRawCacheLimits: (limits) =>
+    ipcRenderer.invoke('raw-cache-set-limits', limits),
+
   // ── Misc ──────────────────────────────────────────────────────────────────
   testConnection: (params) => ipcRenderer.invoke('test-connection', params),
 });

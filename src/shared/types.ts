@@ -490,3 +490,9 @@ export type PipelineEvent =
   | { type: 'pipeline-output-summary'; shortfallReasons: ShortfallReasons; finalSelectedCount: number }
   | { type: 'pipeline-complete'; session: Session }
   | { type: 'pipeline-error'; code: string; message: string; recoverable: boolean };
+
+// Declare lightdrift-libraw module to map index.d.ts libraw exports correctly.
+declare module 'lightdrift-libraw' {
+  import LibRaw from 'libraw';
+  export default LibRaw;
+}

@@ -132,12 +132,12 @@ app.whenReady().then(async () => {
       // Secure store — physically separate file ("secure.json").
       // Encrypted blobs live here; the file itself is never logged.
       const secureStore = new Store({ name: 'secure' });
-      initSecureStore(secureStore);
+      initSecureStore(secureStore as any);
 
       // Register all IPC handlers. initUsageTracker is called inside
       // registerIpcHandlers (see ipc-handlers.ts) so it receives the
       // real store instance, not an undefined module-scope reference.
-      registerIpcHandlers(store);
+      registerIpcHandlers(store as any);
 
       // Startup license validation — app is guaranteed ready here,
       // store is initialised, app.getPath('userData') is safe.
@@ -147,6 +147,38 @@ app.whenReady().then(async () => {
       } else {
         console.log('[main] No valid license — running in Free tier');
       }
+
+      // ── Phase 5b: Non-blocking startup cache cleanup ──────────────────────
+      // Runs enforceCacheLimits across all recently used input folders so stale
+      // or oversized cache entries are evicted before the user starts working.
+      // Errors are logged but never block app startup.
+      import('./cache-cleaner').then(({ enforceAllCacheLimits }) => {
+        const knownFolders = ((store as any).get('recentInputFolders') as string[]) || [];
+        const limits = (store as any).get('rawCacheLimits') as
+          | { maxSizeGB: number; maxAgeDays: number }
+          | undefined;
+
+        if (limits && knownFolders.length > 0) {
+          enforceAllCacheLimits(knownFolders, {
+            maxSizeBytes: limits.maxSizeGB * 1024 * 1024 * 1024,
+            maxAgeDays: limits.maxAgeDays,
+          })
+            .then((result) => {
+              if (result.deletedFiles > 0) {
+                console.log(
+                  `[cache-cleaner] Startup cleanup: deleted ${result.deletedFiles} files, ` +
+                    `freed ${(result.freedBytes / 1024 / 1024).toFixed(1)} MB`,
+                );
+              }
+            })
+            .catch((err: unknown) =>
+              console.warn('[cache-cleaner] Startup cleanup failed:', err),
+            );
+        }
+      }).catch((err: unknown) => {
+        // Module import failure — non-fatal
+        console.warn('[main] cache-cleaner import failed:', err);
+      });
     })
     .catch((err: unknown) => {
       // Store failed to load — this is fatal: settings cannot be persisted.

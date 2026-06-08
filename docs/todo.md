@@ -484,71 +484,71 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 5b.1 Create RAW Cache Module
 
-- [ ] Create `src/main/raw-cache.ts` (this is the single, authoritative implementation — not a duplicate)
-- [ ] Define cache directory location:
+- [x] Create `src/main/raw-cache.ts` (this is the single, authoritative implementation — not a duplicate)
+- [x] Define cache directory location:
       `{inputFolder}/.cullai_cache/raw_previews/`
       _(Alternative: a global cache in app data, e.g. `~/.cullai/cache/raw/` — decide based on portability requirements)_
-- [ ] Implement `getCachedRawPreview(rawPath: string): Buffer | null`:
+- [x] Implement `getCachedRawPreview(rawPath: string): Buffer | null`:
   - Compute cache key: `hash(filePath + lastModified)` or just use `basename + lastModified` timestamp.
   - Check if cached file exists and its embedded metadata indicates it was generated from the current RAW file (compare `mtime` or store a checksum).
   - If valid, read and return the JPEG buffer; otherwise return `null`.
-- [ ] Implement `storeRawPreview(rawPath: string, jpegBuffer: Buffer): void`:
+- [x] Implement `storeRawPreview(rawPath: string, jpegBuffer: Buffer): void`:
   - Write the JPEG buffer to the cache directory with a deterministic filename (e.g., `basename + '.jpg'`).
   - Store a sidecar JSON file containing original RAW path, `mtime`, size, and a timestamp of when the cache entry was created.
-- [ ] Implement `getCacheStats(): Promise<{ sizeBytes: number, fileCount: number, oldestEntry: Date | null }>`:
+- [x] Implement `getCacheStats(): Promise<{ sizeBytes: number, fileCount: number, oldestEntry: Date | null }>`:
   - Recursively scan the cache directory, sum file sizes, count files, find oldest entry date.
 
 ### 5b.2 Integrate with Image Processor
 
-- [ ] Verify that `image-processor.ts` → `processImage(filePath)` already calls `getCachedRawPreview` and `storeRawPreview` (stubbed in Phase 5.2). No changes to `image-processor.ts` needed here — just ensure the now-real `raw-cache.ts` module is importable.
-- [ ] Ensure the cached buffer is **identical** to the buffer that would have been produced by a fresh decode (i.e., same dimensions, quality, color profile). No additional processing (like face detection or resizing) is stored in the cache — just the decoded JPEG.
+- [x] Verify that `image-processor.ts` → `processImage(filePath)` already calls `getCachedRawPreview` and `storeRawPreview` (stubbed in Phase 5.2). No changes to `image-processor.ts` needed here — just ensure the now-real `raw-cache.ts` module is importable.
+- [x] Ensure the cached buffer is **identical** to the buffer that would have been produced by a fresh decode (i.e., same dimensions, quality, color profile). No additional processing (like face detection or resizing) is stored in the cache — just the decoded JPEG.
 
 ### 5b.3 Add Cache Management IPC
 
-- [ ] Create IPC handlers in `src/main/ipc-handlers.ts`:
+- [x] Create IPC handlers in `src/main/ipc-handlers.ts`:
   - `'raw-cache-stats'` – returns cache size, file count, oldest entry date.
   - `'raw-cache-clear'` – deletes the entire cache directory for the current input folder (or global cache if implemented).
   - `'raw-cache-set-limits'` – receives `{ maxSizeGB: number, maxAgeDays: number }` and stores in `electron-store`.
-- [ ] Expose these handlers via preload script as `window.electronAPI.getRawCacheStats()`, `clearRawCache()`, `setRawCacheLimits()`.
+- [x] Expose these handlers via preload script as `window.electronAPI.getRawCacheStats()`, `clearRawCache()`, `setRawCacheLimits()`.
 
 ### 5b.4 Build Cache UI in Setup Screen
 
-- [ ] Add an **"Advanced"** expandable section at the bottom of the Setup screen.
-- [ ] Inside, display current RAW cache status:
+- [x] Add an **"Advanced"** expandable section at the bottom of the Setup screen.
+- [x] Inside, display current RAW cache status:
   - "RAW preview cache: 2.3 GB / 5.0 GB • 847 files • oldest from 12 days ago"
-- [ ] Add two numeric inputs (or sliders):
+- [x] Add two numeric inputs (or sliders):
   - **Max cache size (GB)** – default 5, range 1–50.
   - **Max cache age (days)** – default 30, range 1–365.
-- [ ] Add a **"Clear cache now"** button – on click, calls `clearRawCache()` and updates the status display.
-- [ ] Store cache limit preferences globally (not per‑project). They apply to all input folders.
+- [x] Add a **"Clear cache now"** button – on click, calls `clearRawCache()` and updates the status display.
+- [x] Store cache limit preferences globally (not per‑project). They apply to all input folders.
 
 ### 5b.5 Implement Automatic Cache Cleanup
 
-- [ ] Create `src/main/cache-cleaner.ts`.
-- [ ] Export a function `enforceCacheLimits()` that:
+- [x] Create `src/main/cache-cleaner.ts`.
+- [x] Export a function `enforceCacheLimits()` that:
   - Retrieves current cache stats and the stored limits (max size, max age).
   - If total size > maxSizeGB → delete oldest cached files (by creation date) until total size ≤ limit.
   - If any cached file's age > maxAgeDays → delete it regardless of size.
-- [ ] Run `enforceCacheLimits()`:
+- [x] Run `enforceCacheLimits()`:
   - On app startup (after main window loads, non‑blocking).
   - After each session completes (or is cancelled).
   - Whenever the user manually changes cache limits via the UI.
-- [ ] Log cleanup actions to the console (in dev mode) and optionally to a debug log file.
+- [x] Log cleanup actions to the console (in dev mode) and optionally to a debug log file.
 
 ### 5b.6 Handle Edge Cases
 
-- [ ] If cache directory is deleted manually by the user, recreate it gracefully on next `storeRawPreview`.
-- [ ] If a cached file is corrupted (e.g., partial write), treat it as a cache miss and overwrite on next decode.
-- [ ] Ensure `.cullai_cache` directory is excluded from recursive folder scanning (Phase 5) and from any "copy to output" operations.
-- [ ] Add a setting to disable RAW caching entirely (e.g., for users with very limited disk space).
+- [x] If cache directory is deleted manually by the user, recreate it gracefully on next `storeRawPreview`.
+- [x] If a cached file is corrupted (e.g., partial write), treat it as a cache miss and overwrite on next decode.
+- [x] Ensure `.cullai_cache` directory is excluded from recursive folder scanning (Phase 5) and from any "copy to output" operations.
+- [x] Add a setting to disable RAW caching entirely (e.g., for users with very limited disk space).
 
 ### 5b.7 Performance Verification
 
-- [ ] Test with 50 RAW images:
+- [x] Test with 50 RAW images:
   - First run (no cache): measure total decode time.
   - Second run (cache hit): measure total time; should be dramatically faster (close to the time needed to copy JPEGs).
-- [ ] Verify that cache limits are respected: create a huge cache (> limit), run cleanup, and check that size no longer exceeds limit.
-- [ ] Verify that cache works across app restarts and across different sessions using the same input folder.
+- [x] Verify that cache limits are respected: create a huge cache (> limit), run cleanup, and check that size no longer exceeds limit.
+- [x] Verify that cache works across app restarts and across different sessions using the same input folder.
 
 ✅ **Done Criteria:** First decode of a RAW file stores a preview in `.cullai_cache/raw_previews/`. Second decode of the same file (even after app restart) loads from cache, never calls `lightdrift-libraw`. Cache status UI correctly reports size and file count. Automatic cleanup respects user‑defined size and age limits. "Clear cache now" removes all cached previews for the current input folder. Disabling caching works and no cache files are created.
 

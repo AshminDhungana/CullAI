@@ -54,6 +54,7 @@ import { GENRE_PRESETS } from '../../shared/genre-presets';
 import LicensePanel from '../components/LicensePanel';
 import type { LicenseStatus as LicenseStatusType } from '../../shared/license';
 import { isAllowed } from '../../shared/license';
+import CacheSettingsPanel from '../components/CacheSettingsPanel';
 
 // -----------------------------------------------------------------------------
 // Provider defaults
@@ -102,6 +103,9 @@ const setupSchema = z.object({
   disableDuplicateGrouping: z.boolean().optional(),
   duplicateThreshold: z.number().min(5).max(20).optional(),
   maxFacesPerImage: z.number().optional(),
+  rawCacheMaxSizeGb: z.number().min(1).max(50),
+  rawCacheMaxAgeDays: z.number().min(1).max(365),
+  disableRawCache: z.boolean(),
 });
 
 type SetupFormValues = z.infer<typeof setupSchema>;
@@ -231,6 +235,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       disableDuplicateGrouping: false,
       duplicateThreshold: 10,
       maxFacesPerImage: 0,
+      rawCacheMaxSizeGb: 5,
+      rawCacheMaxAgeDays: 30,
+      disableRawCache: false,
     },
     mode: 'onChange',
   });
@@ -243,6 +250,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const watchedNumImages = useWatch({ control, name: 'numImagesToSelect' });
   const watchedDryRun = useWatch({ control, name: 'dryRun' });
   const watchedDisableDuplicateGrouping = useWatch({ control, name: 'disableDuplicateGrouping' });
+  const watchedRawCacheMaxSizeGb = useWatch({ control, name: 'rawCacheMaxSizeGb' });
+  const watchedRawCacheMaxAgeDays = useWatch({ control, name: 'rawCacheMaxAgeDays' });
+  const watchedDisableRawCache = useWatch({ control, name: 'disableRawCache' });
 
   const {
     patterns: ignorePatterns,
@@ -271,6 +281,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             disableDuplicateGrouping: stored.disableDuplicateGrouping ?? false,
             duplicateThreshold: stored.duplicateThreshold ?? 10,
             maxFacesPerImage: stored.maxFacesPerImage ?? 0,
+            rawCacheMaxSizeGb: stored.rawCacheMaxSizeGb ?? 5,
+            rawCacheMaxAgeDays: stored.rawCacheMaxAgeDays ?? 30,
+            disableRawCache: stored.disableRawCache ?? false,
           });
         }
       } catch (err) {
@@ -1524,6 +1537,19 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   </div>
                 </label>
               )}
+            />
+          </div>
+
+          {/* RAW Preview Cache Card */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <CacheSettingsPanel
+              inputFolder={watchedInputFolder}
+              maxSizeGb={watchedRawCacheMaxSizeGb}
+              maxAgeDays={watchedRawCacheMaxAgeDays}
+              disabled={watchedDisableRawCache}
+              onMaxSizeChange={(v) => setValue('rawCacheMaxSizeGb', v, { shouldDirty: true })}
+              onMaxAgeChange={(v) => setValue('rawCacheMaxAgeDays', v, { shouldDirty: true })}
+              onDisabledChange={(v) => setValue('disableRawCache', v, { shouldDirty: true })}
             />
           </div>
         </div>
