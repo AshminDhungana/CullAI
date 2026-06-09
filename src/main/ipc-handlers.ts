@@ -40,7 +40,6 @@ import { detectFaces } from './face-detector';
 import { getCacheStats, clearCache, setCacheConfig } from './raw-cache';
 import { enforceCacheLimits } from './cache-cleaner';
 import { groupDuplicates, DEFAULT_SIMILARITY_THRESHOLD } from './duplicate-detector';
-import { fillShortfall } from './orchestrator';
 
 import {
   createSession,

@@ -509,7 +509,6 @@ export type PipelineEvent =
       /** Estimated seconds remaining. null until at least one image is scored. */
       etaSeconds: number | null;
     }
-  | { selectedSCount?: number }
   | { type: 'pipeline-cost-update'; totalInputTokens: number; totalOutputTokens: number }
   | {
       type: 'pipeline-needs-confirmation';
@@ -522,6 +521,7 @@ export type PipelineEvent =
       type: 'pipeline-output-summary';
       shortfallReasons: ShortfallReasons;
       finalSelectedCount: number;
+      selectedSCount?: number;
     }
   | { type: 'pipeline-complete'; session: Session }
   | { type: 'pipeline-error'; code: string; message: string; recoverable: boolean };
