@@ -36,6 +36,7 @@ import {
   incrementUsage,
 } from './usage-tracker';
 import { scanFolder, processFolder } from './image-processor';
+import { detectFaces } from './face-detector';
 import { getCacheStats, clearCache, setCacheConfig } from './raw-cache';
 import { enforceCacheLimits } from './cache-cleaner';
 
@@ -560,6 +561,14 @@ export function registerIpcHandlers(store: AppStore): void {
           // Push the record to the renderer. If the webContents has been
           // destroyed (window closed mid-run), stop gracefully.
           if (event.sender.isDestroyed()) break;
+
+          // ── Phase 6 — Attach face detection results ────────────────────────
+          // detectFaces() never throws — failures return the safe empty result.
+          // We decode from the already-produced base64 to avoid re-reading disk.
+          const faceBuffer = Buffer.from(record.base64, 'base64');
+          const maxFaces = ((store.get('settings') as any)?.maxFacesPerImage as number) ?? 0;
+          record.faceMetadata = await detectFaces(faceBuffer, maxFaces);
+
           event.sender.send('image-record', record);
           processed++;
         }
@@ -692,34 +701,12 @@ export function registerIpcHandlers(store: AppStore): void {
         throw new Error('scan-faces: base64 image data is required');
       }
 
-      // ── Phase 6 TODO ───────────────────────────────────────────────────────
-      // Replace everything below this comment with real detection logic:
-      //
-      //   import { detectFaces } from './face-detector';
-      //   const buffer = Buffer.from(payload.base64, 'base64');
-      //   return await detectFaces(buffer, payload.maxFacesPerImage ?? 0);
-      //
-      // The stub deliberately decodes the buffer to validate it is a real
-      // base64 string (throws on garbage input) without importing libraw or
-      // @vladmandic/human, which are not available until Phase 6.
-      // ──────────────────────────────────────────────────────────────────────
-
-      // Validate: must be a decodeable base64 string.
+      // ── Phase 6 — Real face detection ─────────────────────────────────────
       const buffer = Buffer.from(payload.base64, 'base64');
       if (buffer.length === 0) {
         throw new Error('scan-faces: decoded buffer is empty');
       }
-
-      // Stub response — shape matches FaceMetadata from src/shared/types.ts.
-      return {
-        hasFaces: false,
-        faceCount: 0,
-        eyesOpen: true,
-        blinkDetected: false,
-        expressionNeutral: true,
-        boundingBoxes: [],
-        exceedsFaceLimit: false,
-      };
+      return await detectFaces(buffer, payload.maxFacesPerImage ?? 0);
     },
   );
 

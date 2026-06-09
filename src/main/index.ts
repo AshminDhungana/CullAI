@@ -19,6 +19,7 @@ import * as path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
 import { initSecureStore } from './safe-storage';
 import { loadLicense } from './license-manager';
+import { disposeDetector } from './face-detector';
 
 // ---------------------------------------------------------------------------
 // Window creation
@@ -197,4 +198,10 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+
+// Phase 6: release TensorFlow model memory on quit.
+// disposeDetector() is a no-op if detection was never initialised.
+app.on('before-quit', () => {
+  disposeDetector();
 });

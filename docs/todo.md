@@ -566,15 +566,15 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 6.1 Install Face Detection Library
 
-- [ ] Install `@vladmandic/human`: `npm install @vladmandic/human`
-- [ ] Download required model files (face detection + landmark + iris models) to `src/main/models/`
-- [ ] Configure Human with `backend: 'node'`, point `modelBasePath` to bundled models directory
-- [ ] Verify Human initializes without GPU — CPU-only mode must work on all three platforms
-- [ ] If Human fails CPU initialization on any platform, install `modern-face-api` as the fallback and update `face-detector.ts` accordingly
+- [x] Install `@vladmandic/human`: `npm install @vladmandic/human`
+- [x] Download required model files (face detection + landmark + iris models) to `src/main/models/`
+- [x] Configure Human with `backend: 'node'`, point `modelBasePath` to bundled models directory
+- [x] Verify Human initializes without GPU — CPU-only mode must work on all three platforms
+- [x] If Human fails CPU initialization on any platform, install `modern-face-api` as the fallback and update `face-detector.ts` accordingly
 
 ### 6.2 Define FaceMetadata Type
 
-- [ ] In `src/shared/types.ts`, add:
+- [x] In `src/shared/types.ts`, add:
   ```ts
   type FaceBoundingBox = {
     x: number;
@@ -595,8 +595,8 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 6.3 Create the Face Detector Module
 
-- [ ] Create `src/main/face-detector.ts`
-- [ ] Implement `detectFaces(imageBuffer: Buffer, maxFacesPerImage?: number): Promise<FaceMetadata>`:
+- [x] Create `src/main/face-detector.ts`
+- [x] Implement `detectFaces(imageBuffer: Buffer, maxFacesPerImage?: number): Promise<FaceMetadata>`:
   - Decode buffer to tensor (Human accepts Node.js Buffer via `human.image()`)
   - Run `human.detect(tensor, { face: { enabled: true }, body: { enabled: false }, hand: { enabled: false } })`
   - Extract face count, bounding boxes, eye open/close states, expression
@@ -605,19 +605,19 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
   - Determine `exceedsFaceLimit` = `maxFacesPerImage > 0 && faceCount > maxFacesPerImage`
   - Return `FaceMetadata`
   - If no faces detected, return `{ hasFaces: false, faceCount: 0, eyesOpen: true, blinkDetected: false, expressionNeutral: true, boundingBoxes: [], exceedsFaceLimit: false }`
-- [ ] Add input guard: skip detection if image dimensions are too small (< 64px)
-- [ ] Ensure no face data is logged, stored, or transmitted externally
+- [x] Add input guard: skip detection if image dimensions are too small (< 64px)
+- [x] Ensure no face data is logged, stored, or transmitted externally
 
 ### 6.4 Wire into Pipeline
 
-- [ ] In `image-processor.ts`, after producing each `ImageRecord`, call `detectFaces(buffer, settings.maxFacesPerImage)` and assign the result to `record.faceMetadata`
+- [x] In `image-processor.ts`, after producing each `ImageRecord`, call `detectFaces(buffer, settings.maxFacesPerImage)` and assign the result to `record.faceMetadata`
   - This is type-safe because `faceMetadata` was added as an optional field to `ImageRecord` in Phase 5.1
-- [ ] Add IPC handler: `'scan-faces'` — takes a single base64 image and optional `maxFacesPerImage`, returns `FaceMetadata`
+- [x] Add IPC handler: `'scan-faces'` — takes a single base64 image and optional `maxFacesPerImage`, returns `FaceMetadata`
 
 ### 6.5 🔥 Apply Face Count Limit
 
-- [ ] In the orchestrator (Phase 10), if `faceMetadata.exceedsFaceLimit` is true, immediately mark the image as rejected (tier = `rejected`) and skip AI scoring. Add a reason: "Exceeds face limit (X > Y)"
-- [ ] Log this as a separate counter in `outputShortfallReasons`
+- [x] In the orchestrator (Phase 10), if `faceMetadata.exceedsFaceLimit` is true, immediately mark the image as rejected (tier = `rejected`) and skip AI scoring. Add a reason: "Exceeds face limit (X > Y)"
+- [x] Log this as a separate counter in `outputShortfallReasons`
 
 ✅ **Done Criteria:** Portrait images return `hasFaces: true` with correct bounding boxes. Landscape images return `hasFaces: false`. Blink test image returns `blinkDetected: true`. Images with more faces than the configured limit are automatically rejected without using an AI call. The reason appears in the final shortfall summary.
 
