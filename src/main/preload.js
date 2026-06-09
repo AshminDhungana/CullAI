@@ -142,6 +142,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   scanFaces: (base64, maxFacesPerImage = 0) =>
     ipcRenderer.invoke('scan-faces', { base64, maxFacesPerImage }),
 
+  // ── Phase 7 — Duplicate Detection ─────────────────────────────────────────
+
+  /**
+   * Groups an array of ImageRecords into burst/duplicate clusters using
+   * perceptual hashing (DCT pHash via imghash).
+   *
+   * Respects AppSettings.disableDuplicateGrouping: if true, returns each image
+   * as its own single-member group with no hashing overhead.
+   *
+   * Threshold resolution (highest priority first):
+   *   1. threshold argument passed here
+   *   2. AppSettings.duplicateThreshold (user's persisted preference)
+   *   3. DEFAULT_SIMILARITY_THRESHOLD = 10
+   *
+   * @param {ImageRecord[]} images     Array of ImageRecords (must have base64 populated).
+   * @param {number}        [threshold] Optional Hamming-distance override (0–64).
+   * @returns {Promise<DuplicateGroup[]>}
+   */
+  detectDuplicates: (images, threshold) =>
+    ipcRenderer.invoke('detect-duplicates', { images, threshold }),
+
   // ── Folder safety ─────────────────────────────────────────────────────────
   /**
    * Returns 'same' | 'output-inside-input' | 'input-inside-output' | 'ok'.

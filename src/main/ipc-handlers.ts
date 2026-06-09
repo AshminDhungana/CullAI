@@ -39,6 +39,7 @@ import { scanFolder, processFolder } from './image-processor';
 import { detectFaces } from './face-detector';
 import { getCacheStats, clearCache, setCacheConfig } from './raw-cache';
 import { enforceCacheLimits } from './cache-cleaner';
+import { groupDuplicates, DEFAULT_SIMILARITY_THRESHOLD } from './duplicate-detector';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -707,6 +708,79 @@ export function registerIpcHandlers(store: AppStore): void {
         throw new Error('scan-faces: decoded buffer is empty');
       }
       return await detectFaces(buffer, payload.maxFacesPerImage ?? 0);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Phase 7 — Duplicate / Burst-Shot Detection
+  // -------------------------------------------------------------------------
+
+  /**
+   * Groups a list of ImageRecords into duplicate/burst clusters using
+   * perceptual hashing.
+   *
+   * Payload:
+   *   images    — ImageRecord[]   The records to analyse. Must all have a
+   *                               populated `base64` field.
+   *   threshold — number?         Hamming-distance threshold (0–64).
+   *                               Defaults to AppSettings.duplicateThreshold,
+   *                               then falls back to DEFAULT_SIMILARITY_THRESHOLD.
+   *
+   * Returns: DuplicateGroup[]
+   *
+   * ── Disable path ──────────────────────────────────────────────────────────
+   * If AppSettings.disableDuplicateGrouping is true the handler skips
+   * groupDuplicates() entirely and returns each image as its own singleton
+   * group. This is identical to running with threshold = 0 but avoids the
+   * pHash computation cost entirely.
+   */
+  ipcMain.handle(
+    'detect-duplicates',
+    async (
+      _event,
+      payload: {
+        images: import('../shared/types').ImageRecord[];
+        threshold?: number;
+      },
+    ) => {
+      const { images, threshold: payloadThreshold } = payload ?? {};
+
+      if (!Array.isArray(images)) {
+        throw new Error('detect-duplicates: images must be an array');
+      }
+
+      // ── Read settings for disable flag and per-session threshold ────────────
+      const settings = store.get('settings') as Record<string, unknown> | undefined;
+      const disabled = !!(settings?.disableDuplicateGrouping);
+
+      if (disabled) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(
+            '[ipc] detect-duplicates: duplicate grouping disabled — ' +
+            'returning each image as its own group',
+          );
+        }
+        // Return each image as a single-member group — no hashing needed.
+        return images.map(
+          (img): import('../shared/types').DuplicateGroup => ({
+            representative: img,
+            duplicates: [],
+          }),
+        );
+      }
+
+      // Threshold resolution order:
+      //   1. payload.threshold (caller override, e.g. from orchestrator)
+      //   2. settings.duplicateThreshold (user's persisted preference)
+      //   3. DEFAULT_SIMILARITY_THRESHOLD (library constant = 10)
+      const threshold =
+        typeof payloadThreshold === 'number'
+          ? payloadThreshold
+          : typeof settings?.duplicateThreshold === 'number'
+            ? (settings.duplicateThreshold as number)
+            : DEFAULT_SIMILARITY_THRESHOLD;
+
+      return groupDuplicates(images, threshold);
     },
   );
 

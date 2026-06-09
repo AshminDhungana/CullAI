@@ -629,16 +629,16 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 7.1 Install Perceptual Hashing Library
 
-- [ ] Install `imghash`: `npm install imghash`
+- [x] Install `imghash`: `npm install imghash`
   > **Recommended choice (fix #7):** `imghash` provides DCT-based perceptual hashing with a
   > straightforward Node.js API. If `imghash` does not support a required format or buffer input,
   > fall back to `looks-same` (for comparison) or implement a custom DCT hash over Sharp's pixel
   > output. Document the final choice in a comment at the top of `duplicate-detector.ts`.
-- [ ] Benchmark hash computation time on 10 images — should be < 100ms each
+- [x] Benchmark hash computation time on 10 images — should be < 100ms each
 
 ### 7.2 Define DuplicateGroup Type
 
-- [ ] In `src/shared/types.ts`, add:
+- [x] In `src/shared/types.ts`, add:
   ```ts
   type DuplicateGroup = {
     representative: ImageRecord; // the one that proceeds to scoring
@@ -648,28 +648,28 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 7.3 Create the Duplicate Detector Module
 
-- [ ] Create `src/main/duplicate-detector.ts`
-- [ ] Implement `computeHash(imageBuffer: Buffer): Promise<string>` — returns perceptual hash string
-- [ ] Implement `hammingDistance(hashA: string, hashB: string): number` — count differing bits
-- [ ] Implement `groupDuplicates(images: ImageRecord[], threshold: number): Promise<DuplicateGroup[]>`:
+- [x] Create `src/main/duplicate-detector.ts`
+- [x] Implement `computeHash(imageBuffer: Buffer): Promise<string>` — returns perceptual hash string
+- [x] Implement `hammingDistance(hashA: string, hashB: string): number` — count differing bits
+- [x] Implement `groupDuplicates(images: ImageRecord[], threshold: number): Promise<DuplicateGroup[]>`:
   - Compute phash for every image
   - Build adjacency: images with distance ≤ threshold are in the same cluster
   - Use union-find or simple BFS to form groups
   - For each group, designate `representative` as the first image (ordering by filename = chronological for burst shots)
   - Images that are unique (not in any group) each become their own single-member group
-- [ ] Export `DEFAULT_SIMILARITY_THRESHOLD = 10` as a configurable constant
-- [ ] Add IPC handler: `'detect-duplicates'` — takes list of image IDs and hashes plus an optional `threshold` parameter, returns groups
+- [x] Export `DEFAULT_SIMILARITY_THRESHOLD = 10` as a configurable constant
+- [x] Add IPC handler: `'detect-duplicates'` — takes list of image IDs and hashes plus an optional `threshold` parameter, returns groups
 
 ### 7.4 🔥 Use User‑Configurable Threshold
 
-- [ ] `groupDuplicates` already accepts `threshold` as a parameter (defined above). Pass `settings.duplicateThreshold` from the orchestrator.
-- [ ] Update IPC handler `'detect-duplicates'` to accept `threshold` as a parameter and pass it through.
+- [x] `groupDuplicates` already accepts `threshold` as a parameter (defined above). Pass `settings.duplicateThreshold` from the orchestrator.
+- [x] Update IPC handler `'detect-duplicates'` to accept `threshold` as a parameter and pass it through.
 
 ### 7.5 🔥 Skip Duplicate Grouping When Disabled
 
-- [ ] In orchestrator, if `settings.disableDuplicateGrouping` is true, skip calling `groupDuplicates` entirely
-- [ ] Instead, treat each image as its own group (representative = itself)
-- [ ] Log a message in the processing log: "Duplicate grouping disabled – all images will be scored individually"
+- [x] In orchestrator, if `settings.disableDuplicateGrouping` is true, skip calling `groupDuplicates` entirely
+- [x] Instead, treat each image as its own group (representative = itself)
+- [x] Log a message in the processing log: "Duplicate grouping disabled – all images will be scored individually"
 
 ✅ **Done Criteria:** A folder of 5 near-identical burst shots groups into 1 cluster with 1 representative. 5 completely different images produce 5 single-member groups. Changing similarity threshold affects burst grouping. Disabling grouping scores every image. Both options persist across sessions.
 
