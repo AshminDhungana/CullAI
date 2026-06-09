@@ -278,7 +278,7 @@ export function defaultAppSettings(): AppSettings {
     provider: 'claude',
     apiKey: '',
     baseUrl: '',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     concurrency: 5,
 
     extensionFilter: [],

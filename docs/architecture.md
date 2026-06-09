@@ -20,6 +20,10 @@ cullai/
 │   │   ├── safe-storage.ts              # Secure storage utilities
 │   │   ├── time-sync.ts                 # Time synchronization
 │   │   ├── usage-tracker.ts             # Usage analytics/tracking
+│   │   ├── session-manager.ts           # Crash-safe session persistence
+│   │   ├── duplicate-detector.ts         # Burst/duplicate detection (perceptual hashing)
+│   │   ├── face-detector.ts             # Face and eye detection
+│   │   ├── lightdrift-libraw.d.ts       # LibRaw ambient declarations
 │   │   └── preload.js                   # Electron preload script
 │   ├── renderer/                        # React UI (Electron window)
 │   │   ├── assets/                      # UI assets
@@ -33,6 +37,7 @@ cullai/
 │   │   │   ├── PrefixFilter.tsx
 │   │   │   ├── RecentFoldersDropdown.tsx
 │   │   │   ├── ReferenceImageUpload.tsx
+│   │   │   ├── ModelCombobox.tsx
 │   │   │   └── SplashScreen.tsx
 │   │   ├── hooks/                       # React custom hooks
 │   │   │   ├── useIgnoreRules.ts

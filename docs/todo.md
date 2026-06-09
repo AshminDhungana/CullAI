@@ -753,7 +753,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 9.1 Define AI Call Interfaces
 
-- [ ] In `src/shared/types.ts`, add:
+- [x] In `src/shared/types.ts`, add:
   ```ts
   type AICallParams = {
     imageBase64: string;
@@ -776,7 +776,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 9.2 Build the Scoring Prompt
 
-- [ ] In `src/main/ai-client.ts`, implement `buildScoringPrompt(params: AICallParams): string`:
+- [x] In `src/main/ai-client.ts`, implement `buildScoringPrompt(params: AICallParams): string`:
   - Include context summary from discovery pass
   - Include user's preference description
   - Include the scoring rubric with each dimension name and its current weight %
@@ -797,8 +797,8 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 9.3 Implement the AI Client
 
-- [ ] Create `src/main/ai-client.ts`
-- [ ] Implement `callAI(params: AICallParams): Promise<AIRawResponse>` with **provider-specific routing**:
+- [x] Create `src/main/ai-client.ts`
+- [x] Implement `callAI(params: AICallParams): Promise<AIRawResponse>` with **provider-specific routing**:
 
   **For Claude (Anthropic native API):**
   - POST to `https://api.anthropic.com/v1/messages` (always this URL, regardless of `baseUrl` for Claude)
@@ -837,30 +837,30 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
   - Parse response: extract `choices[0].message.content`
   - Parse token usage from `response.usage.prompt_tokens` / `response.usage.completion_tokens`
 
-- [ ] After extracting the raw text, strip any accidental markdown fences from the JSON string
-- [ ] Parse JSON — if invalid, throw `AIParseError` with the raw response for debugging
-- [ ] Implement `computeWeightedTotal(scores: ScoringWeights, weights: ScoringWeights): number` — weighted average to 2 decimal places
-- [ ] Implement `scoreImage(params: AICallParams): Promise<ScoreRecord>` — calls `callAI()`, computes total, attaches usage, returns full `ScoreRecord` **without assigning tiers yet** (tier assignment happens in the orchestrator after all images are scored — see Phase 10)
+- [x] After extracting the raw text, strip any accidental markdown fences from the JSON string
+- [x] Parse JSON — if invalid, throw `AIParseError` with the raw response for debugging
+- [x] Implement `computeWeightedTotal(scores: ScoringWeights, weights: ScoringWeights): number` — weighted average to 2 decimal places
+- [x] Implement `scoreImage(params: AICallParams): Promise<ScoreRecord>` — calls `callAI()`, computes total, attaches usage, returns full `ScoreRecord` **without assigning tiers yet** (tier assignment happens in the orchestrator after all images are scored — see Phase 10)
 
 ### 9.4 Handle API Errors
 
-- [ ] 401 Unauthorized → throw `AIAuthError` — "Invalid API key"
-- [ ] 429 Too Many Requests → throw `AIRateLimitError` with `retryAfter` seconds from header
-- [ ] 5xx Server Error → throw `AIServerError` — retryable
-- [ ] Network timeout → throw `AITimeoutError`
-- [ ] All errors must include provider name and model for debugging
+- [x] 401 Unauthorized → throw `AIAuthError` — "Invalid API key"
+- [x] 429 Too Many Requests → throw `AIRateLimitError` with `retryAfter` seconds from header
+- [x] 5xx Server Error → throw `AIServerError` — retryable
+- [x] Network timeout → throw `AITimeoutError`
+- [x] All errors must include provider name and model for debugging
 
 ### 9.5 End-to-End Test
 
-- [ ] Write a manual test script: load one fixture JPEG, call `scoreImage()` with Claude, print the `ScoreRecord` to console
-- [ ] Verify: all 6 dimension scores are 0–100, total is correctly weighted, reasoning is a non-empty string
+- [x] Write a manual test script: load one fixture JPEG, call `scoreImage()` with Claude, print the `ScoreRecord` to console
+- [x] Verify: all 6 dimension scores are 0–100, total is correctly weighted, reasoning is a non-empty string
 
 ### 9.6 🔥 Return Token Usage in Response
 
-- [ ] `AIRawResponse` already includes optional `usage` (defined in 9.1). Ensure `callAI()` populates it for all providers that return usage data.
-- [ ] If the provider does not return usage, set to `{ inputTokens: 0, outputTokens: 0 }`
-- [ ] Store token usage in `ScoreRecord.usage`
-- [ ] Return usage to caller for cumulative tracking (Phase 11 enhancement)
+- [x] `AIRawResponse` already includes optional `usage` (defined in 9.1). Ensure `callAI()` populates it for all providers that return usage data.
+- [x] If the provider does not return usage, set to `{ inputTokens: 0, outputTokens: 0 }`
+- [x] Store token usage in `ScoreRecord.usage`
+- [x] Return usage to caller for cumulative tracking (Phase 11 enhancement)
 
 ✅ **Done Criteria:** `scoreImage()` called with a real image and a real Claude API key (using the `/v1/messages` endpoint) returns a valid `ScoreRecord` with all 6 dimension scores populated. The same test passes with OpenAI and Ollama using their respective endpoints. Invalid JSON from AI is caught and rethrown as a typed error. Token usage is stored when available.
 
