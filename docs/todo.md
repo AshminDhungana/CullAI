@@ -17,12 +17,12 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 2     | Setup Screen UI (Enhanced)             | ✅ Complete    |
 | 3     | Secure Storage & License               | ✅ Complete    |
 | 4     | RAW Decoding Pipeline                  | ✅ Complete    |
-| 5     | Image Processing Pipeline (Enhanced)   | ⬜ Not Started |
-| 5b    | Smart RAW Caching                      | ⬜ Not Started |
-| 6     | Face & Eye Detection                   | ⬜ Not Started |
-| 7     | Duplicate Detection                    | ⬜ Not Started |
-| 8     | Session Manager                        | ⬜ Not Started |
-| 9     | Single AI Call (Enhanced)              | ⬜ Not Started |
+| 5     | Image Processing Pipeline (Enhanced)   | ✅ Complete    |
+| 5b    | Smart RAW Caching                      | ✅ Complete    |
+| 6     | Face & Eye Detection                   | ✅ Complete    |
+| 7     | Duplicate Detection                    | ✅ Complete    |
+| 8     | Session Manager                        | ✅ Complete    |
+| 9     | Single AI Call (Enhanced)              | ✅ Complete    |
 | 10    | Full Batch Pipeline + Input Validation | ⬜ Not Started |
 | 10b   | Concurrent Directory Processing        | ⬜ Not Started |
 | 11    | Parallel Batching                      | ⬜ Not Started |

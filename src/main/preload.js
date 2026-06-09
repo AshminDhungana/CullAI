@@ -24,6 +24,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   licenseCheckQuota:  (count)    => ipcRenderer.invoke('license:check-quota', count),
   licenseIncrementUsage: (count) => ipcRenderer.invoke('license:increment-usage', count),
 
+  startPipeline: (settings) => ipcRenderer.invoke('pipeline-start', settings),
+  cancelPipeline: (payload) => ipcRenderer.invoke('pipeline-cancel', payload),
+  confirmPipelineContinue: () => ipcRenderer.invoke('pipeline-confirm-continue'),
+  onPipelineEvent: (callback) => {
+    const handler = (_event, pipelineEvent) => callback(pipelineEvent);
+    ipcRenderer.on('pipeline-event', handler);
+    return () => ipcRenderer.removeListener('pipeline-event', handler);
+  },
+  // ── Phase 10.7 – Fill shortfall ─────────────────────────────────────────
+    /**
+     * Promotes additional images (B or rejected) to reach the target keeper count.
+     *
+     * @param {{ outputFolder: string, targetCount: number }} payload
+     * @returns {Promise<Session>}
+     */
+  fillPipelineShortfall: (payload) =>
+    ipcRenderer.invoke('pipeline-fill-shortfall', payload),
+    
   // ── Recent folders ────────────────────────────────────────────────────────
   /** Returns { input: string[], output: string[] } — both lists, newest-first. */
   getRecentFolders: () =>

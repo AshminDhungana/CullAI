@@ -2,11 +2,14 @@
  * ai-client.ts
  *
  * Phase 9 — Single AI scoring call.
+ * Phase 10 — Discovery pass (multi-image, plain-text response).
  *
- * Implements four functions that together form the atomic scoring unit:
+ * Implements five functions that together form the atomic scoring + discovery unit:
  *
  *   buildScoringPrompt()    → deterministic prompt string from AICallParams
+ *   buildDiscoveryPrompt()  → discovery-pass prompt for multi-image genre analysis
  *   callAI()               → provider-routed HTTP request → AIRawResponse
+ *   callAIDiscovery()      → multi-image plain-text call for the discovery pass
  *   computeWeightedTotal() → weighted average of 6 dimension scores
  *   scoreImage()           → full ScoreRecord (tier set to 'rejected' placeholder;
  *                            real tier assignment happens in Phase 10 orchestrator)
@@ -30,6 +33,7 @@ import type {
   AIProvider,
   ScoringWeights,
   ScoreRecord,
+  GenrePreset,
 } from '../shared/types';
 
 import {
@@ -154,6 +158,76 @@ export function buildScoringPrompt(params: AICallParams): string {
     `Do NOT include markdown formatting, code fences, backticks, preamble, or any text`,
     `outside the JSON object. Output the raw JSON object and nothing else.`,
   ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// 10.1  buildDiscoveryPrompt
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds the plain-text prompt for the discovery pass.
+ *
+ * The discovery pass sends 5–8 representative sample images to the AI in a
+ * single call and asks for a brief contextual summary of the shoot. This
+ * summary is then threaded into every subsequent scoring prompt via the
+ * `discoveryContext` field.
+ *
+ * The response is expected to be plain text (2–3 sentences), NOT JSON.
+ *
+ * @param genre        The shoot genre from AppSettings.
+ * @param sampleCount  Number of sample images attached to this call.
+ * @returns            Prompt string.
+ */
+export function buildDiscoveryPrompt(genre: GenrePreset, sampleCount: number): string {
+  return [
+    `You are analysing a batch of ${sampleCount} sample image${sampleCount !== 1 ? 's' : ''} from a ${genre} photography shoot.`,
+    ``,
+    `Examine all provided images together and answer the following in 2–3 sentences of plain text:`,
+    `1. What is the visual style, subject matter, and overall mood of this shoot?`,
+    `2. What does "best" mean in this specific context — what qualities should the strongest images have?`,
+    ``,
+    `Write your answer as a single paragraph of plain text. Do not use lists, headings, JSON, or`,
+    `markdown. Your summary will be used as context for individual image scoring, so be specific`,
+    `about what makes a great shot in this particular session.`,
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// 10.1  callAIDiscovery — multi-image plain-text call
+// ---------------------------------------------------------------------------
+
+/**
+ * Makes a single AI API call with multiple sample images for the discovery pass.
+ *
+ * Unlike callAI(), this function:
+ *   - Accepts an array of base64 image strings (5–8 images).
+ *   - Returns raw plain text, not a parsed JSON score object.
+ *   - Uses a longer timeout (60 s) because multi-image calls take more time.
+ *
+ * Provider routing follows the same logic as callAI():
+ *   - claude  → Anthropic Messages API (multiple image content blocks)
+ *   - others  → OpenAI-compatible /chat/completions (multiple image_url blocks)
+ *
+ * @param imageBase64s  Array of base64-encoded JPEG strings (no data-URI prefix).
+ * @param prompt        Discovery prompt text (from buildDiscoveryPrompt).
+ * @param params        Provider routing fields: provider, apiKey, model, baseUrl.
+ * @returns             Plain-text discovery summary string from the AI.
+ */
+export async function callAIDiscovery(
+  imageBase64s: string[],
+  prompt: string,
+  params: Pick<AICallParams, 'provider' | 'apiKey' | 'model' | 'baseUrl'>,
+): Promise<string> {
+  const { provider, model, apiKey, baseUrl } = params;
+
+  // Multi-image calls take longer — use a more generous timeout.
+  const discoveryTimeoutMs = 60_000;
+
+  if (provider === 'claude') {
+    return callClaudeDiscovery(model, apiKey, imageBase64s, prompt, discoveryTimeoutMs);
+  } else {
+    return callOpenAICompatDiscovery(provider, model, apiKey, baseUrl, imageBase64s, prompt, discoveryTimeoutMs);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -289,7 +363,7 @@ export async function callAI(params: AICallParams): Promise<AIRawResponse> {
 }
 
 // ---------------------------------------------------------------------------
-// Claude (Anthropic native API)
+// Claude (Anthropic native API) — single image scoring
 // ---------------------------------------------------------------------------
 
 async function callClaude(
@@ -359,7 +433,67 @@ async function callClaude(
 }
 
 // ---------------------------------------------------------------------------
-// OpenAI-compatible (openai / gemini / ollama / custom)
+// Claude (Anthropic native API) — multi-image discovery pass
+// ---------------------------------------------------------------------------
+
+async function callClaudeDiscovery(
+  model: string,
+  apiKey: string,
+  imageBase64s: string[],
+  prompt: string,
+  timeoutMs: number,
+): Promise<string> {
+  const url = `${ANTHROPIC_BASE}/v1/messages`;
+
+  // Build content array: one image block per sample, then the text prompt.
+  const content: object[] = [
+    ...imageBase64s.map((b64) => ({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: 'image/jpeg',
+        data: b64,
+      },
+    })),
+    { type: 'text', text: prompt },
+  ];
+
+  const body = JSON.stringify({
+    model,
+    max_tokens: 512,
+    messages: [{ role: 'user', content }],
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'Content-Type': 'application/json',
+      },
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+      throw new AITimeoutError('claude', model);
+    }
+    throw err;
+  }
+
+  await assertHttpOk(res, 'claude', model);
+
+  const data = await res.json() as {
+    content: Array<{ type: string; text?: string }>;
+  };
+
+  return data.content?.find((b) => b.type === 'text')?.text?.trim() ?? '';
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI-compatible (openai / gemini / ollama / custom) — single image scoring
 // ---------------------------------------------------------------------------
 
 async function callOpenAICompat(
@@ -436,6 +570,73 @@ async function callOpenAICompat(
     ? { inputTokens: data.usage.prompt_tokens, outputTokens: data.usage.completion_tokens }
     : undefined,
   );
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI-compatible — multi-image discovery pass
+// ---------------------------------------------------------------------------
+
+async function callOpenAICompatDiscovery(
+  provider: AIProvider,
+  model: string,
+  apiKey: string,
+  rawBaseUrl: string,
+  imageBase64s: string[],
+  prompt: string,
+  timeoutMs: number,
+): Promise<string> {
+  const baseUrl = normaliseBaseUrl(
+    rawBaseUrl || (provider === 'ollama' ? 'http://localhost:11434' : ''),
+  );
+  const url = `${baseUrl}/chat/completions`;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  // Build content: text prompt first, then one image_url block per sample.
+  const content: object[] = [
+    { type: 'text', text: prompt },
+    ...imageBase64s.map((b64) => ({
+      type: 'image_url',
+      image_url: {
+        url: `data:image/jpeg;base64,${b64}`,
+        detail: 'low', // Discovery pass only needs a coarse look
+      },
+    })),
+  ];
+
+  const body = JSON.stringify({
+    model,
+    max_tokens: 512,
+    messages: [{ role: 'user', content }],
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+      throw new AITimeoutError(provider, model);
+    }
+    throw err;
+  }
+
+  await assertHttpOk(res, provider, model);
+
+  const data = await res.json() as {
+    choices: Array<{ message: { content: string } }>;
+  };
+
+  return data.choices?.[0]?.message?.content?.trim() ?? '';
 }
 
 // ---------------------------------------------------------------------------

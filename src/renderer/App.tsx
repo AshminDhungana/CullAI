@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback} from "react";
 import { SplashScreen } from "./components/SplashScreen";
 import SetupScreen from "./screens/Setup";
 import ProcessingScreen from "./screens/Processing";
@@ -43,20 +43,18 @@ function App() {
   // ── Screen transition handlers ─────────────────────────────────────────────
 
   /** Called by Setup's "Start Culling" button. */
-  const handleStartCulling = (settings: AppSettings) => {
+  const handleStartCulling = useCallback((settings: AppSettings) => {
     setCurrentSettings(settings);
     setScreen("processing");
-  };
+  }, []);
 
-  /** Cancel out of Processing → back to Setup. */
-  const handleCancelProcessing = () => {
+  const handleCancelProcessing = useCallback(() => {
     setScreen("setup");
-  };
+  }, []);
 
-  /** Pipeline signals completion (Phase 10) → show Results. */
-  const handleProcessingComplete = () => {
+  const handleProcessingComplete = useCallback(() => {
     setScreen("results");
-  };
+  }, []);
 
   /** Results → back to Setup for another run. */
   const handleBackToSetup = () => {

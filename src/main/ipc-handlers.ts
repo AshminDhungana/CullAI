@@ -40,6 +40,8 @@ import { detectFaces } from './face-detector';
 import { getCacheStats, clearCache, setCacheConfig } from './raw-cache';
 import { enforceCacheLimits } from './cache-cleaner';
 import { groupDuplicates, DEFAULT_SIMILARITY_THRESHOLD } from './duplicate-detector';
+import { fillShortfall } from './orchestrator';
+
 import {
   createSession,
   saveScore,
@@ -53,6 +55,12 @@ import {
   saveShortfallReasons,
   clearSession,
 } from './session-manager';
+import {
+  runPipeline,
+  resolvePipelineConfirmation,
+  rejectPipelineConfirmation,
+  fillShortfall,
+} from './orchestrator';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -166,6 +174,15 @@ const RECENT_FOLDERS_MAX = 10;
 // generator cleanly.
 // ---------------------------------------------------------------------------
 const activeProcessJobs = new Map<number, AbortController>();
+
+// ---------------------------------------------------------------------------
+// Active pipeline cancellation map
+//
+// Mirrors activeProcessJobs but for the Phase 10 pipeline generator.
+// One AbortController per webContents ID. The pipeline generator checks
+// signal.aborted at each major step.
+// ---------------------------------------------------------------------------
+const activePipelineJobs = new Map<number, AbortController>();
 
 // ---------------------------------------------------------------------------
 // Main export
@@ -885,7 +902,7 @@ export function registerIpcHandlers(store: AppStore): void {
   );
 
   /**
-   * Deletes the stored key for `provider`. No-op if nothing is stored.
+   * Permanently removes the stored key for `provider`. No-op if nothing is stored.
    */
   ipcMain.handle(
     'api-key-delete',
@@ -999,174 +1016,162 @@ export function registerIpcHandlers(store: AppStore): void {
     async (
       _event,
       payload: { provider: string; baseUrl?: string },
-    ): Promise<{ models: string[]; error: string | null }> => {
+    ) => {
       const { provider, baseUrl } = payload ?? {};
-  
-      // Retrieve the stored key from the secure vault — never from the renderer.
-      const apiKey = getApiKey(provider as any);
-  
+
+      if (!provider || typeof provider !== 'string') {
+        return { models: [], error: 'Provider is required' };
+      }
+
       try {
+        // Retrieve the stored API key — never accept it from the renderer.
+        const apiKey = getApiKey(provider as any) ?? '';
+
         switch (provider) {
-          // ── Claude (Anthropic) ─────────────────────────────────────────────
           case 'claude': {
-            if (!apiKey) {
-              return { models: [], error: 'No API key stored for Claude. Enter your key above.' };
-            }
-  
-            const res = await fetch('https://api.anthropic.com/v1/models', {
-              method: 'GET',
-              headers: {
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-              },
-            });
-  
-            if (!res.ok) {
-              const body = await res.json().catch(() => ({}));
-              const msg = (body as any)?.error?.message ?? res.statusText;
-              return { models: [], error: `Anthropic API error ${res.status}: ${msg}` };
-            }
-  
-            const data = await res.json() as { data: Array<{ id: string }> };
-            const models = (data.data ?? [])
-              .map((m) => m.id)
-              .filter((id) => typeof id === 'string' && id.startsWith('claude-'))
-              .sort();
-            return { models, error: null };
-          }
-  
-          // ── OpenAI ─────────────────────────────────────────────────────────
-          case 'openai': {
-            if (!apiKey) {
-              return { models: [], error: 'No API key stored for OpenAI. Enter your key above.' };
-            }
-  
-            const res = await fetch('https://api.openai.com/v1/models', {
-              method: 'GET',
-              headers: { Authorization: `Bearer ${apiKey}` },
-            });
-  
-            if (!res.ok) {
-              const body = await res.json().catch(() => ({}));
-              const msg = (body as any)?.error?.message ?? res.statusText;
-              return { models: [], error: `OpenAI API error ${res.status}: ${msg}` };
-            }
-  
-            const data = await res.json() as {
-              data: Array<{ id: string; owned_by: string; created: number }>;
-            };
-  
-            // Keep only chat-capable models published by OpenAI.
-            // The id prefix heuristic covers gpt-*, o1-*, o3-*, o4-*, etc.
-            // We intentionally exclude fine-tuned, embedding, TTS and image models.
-            const CHAT_PREFIXES = ['gpt-', 'o1', 'o3', 'o4', 'chatgpt-'];
-            const EXCLUDE = ['instruct', 'embed', 'tts', 'dall-e', 'whisper', 'moderation'];
-  
-            const models = (data.data ?? [])
-              .filter((m) => {
-                const id = m.id.toLowerCase();
-                const owned = m.owned_by?.toLowerCase() ?? '';
-                return (
-                  (owned === 'openai' || owned === 'system') &&
-                  CHAT_PREFIXES.some((p) => id.startsWith(p)) &&
-                  !EXCLUDE.some((e) => id.includes(e))
-                );
-              })
-              // Newest first
-              .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
-              .map((m) => m.id);
-  
-            return { models, error: null };
-          }
-  
-          // ── Gemini (Google AI) ─────────────────────────────────────────────
-          case 'gemini': {
-            if (!apiKey) {
-              return { models: [], error: 'No API key stored for Gemini. Enter your key above.' };
-            }
-  
-            // Key goes in the query string; the endpoint does NOT use a Bearer header.
-            const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}&pageSize=100`;
-            const res = await fetch(url, { method: 'GET' });
-  
-            if (!res.ok) {
-              const body = await res.json().catch(() => ({}));
-              const msg = (body as any)?.error?.message ?? res.statusText;
-              return { models: [], error: `Gemini API error ${res.status}: ${msg}` };
-            }
-  
-            const data = await res.json() as {
-              models: Array<{
-                name: string;
-                supportedGenerationMethods?: string[];
-              }>;
-            };
-  
-            const models = (data.models ?? [])
-              .filter(
-                (m) =>
-                  Array.isArray(m.supportedGenerationMethods) &&
-                  m.supportedGenerationMethods.includes('generateContent'),
-              )
-              // name is "models/gemini-2.5-flash" → strip the prefix
-              .map((m) => m.name.replace(/^models\//, ''))
-              .filter((id) => id.startsWith('gemini-'))
-              .sort();
-  
-            return { models, error: null };
-          }
-  
-          // ── Ollama (local) ─────────────────────────────────────────────────
-          case 'ollama': {
-            // Resolve the tags endpoint from the configured baseUrl.
-            // The renderer stores http://localhost:11434/v1 (OpenAI-compat path)
-            // but the tags endpoint lives at http://localhost:11434/api/tags.
-            let host = (baseUrl ?? 'http://localhost:11434').trim();
-            // Strip any /v1 or /openai/v1 suffix to get the bare host
-            host = host.replace(/\/(v\d+|openai\/v\d+)\/?$/, '').replace(/\/+$/, '');
-            const tagsUrl = `${host}/api/tags`;
-  
+            const url = 'https://api.anthropic.com/v1/models';
             let res: Response;
             try {
-              res = await fetch(tagsUrl, {
+              res = await fetch(url, {
                 method: 'GET',
-                // 5 s timeout — Ollama may not be running
+                headers: {
+                  'x-api-key': apiKey,
+                  'anthropic-version': '2023-06-01',
+                },
+                signal: AbortSignal.timeout(8000),
+              });
+            } catch (connErr: unknown) {
+              return {
+                models: [],
+                error: 'Cannot reach Anthropic API — check your internet connection.',
+              };
+            }
+
+            if (res.status === 401) {
+              return { models: [], error: 'Invalid API key (401). Check your Anthropic key.' };
+            }
+            if (!res.ok) {
+              return { models: [], error: `Anthropic API error ${res.status}.` };
+            }
+
+            const data = await res.json().catch(() => ({}));
+            const list: unknown[] = (data as any)?.data ?? [];
+            const models = list
+              .map((m: any) => m?.id)
+              .filter((id): id is string => typeof id === 'string' && id.includes('claude'))
+              .sort()
+              .reverse(); // newest first
+
+            return { models, error: null };
+          }
+
+          case 'openai': {
+            const url = 'https://api.openai.com/v1/models';
+            let res: Response;
+            try {
+              res = await fetch(url, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${apiKey}` },
+                signal: AbortSignal.timeout(8000),
+              });
+            } catch (connErr: unknown) {
+              return {
+                models: [],
+                error: 'Cannot reach OpenAI API — check your internet connection.',
+              };
+            }
+
+            if (res.status === 401) {
+              return { models: [], error: 'Invalid API key (401). Check your OpenAI key.' };
+            }
+            if (!res.ok) {
+              return { models: [], error: `OpenAI API error ${res.status}.` };
+            }
+
+            const data = await res.json().catch(() => ({}));
+            const list: unknown[] = (data as any)?.data ?? [];
+            const models = list
+              .map((m: any) => m?.id)
+              .filter((id): id is string => typeof id === 'string' && id.startsWith('gpt'))
+              .sort()
+              .reverse();
+
+            return { models, error: null };
+          }
+
+          case 'gemini': {
+            const geminiBase = 'https://generativelanguage.googleapis.com/v1beta/models';
+            const geminiUrl = `${geminiBase}?key=${apiKey}`;
+            let res: Response;
+            try {
+              res = await fetch(geminiUrl, {
+                method: 'GET',
+                signal: AbortSignal.timeout(8000),
+              });
+            } catch (connErr: unknown) {
+              return {
+                models: [],
+                error: 'Cannot reach Gemini API — check your internet connection.',
+              };
+            }
+
+            if (!res.ok) {
+              return { models: [], error: `Gemini API error ${res.status}.` };
+            }
+
+            const data = await res.json().catch(() => ({}));
+            const list: unknown[] = (data as any)?.models ?? [];
+            const models = list
+              .map((m: any) => m?.name?.replace('models/', '') ?? m?.id)
+              .filter((id): id is string => typeof id === 'string' && id.includes('gemini'))
+              .sort()
+              .reverse();
+
+            return { models, error: null };
+          }
+
+          case 'ollama': {
+            const ollamaBase = baseUrl?.trim().replace(/\/+$/, '') || 'http://localhost:11434';
+            const modelsUrl = `${ollamaBase}/api/tags`;
+            let res: Response;
+            try {
+              res = await fetch(modelsUrl, {
+                method: 'GET',
                 signal: AbortSignal.timeout(5000),
               });
             } catch (connErr: unknown) {
-              const msg =
-                connErr instanceof Error && connErr.name === 'TimeoutError'
-                  ? 'Ollama did not respond within 5 s — is it running?'
-                  : `Cannot reach Ollama at ${host} — is it running?`;
-              return { models: [], error: msg };
+              return {
+                models: [],
+                error: `Cannot reach Ollama at ${ollamaBase} — is Ollama running?`,
+              };
             }
-  
+
             if (!res.ok) {
-              return { models: [], error: `Ollama error ${res.status}: ${res.statusText}` };
+              return { models: [], error: `Ollama error ${res.status}.` };
             }
-  
-            const data = await res.json() as {
-              models: Array<{ name: string; model: string }>;
-            };
-  
-            const models = (data.models ?? [])
-              .map((m) => m.name ?? m.model)
-              .filter((n): n is string => typeof n === 'string' && n.length > 0)
+
+            const data = await res.json().catch(() => ({}));
+            const list: unknown[] = (data as any)?.models ?? [];
+            const models = list
+              .map((m: any) => m?.name)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0)
               .sort();
-  
+
             return { models, error: null };
           }
-  
-          // ── Custom (OpenAI-compatible) ─────────────────────────────────────
+
           case 'custom': {
-            if (!baseUrl) {
-              return { models: [], error: 'No base URL configured for custom provider.' };
+            if (!baseUrl?.trim()) {
+              return { models: [], error: 'Base URL is required for custom providers.' };
             }
-  
-            const modelsUrl = `${baseUrl.replace(/\/+$/, '')}/models`;
+            const normBase = baseUrl.trim().replace(/\/+$/, '');
+            const modelsUrl = normBase.endsWith('/v1')
+              ? `${normBase}/models`
+              : `${normBase}/v1/models`;
+
             const headers: Record<string, string> = {};
             if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-  
+
             let res: Response;
             try {
               res = await fetch(modelsUrl, {
@@ -1180,23 +1185,23 @@ export function registerIpcHandlers(store: AppStore): void {
                 error: `Cannot reach ${modelsUrl} — check your base URL.`,
               };
             }
-  
+
             if (!res.ok) {
               // Many custom endpoints don't implement /models — return [] silently
               // so the user can still type their model name manually.
               return { models: [], error: null };
             }
-  
+
             const data = await res.json().catch(() => ({}));
             const list: unknown[] = (data as any)?.data ?? [];
             const models = list
               .map((m: any) => m?.id ?? m?.name)
               .filter((id): id is string => typeof id === 'string' && id.length > 0)
               .sort();
-  
+
             return { models, error: null };
           }
-  
+
           default:
             return { models: [], error: `Unknown provider: ${provider}` };
         }
@@ -1396,6 +1401,170 @@ export function registerIpcHandlers(store: AppStore): void {
       const session = await loadSession(payload.outputFolder);
       if (!session) return [];
       return Array.from(getScoredIds(session));
+    },
+  );
+
+  // =========================================================================
+  // Phase 10 — Full Pipeline IPC Handlers
+  // =========================================================================
+
+  /**
+   * Starts the full culling pipeline for the given settings.
+   *
+   * Returns { started: true } immediately — the pipeline runs in the background
+   * and pushes PipelineEvent objects to the renderer via:
+   *   event.sender.send('pipeline-event', pipelineEvent)
+   *
+   * The API key is retrieved from the secure vault here — the renderer never
+   * sends it. The returned settings object is augmented with the decrypted key
+   * before being passed to runPipeline().
+   *
+   * Payload: AppSettings (apiKey field will be populated from vault)
+   * Returns: { started: true }
+   */
+  ipcMain.handle(
+    'pipeline-start',
+    async (
+      event,
+      settings: import('../shared/types').AppSettings,
+    ) => {
+      if (!settings || typeof settings !== 'object') {
+        throw new Error('pipeline-start: settings payload is required');
+      }
+      if (!settings.inputFolder || !settings.outputFolder) {
+        throw new Error('pipeline-start: inputFolder and outputFolder are required');
+      }
+
+      const senderContentsId = event.sender.id;
+
+      // ── Cancel any existing pipeline for this window ───────────────────────
+      const existingPipeline = activePipelineJobs.get(senderContentsId);
+      if (existingPipeline) {
+        existingPipeline.abort();
+        rejectPipelineConfirmation(senderContentsId);
+        activePipelineJobs.delete(senderContentsId);
+      }
+
+      // ── Retrieve and inject API key from secure vault ──────────────────────
+      // The renderer sends apiKey: '' (never persisted). We fetch it here.
+      const apiKey = getApiKey(settings.provider as any) ?? '';
+      const settingsWithKey: import('../shared/types').AppSettings = {
+        ...settings,
+        apiKey,
+      };
+
+      // ── Set up cancellation ────────────────────────────────────────────────
+      const controller = new AbortController();
+      activePipelineJobs.set(senderContentsId, controller);
+
+      // ── Run the pipeline generator in the background ───────────────────────
+      // Fire-and-forget IIFE — events are pushed as they arrive.
+      (async () => {
+        try {
+          for await (const pipelineEvent of runPipeline(
+            settingsWithKey,
+            senderContentsId,
+            controller.signal,
+          )) {
+            // Guard against destroyed webContents (window closed mid-run).
+            if (event.sender.isDestroyed()) break;
+            event.sender.send('pipeline-event', pipelineEvent);
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error('[ipc] pipeline-start: unhandled pipeline error:', msg);
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('pipeline-event', {
+              type: 'pipeline-error',
+              code: 'UNEXPECTED',
+              message: msg,
+              recoverable: false,
+            });
+          }
+        } finally {
+          activePipelineJobs.delete(senderContentsId);
+        }
+      })();
+
+      // Return immediately — the renderer subscribes to 'pipeline-event' pushes.
+      return { started: true };
+    },
+  );
+
+  /**
+   * Cancels an in-flight pipeline for the calling window.
+   *
+   * Aborts the generator via AbortController, resolves any pending §10.5
+   * confirmation waiter with a rejection, and marks the session as cancelled.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: true
+   */
+  ipcMain.handle(
+    'pipeline-cancel',
+    async (
+      event,
+      payload: { outputFolder: string },
+    ) => {
+      const senderContentsId = event.sender.id;
+
+      // Abort the running generator.
+      const controller = activePipelineJobs.get(senderContentsId);
+      if (controller) {
+        controller.abort();
+        activePipelineJobs.delete(senderContentsId);
+      }
+
+      // Resolve any pending §10.5 confirmation waiter so the generator can exit.
+      rejectPipelineConfirmation(senderContentsId);
+
+      // Mark the session cancelled if we have an output folder.
+      if (payload?.outputFolder) {
+        try {
+          await markSessionCancelled(payload.outputFolder);
+        } catch { /* non-fatal */ }
+      }
+
+      return true;
+    },
+  );
+
+  /**
+   * Signals the pipeline generator to proceed after the §10.5 input-count
+   * confirmation dialog.
+   *
+   * The generator is paused at a Promise stored in pendingConfirmations (in
+   * orchestrator.ts). Calling this handler resolves that Promise and resumes
+   * the generator from where it left off.
+   *
+   * Payload: none
+   * Returns: true
+   */
+  ipcMain.handle(
+    'pipeline-confirm-continue',
+    (_event) => {
+      resolvePipelineConfirmation(_event.sender.id);
+      return true;
+    },
+  );
+  // ── Phase 10.7 – Fill shortfall by promoting lower-tier images ────────────
+
+  /**
+   * Promotes B-tier (or rejected, depending on shortfallStrategy) images
+   * to A-tier until the session reaches the originally requested keeper count.
+   *
+   * Payload: { outputFolder: string, targetCount: number }
+   * Returns: Session (updated)
+   */
+  ipcMain.handle(
+    'pipeline-fill-shortfall',
+    async (_event, payload: { outputFolder: string; targetCount: number }) => {
+      if (!payload?.outputFolder || typeof payload.targetCount !== 'number') {
+        throw new Error('pipeline-fill-shortfall: invalid payload');
+      }
+      const { outputFolder, targetCount } = payload;
+      const updatedSession = await fillShortfall(outputFolder, targetCount);
+      return updatedSession;
     },
   );
 }

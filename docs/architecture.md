@@ -11,6 +11,7 @@ cullai/
 ├── src/                                 # Source code
 │   ├── main/                            # Electron main process (Node.js)
 │   │   ├── index.ts                     # App entry point
+│   │   ├── orchestrator.ts               # Full batch pipeline orchestration (Phase 10)
 │   │   ├── ipc-handlers.ts              # IPC communication
 │   │   ├── license-manager.ts           # License validation
 │   │   ├── raw-decoder.ts               # RAW → JPEG buffer decoder (Phase 4.2)
@@ -23,6 +24,8 @@ cullai/
 │   │   ├── session-manager.ts           # Crash-safe session persistence
 │   │   ├── duplicate-detector.ts         # Burst/duplicate detection (perceptual hashing)
 │   │   ├── face-detector.ts             # Face and eye detection
+│   │   ├── ai-client.ts                # AI scoring API client (Phase 9)
+│   │   ├── ai-errors.ts                # AI-specific error handling
 │   │   ├── lightdrift-libraw.d.ts       # LibRaw ambient declarations
 │   │   └── preload.js                   # Electron preload script
 │   ├── renderer/                        # React UI (Electron window)
@@ -55,6 +58,7 @@ cullai/
 │   ├── scripts/                         # Build/Dev scripts
 │   │   ├── download-fixtures.ts         # Downloads CC0 RAW samples (Phase 4.3)
 │   │   ├── hash-license-keys.ts         # Generates license key hashes for license-manager
+│   │   ├── test-ai-call.ts              # Tests AI scoring API integration
 │   │   └── test-raw-decode.ts           # Manual RAW decode test + timing (Phase 4.3)
 │   └── shared/                          # Shared types and constants
 │       ├── constants.ts

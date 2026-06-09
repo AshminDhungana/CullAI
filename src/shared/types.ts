@@ -168,7 +168,7 @@ export type AppSettings = {
   apiKey: string;
   /** Base URL for Ollama or Custom providers. */
   baseUrl: string;
-  /** Model identifier, e.g. 'claude-sonnet-4-20250514' or 'llava'. */
+  /** Model identifier, e.g. 'claude-sonnet-4-6' or 'llava'. */
   model: string;
   /** Number of simultaneous API calls (1–10). */
   concurrency: number;
@@ -183,6 +183,14 @@ export type AppSettings = {
   prefixFilter: PrefixFilter;
   /** Whether prefix matching ignores character case. */
   prefixCaseInsensitive: boolean;
+
+  /**
+   * Parsed patterns from .cullaiignore at the root of inputFolder.
+   * Populated by the renderer before pipeline-start is called.
+   * Empty array means no ignore rules are active.
+   * Not persisted to disk — re-parsed from the file each session.
+   */
+  ignorePatterns: string[];
 
   // ── Reference Image ────────────────────────────────────────────────────────
   referenceImage: ReferenceImage;
@@ -284,6 +292,7 @@ export function defaultAppSettings(): AppSettings {
     extensionFilter: [],
     prefixFilter: [],
     prefixCaseInsensitive: true,
+    ignorePatterns: [],
 
     referenceImage: null,
 
@@ -492,8 +501,27 @@ export type FetchModelsResult = {
 
 export type PipelineEvent =
   | { type: 'pipeline-started'; totalImages: number }
-  | { type: 'pipeline-image-scored'; filename: string; score: ScoreRecord; scoredCount: number }
+  | {
+      type: 'pipeline-image-scored';
+      filename: string;
+      score: ScoreRecord;
+      scoredCount: number;
+      /** Estimated seconds remaining. null until at least one image is scored. */
+      etaSeconds: number | null;
+    }
+  | { selectedSCount?: number }
   | { type: 'pipeline-cost-update'; totalInputTokens: number; totalOutputTokens: number }
-  | { type: 'pipeline-output-summary'; shortfallReasons: ShortfallReasons; finalSelectedCount: number }
+  | {
+      type: 'pipeline-needs-confirmation';
+      /** How many images the user requested. */
+      requested: number;
+      /** How many images were actually found after filtering. */
+      available: number;
+    }
+  | {
+      type: 'pipeline-output-summary';
+      shortfallReasons: ShortfallReasons;
+      finalSelectedCount: number;
+    }
   | { type: 'pipeline-complete'; session: Session }
   | { type: 'pipeline-error'; code: string; message: string; recoverable: boolean };
