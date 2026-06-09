@@ -40,6 +40,19 @@ import { detectFaces } from './face-detector';
 import { getCacheStats, clearCache, setCacheConfig } from './raw-cache';
 import { enforceCacheLimits } from './cache-cleaner';
 import { groupDuplicates, DEFAULT_SIMILARITY_THRESHOLD } from './duplicate-detector';
+import {
+  createSession,
+  saveScore,
+  loadSession,
+  hasExistingSession,
+  getScoredIds,
+  markSessionComplete,
+  markSessionCancelled,
+  markSessionCrashed,
+  saveDiscoveryContext,
+  saveShortfallReasons,
+  clearSession,
+} from './session-manager';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -1192,6 +1205,197 @@ export function registerIpcHandlers(store: AppStore): void {
         console.error('[fetch-models] Unexpected error:', msg);
         return { models: [], error: `Unexpected error: ${msg}` };
       }
+    },
+  );
+
+  // =========================================================================
+  // Phase 8 — Session Manager IPC Handlers
+  // =========================================================================
+
+  /**
+   * Creates a new session for the given settings and total image count.
+   * Overwrites any existing session.json in the output folder.
+   *
+   * Payload: { settings: AppSettings, totalImages: number }
+   * Returns: Session
+   */
+  ipcMain.handle(
+    'session-create',
+    async (
+      _event,
+      payload: {
+        settings: import('../shared/types').AppSettings;
+        totalImages: number;
+      },
+    ) => {
+      if (!payload?.settings || typeof payload.totalImages !== 'number') {
+        throw new Error('session-create: invalid payload');
+      }
+      return createSession(payload.settings, payload.totalImages);
+    },
+  );
+
+  /**
+   * Loads the session from the output folder, or returns null if none exists.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: Session | null
+   */
+  ipcMain.handle(
+    'session-load',
+    async (_event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) {
+        throw new Error('session-load: outputFolder is required');
+      }
+      return loadSession(payload.outputFolder);
+    },
+  );
+
+  /**
+   * Saves a single ScoreRecord into the session and increments scoredCount.
+   * Atomic — safe to call concurrently from a parallel scoring pool.
+   *
+   * Payload: { outputFolder: string, imageId: string, score: ScoreRecord }
+   * Returns: true
+   */
+  ipcMain.handle(
+    'session-save-score',
+    async (
+      _event,
+      payload: {
+        outputFolder: string;
+        imageId: string;
+        score: import('../shared/types').ScoreRecord;
+      },
+    ) => {
+      if (!payload?.outputFolder || !payload?.imageId || !payload?.score) {
+        throw new Error('session-save-score: invalid payload');
+      }
+      await saveScore(payload.outputFolder, payload.imageId, payload.score);
+      return true;
+    },
+  );
+
+  /**
+   * Marks the session as completed.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: true
+   */
+  ipcMain.handle(
+    'session-mark-complete',
+    async (_event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) {
+        throw new Error('session-mark-complete: outputFolder is required');
+      }
+      await markSessionComplete(payload.outputFolder);
+      return true;
+    },
+  );
+
+  /**
+   * Marks the session as cancelled.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: true
+   */
+  ipcMain.handle(
+    'session-mark-cancelled',
+    async (_event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) {
+        throw new Error('session-mark-cancelled: outputFolder is required');
+      }
+      await markSessionCancelled(payload.outputFolder);
+      return true;
+    },
+  );
+
+  /**
+   * Saves the discovery-pass AI context string.
+   *
+   * Payload: { outputFolder: string, context: string }
+   * Returns: true
+   */
+  ipcMain.handle(
+    'session-save-discovery-context',
+    async (_event, payload: { outputFolder: string; context: string }) => {
+      if (!payload?.outputFolder || typeof payload?.context !== 'string') {
+        throw new Error('session-save-discovery-context: invalid payload');
+      }
+      await saveDiscoveryContext(payload.outputFolder, payload.context);
+      return true;
+    },
+  );
+
+  /**
+   * Saves the output shortfall reasons summary.
+   *
+   * Payload: { outputFolder: string, reasons: ShortfallReasons }
+   * Returns: true
+   */
+  ipcMain.handle(
+    'session-save-shortfall-reasons',
+    async (
+      _event,
+      payload: {
+        outputFolder: string;
+        reasons: import('../shared/types').ShortfallReasons;
+      },
+    ) => {
+      if (!payload?.outputFolder || !payload?.reasons) {
+        throw new Error('session-save-shortfall-reasons: invalid payload');
+      }
+      await saveShortfallReasons(payload.outputFolder, payload.reasons);
+      return true;
+    },
+  );
+
+  /**
+   * Deletes session.json (and .bak, .tmp if present) from the output folder.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: true
+   */
+  ipcMain.handle(
+    'session-clear',
+    async (_event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) {
+        throw new Error('session-clear: outputFolder is required');
+      }
+      await clearSession(payload.outputFolder);
+      return true;
+    },
+  );
+
+  /**
+   * Returns true if a valid session.json exists in the output folder.
+   * Used by the Processing screen to show the resume banner.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: boolean
+   */
+  ipcMain.handle(
+    'session-has-existing',
+    async (_event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) return false;
+      return hasExistingSession(payload.outputFolder);
+    },
+  );
+
+  /**
+   * Returns the Set of image IDs already scored in the session.
+   * Used by the orchestrator to skip scored images on resume.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: string[]   (Array form of the Set — JSON-serialisable)
+   */
+  ipcMain.handle(
+    'session-get-scored-ids',
+    async (_event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) return [];
+      const session = await loadSession(payload.outputFolder);
+      if (!session) return [];
+      return Array.from(getScoredIds(session));
     },
   );
 }

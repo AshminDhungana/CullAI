@@ -242,4 +242,100 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Misc ──────────────────────────────────────────────────────────────────
   testConnection: (params) => ipcRenderer.invoke('test-connection', params),
   fetchModels: (payload) => ipcRenderer.invoke('fetch-models', payload),
+
+  // ── Phase 8 — Session Manager ─────────────────────────────────────────────
+
+  /**
+   * Creates a new session for the given settings and total image count.
+   * Overwrites any existing session.json in the output folder.
+   *
+   * @param {{ settings: AppSettings, totalImages: number }} payload
+   * @returns {Promise<Session>}
+   */
+  sessionCreate: (payload) =>
+    ipcRenderer.invoke('session-create', payload),
+
+  /**
+   * Loads the session from the output folder, or returns null if none exists.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<Session | null>}
+   */
+  sessionLoad: (payload) =>
+    ipcRenderer.invoke('session-load', payload),
+
+  /**
+   * Saves a single ScoreRecord into the session and increments scoredCount.
+   * Atomic — safe to call concurrently from a parallel scoring pool.
+   *
+   * @param {{ outputFolder: string, imageId: string, score: ScoreRecord }} payload
+   * @returns {Promise<true>}
+   */
+  sessionSaveScore: (payload) =>
+    ipcRenderer.invoke('session-save-score', payload),
+
+  /**
+   * Marks the session as completed.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<true>}
+   */
+  sessionMarkComplete: (payload) =>
+    ipcRenderer.invoke('session-mark-complete', payload),
+
+  /**
+   * Marks the session as cancelled.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<true>}
+   */
+  sessionMarkCancelled: (payload) =>
+    ipcRenderer.invoke('session-mark-cancelled', payload),
+
+  /**
+   * Saves the discovery-pass AI context string into the session.
+   *
+   * @param {{ outputFolder: string, context: string }} payload
+   * @returns {Promise<true>}
+   */
+  sessionSaveDiscoveryContext: (payload) =>
+    ipcRenderer.invoke('session-save-discovery-context', payload),
+
+  /**
+   * Saves the output shortfall reasons summary into the session.
+   *
+   * @param {{ outputFolder: string, reasons: ShortfallReasons }} payload
+   * @returns {Promise<true>}
+   */
+  sessionSaveShortfallReasons: (payload) =>
+    ipcRenderer.invoke('session-save-shortfall-reasons', payload),
+
+  /**
+   * Deletes session.json (and .bak, .tmp if present) from the output folder.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<true>}
+   */
+  sessionClear: (payload) =>
+    ipcRenderer.invoke('session-clear', payload),
+
+  /**
+   * Returns true if a valid session.json exists in the output folder.
+   * Used by the Processing screen to decide whether to show a resume banner.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<boolean>}
+   */
+  sessionHasExisting: (payload) =>
+    ipcRenderer.invoke('session-has-existing', payload),
+
+  /**
+   * Returns the array of image IDs already scored in the session.
+   * The orchestrator uses this to skip already-scored images on resume.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<string[]>}
+   */
+  sessionGetScoredIds: (payload) =>
+    ipcRenderer.invoke('session-get-scored-ids', payload),
 });

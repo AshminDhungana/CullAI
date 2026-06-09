@@ -681,7 +681,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 8.1 Define Session Types
 
-- [ ] In `src/shared/types.ts`, add:
+- [x] In `src/shared/types.ts`, add:
   ```ts
   type ScoreRecord = {
     filename: string;
@@ -718,22 +718,22 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 8.2 Create the Session Manager Module
 
-- [ ] Create `src/main/session-manager.ts`
-- [ ] Implement `createSession(settings: AppSettings, totalImages: number): Session`
-- [ ] Implement `saveScore(sessionId: string, score: ScoreRecord): void`
+- [x] Create `src/main/session-manager.ts`
+- [x] Implement `createSession(settings: AppSettings, totalImages: number): Session`
+- [x] Implement `saveScore(sessionId: string, score: ScoreRecord): void`
   - Append to `session.json` in output folder immediately (do not batch)
   - Use atomic write pattern (write to temp file, rename) to prevent corruption
-- [ ] Implement `loadSession(outputFolder: string): Session | null` — returns existing session if found
-- [ ] Implement `hasExistingSession(outputFolder: string): boolean`
-- [ ] Implement `getScoredFilenames(session: Session): Set<string>` — for skipping already-scored images on resume
-- [ ] Implement `markSessionComplete(sessionId: string): void`
-- [ ] Implement `markSessionCancelled(sessionId: string): void`
-- [ ] Implement `clearSession(outputFolder: string): void` — deletes `session.json`
+- [x] Implement `loadSession(outputFolder: string): Session | null` — returns existing session if found
+- [x] Implement `hasExistingSession(outputFolder: string): boolean`
+- [x] Implement `getScoredFilenames(session: Session): Set<string>` — for skipping already-scored images on resume
+- [x] Implement `markSessionComplete(sessionId: string): void`
+- [x] Implement `markSessionCancelled(sessionId: string): void`
+- [x] Implement `clearSession(outputFolder: string): void` — deletes `session.json`
 
 ### 8.3 Wire IPC
 
-- [ ] Add IPC handlers: `'session-create'`, `'session-load'`, `'session-save-score'`, `'session-mark-complete'`, `'session-mark-cancelled'`, `'session-clear'`, `'session-has-existing'`
-- [ ] Expose all session IPC calls via preload script
+- [x] Add IPC handlers: `'session-create'`, `'session-load'`, `'session-save-score'`, `'session-mark-complete'`, `'session-mark-cancelled'`, `'session-clear'`, `'session-has-existing'`
+- [x] Expose all session IPC calls via preload script
 
 ✅ **Done Criteria:** A session created with 100 images, interrupted at image 47, reloads with `scoredCount: 47` and correctly identifies the 53 remaining unscored images.
 
