@@ -12,7 +12,8 @@ cullai/
 │   ├── main/                            # Electron main process (Node.js)
 │   │   ├── index.ts                     # App entry point
 │   │   ├── orchestrator.ts               # Full batch pipeline orchestration (Phase 10)
-│   ├── folder-walker.ts                # Recursive directory scanning & file filtering
+│   │   ├── batch-scheduler.ts            # Batch processing logic and scheduling
+│   │   ├── folder-walker.ts                # Recursive directory scanning & file filtering
 │   │   ├── ipc-handlers.ts              # IPC communication
 │   │   ├── license-manager.ts           # License validation
 │   │   ├── raw-decoder.ts               # RAW → JPEG buffer decoder (Phase 4.2)
@@ -32,6 +33,10 @@ cullai/
 │   ├── renderer/                        # React UI (Electron window)
 │   │   ├── assets/                      # UI assets
 │   │   ├── components/                  # Shared UI Components
+│   │   │   ├── CompareView.tsx          # Image comparison view
+│   │   │   ├── FaceOverlay.tsx           # Face/eye detection overlay
+│   │   │   ├── ImageTile.tsx            # Individual image card
+│   │   │   ├── KeyboardCuller.tsx       # Keyboard-driven culling logic
 │   │   │   ├── GenrePresetSelector.tsx
 │   │   │   ├── ScoringWeightsPanel.tsx
 │   │   │   ├── CacheSettingsPanel.tsx
