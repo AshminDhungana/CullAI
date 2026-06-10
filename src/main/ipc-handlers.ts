@@ -64,6 +64,7 @@ import {
   rescoreImages,
 } from './orchestrator';
 import { walkFolders } from './folder-walker';
+import { writeAllSidecars } from './xmp-writer';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -1704,12 +1705,17 @@ export function registerIpcHandlers(store: AppStore): void {
 
       // UTF-8 BOM so Windows Excel opens without encoding dialog
       const BOM = '\uFEFF';
-      const HEADER = 'Filename,Tier,Total Score,Quality,Aesthetic,Composition,Sharpness,Exposure,FaceEyes,Reasoning\n';
+      const HEADER = 'Filename,Tier,Total Score,Quality,Aesthetic,Composition,Sharpness,Exposure,FaceEyes,Keywords,Reasoning\n';
 
       const rows = Object.values(session.scores)
         .sort((a, b) => b.total - a.total)
         .map(r => {
+          // Wrap multi-word fields in quotes; escape any internal double-quotes
           const reasoning = `"${(r.reasoning || '').replace(/"/g, '""')}"`;
+          // Keywords joined with semicolons inside a quoted cell (Phase 13b)
+          const keywords  = r.keywords && r.keywords.length > 0
+            ? `"${r.keywords.join('; ').replace(/"/g, '""')}"`
+            : '';
           return [
             r.filename,
             r.tier,
@@ -1720,6 +1726,7 @@ export function registerIpcHandlers(store: AppStore): void {
             r.scores.sharpness,
             r.scores.exposure,
             r.scores.faceEyes,
+            keywords,
             reasoning,
           ].join(',');
         })
@@ -1834,6 +1841,74 @@ export function registerIpcHandlers(store: AppStore): void {
       }
 
       return { filePath, fileCount: filesToZip.length };
+    },
+  );
+
+  // ── Phase 13 — Export XMP Sidecars ───────────────────────────────────────
+
+  /**
+   * Writes XMP sidecar files alongside original images so that Lightroom
+   * Classic and Capture One can read star ratings, colour labels, AI
+   * reasoning, and keyword tags without modifying the originals.
+   *
+   * The caller supplies an `imagePathMap` that maps each score's filename to
+   * its absolute path on disk. The renderer builds this map from
+   * session.settings.inputFolder + score.filename (with subfolder support
+   * for processSubfolders sessions).
+   *
+   * Tier → Lightroom mapping:
+   *   S        → 5 stars, Green label
+   *   A        → 4 stars, Blue label
+   *   B        → 3 stars, Yellow label
+   *   rejected → 1 star,  Red label
+   *
+   * Payload:
+   *   {
+   *     outputFolder:       string,               // to load session scores
+   *     imagePathMap:       Record<string,string>, // filename → absolutePath
+   *     includeDescription: boolean,              // embed AI reasoning in dc:description
+   *   }
+   * Returns:
+   *   { written: number; errors: string[] }
+   *
+   * Errors are per-file and collected rather than thrown, so one bad path
+   * does not abort the entire batch. The renderer should surface the error
+   * count as a warning toast if errors.length > 0.
+   */
+  ipcMain.handle(
+    'export-xmp',
+    async (
+      _event,
+      payload: {
+        outputFolder: string;
+        imagePathMap: Record<string, string>;
+        includeDescription: boolean;
+      },
+    ) => {
+      if (!payload?.outputFolder) {
+        throw new Error('export-xmp: outputFolder is required');
+      }
+      if (!payload.imagePathMap || typeof payload.imagePathMap !== 'object') {
+        throw new Error('export-xmp: imagePathMap must be a filename→path object');
+      }
+
+      const session = await loadSession(payload.outputFolder);
+      if (!session) {
+        throw new Error('export-xmp: no session found in output folder');
+      }
+
+      const scores = Object.values(session.scores);
+      if (scores.length === 0) {
+        return { written: 0, errors: [] };
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `[ipc] export-xmp — ${scores.length} images, includeDescription=${payload.includeDescription}`,
+        );
+      }
+
+      return writeAllSidecars(scores, payload.imagePathMap, payload.includeDescription);
     },
   );
 

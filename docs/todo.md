@@ -1150,35 +1150,35 @@ Goal: A full-featured gallery for reviewing, comparing, and manually adjusting A
 
 ### 13.1 Choose XMP Writing Strategy
 
-- [ ] Evaluate `xmp-metadata` npm package (listed in README tech stack): install it and test writing a minimal XMP file with `xmp:Rating` and `dc:description`
-- [ ] **If the package handles XMP namespace declarations and `rdf:RDF` wrapper correctly**, use it as the primary writer
-- [ ] **If the package is insufficient** (incorrect namespaces, malformed XML, or cannot handle `dc:subject` arrays), build a custom XML writer using Node.js built-ins (`DOMImplementation` or a simple string template). The XMP spec requires correct namespace prefixes (`x:xmpmeta`, `rdf:RDF`, `rdf:Description`) — incorrect namespaces cause Lightroom to silently ignore the sidecar.
-- [ ] Verify the chosen approach by opening the output `.xmp` in Lightroom Classic and confirming the star rating and color label appear before proceeding with the full implementation.
+- [x] Evaluate `xmp-metadata` npm package (listed in README tech stack): install it and test writing a minimal XMP file with `xmp:Rating` and `dc:description`
+- [x] **If the package handles XMP namespace declarations and `rdf:RDF` wrapper correctly**, use it as the primary writer
+- [x] **If the package is insufficient** (incorrect namespaces, malformed XML, or cannot handle `dc:subject` arrays), build a custom XML writer using Node.js built-ins (`DOMImplementation` or a simple string template). The XMP spec requires correct namespace prefixes (`x:xmpmeta`, `rdf:RDF`, `rdf:Description`) — incorrect namespaces cause Lightroom to silently ignore the sidecar.
+- [x] Verify the chosen approach by opening the output `.xmp` in Lightroom Classic and confirming the star rating and color label appear before proceeding with the full implementation.
 
 ### 13.2 Define XMP Mapping
 
-- [ ] Map score tiers to Lightroom star ratings:
+- [x] Map score tiers to Lightroom star ratings:
   - S-tier → 5 stars (`xmp:Rating = 5`)
   - A-tier → 4 stars (`xmp:Rating = 4`)
   - B-tier → 3 stars (`xmp:Rating = 3`)
   - Rejected → 1 star (`xmp:Rating = 1`)
-- [ ] Map tiers to Lightroom color labels:
+- [x] Map tiers to Lightroom color labels:
   - S-tier → Green
   - A-tier → Blue
   - B-tier → Yellow
   - Rejected → Red
-- [ ] Include CullAI reasoning as `dc:description` field in XMP (optional, configurable)
+- [x] Include CullAI reasoning as `dc:description` field in XMP (optional, configurable)
 
 ### 13.3 Create the XMP Writer Module
 
-- [ ] Create `src/main/xmp-writer.ts`
-- [ ] Implement `writeXmpSidecar(score: ScoreRecord, originalPath: string): Promise<void>`:
+- [x] Create `src/main/xmp-writer.ts`
+- [x] Implement `writeXmpSidecar(score: ScoreRecord, originalPath: string): Promise<void>`:
   - Determine sidecar path: same directory + same basename + `.xmp` extension
   - Build XMP XML with correct namespace declarations (`x:xmpmeta`, `rdf:RDF`, `rdf:Description`)
   - Write `xmp:Rating`, `xmp:Label`, `dc:description` fields
   - Write file (overwrite if exists)
-- [ ] Implement `writeAllSidecars(scores: ScoreRecord[], inputFolder: string): Promise<void>` — writes all sidecars in parallel with `Promise.all()`
-- [ ] Add IPC handler: `'export-xmp'` — takes session data, writes all sidecars, returns count written
+- [x] Implement `writeAllSidecars(scores: ScoreRecord[], inputFolder: string): Promise<void>` — writes all sidecars in parallel with `Promise.all()`
+- [x] Add IPC handler: `'export-xmp'` — takes session data, writes all sidecars, returns count written
 
 ✅ **Done Criteria:** After scoring, XMP sidecars appear next to originals. Star ratings and color labels are visible in Lightroom Classic immediately after import. The XMP approach (library or custom) was validated in Lightroom before full implementation.
 

@@ -438,4 +438,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   rescoreImages: (payload) =>
     ipcRenderer.invoke('re-score-images', payload),
+
+  // ── Phase 13 — XMP Sidecar Export ────────────────────────────────────────
+
+  /**
+   * Writes XMP sidecar files (.xmp) alongside the original images for every
+   * scored result in the session.
+   *
+   * @param {{
+   *   outputFolder:      string,
+   *   imagePathMap:      Record<string, string>,
+   *   includeDescription: boolean,
+   * }} payload
+   *   - outputFolder:       Absolute path to the session output folder.
+   *   - imagePathMap:       Maps score.filename → absolute path to the original
+   *                         image on disk (used to derive the sidecar path).
+   *   - includeDescription: When true, AI reasoning is embedded in the XMP
+   *                         dc:description field.
+   * @returns {Promise<{ written: number; errors: string[] } | null>}
+   *   Returns null if the user cancels the operation (e.g. via a native dialog).
+   */
+  exportXmp: (payload) =>
+    ipcRenderer.invoke('export-xmp', payload),
 });

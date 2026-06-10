@@ -2,6 +2,7 @@
  * src/renderer/screens/Results.tsx
  *
  * Phase 12b — Results Performance & UX
+ * Phase 13  — XMP Export
  *
  * Changes vs Phase 12:
  *   12b.1  Virtualized grid via react-window FixedSizeGrid + react-virtualized-auto-sizer
@@ -10,6 +11,10 @@
  *   12b.5  Export CSV  (IPC: 'export-results-csv')
  *   12b.6  Export session bundle as .zip (IPC: 'export-session-zip')
  *   12b.7  Tab badges now show  count / total  (e.g. "12/200")
+ *   13.1   Export XMP sidecars button (IPC: 'export-xmp')
+ *          — builds imagePathMap from session.settings.inputFolder + score.filename
+ *          — "Include AI reasoning" toggle stored in component state (not persisted)
+ *          — error count surfaced as warning toast when some sidecars fail
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -36,6 +41,7 @@ import {
   FileText,
   Archive,
   RotateCcw,
+  Tag,
 } from 'lucide-react';
 import type { AppSettings, Session, ScoreRecord, PipelineEvent } from '../../shared/types';
 import ImageTile from '../components/ImageTile';
@@ -90,6 +96,10 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
   const [zipProgress,  setZipProgress]  = useState<number | null>(null);
   const [exportToast,  setExportToast]  = useState<{ filePath: string; count: number } | null>(null);
   const [errorMsg,     setErrorMsg]     = useState<string | null>(null);
+
+  // ── XMP export state (Phase 13) ───────────────────────────────────────────────
+  const [exportingXmp,          setExportingXmp]          = useState(false);
+  const [xmpIncludeDescription, setXmpIncludeDescription] = useState(true);
 
   // ── Re-score (12b.4) ──────────────────────────────────────────────────────────
   const [isRescoring,     setIsRescoring]     = useState(false);
@@ -347,6 +357,47 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
     }
   };
 
+  // Phase 13 — XMP sidecar export
+  const handleExportXmp = async () => {
+    if (stats.total === 0) return;
+    setExportingXmp(true);
+    try {
+      // Build filename → absolutePath map from the session's input folder.
+      // For processSubfolders sessions the session stores the full inputFolder
+      // root; score.filename is relative to that root (e.g. "Reception/IMG_001.CR3").
+      // For flat sessions, score.filename is just the basename.
+      const inputFolder = settings.inputFolder;
+      const imagePathMap: Record<string, string> = {};
+      for (const score of Object.values(scoresState)) {
+        // Handles both flat ("IMG_001.CR3") and subfolder-relative paths
+        // ("Reception/IMG_001.CR3") correctly via path.join.
+        imagePathMap[score.filename] = `${inputFolder}/${score.filename}`.replace(/\\/g, '/');
+      }
+
+      const res = await window.electronAPI.exportXmp({
+        outputFolder: settings.outputFolder,
+        imagePathMap,
+        includeDescription: xmpIncludeDescription,
+      });
+
+      if (res) {
+        const { written, errors } = res;
+        if (errors.length > 0) {
+          setErrorMsg(`XMP: ${written} written, ${errors.length} failed. Check the console for details.`);
+          setTimeout(() => setErrorMsg(null), 7000);
+        } else {
+          setExportToast({ filePath: settings.inputFolder, count: written });
+          setTimeout(() => setExportToast(null), 7000);
+        }
+      }
+    } catch (err: any) {
+      setErrorMsg(`XMP export failed: ${err.message || err}`);
+      setTimeout(() => setErrorMsg(null), 5000);
+    } finally {
+      setExportingXmp(false);
+    }
+  };
+
   // 12b.4 — Re-score selected
   const handleRescore = useCallback(async () => {
     if (selectedImageIds.size === 0) return;
@@ -565,6 +616,34 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
                 </span>
               </button>
 
+              {/* Export XMP sidecars (Phase 13) */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleExportXmp}
+                  disabled={exportingXmp || stats.total === 0}
+                  title="Write .xmp sidecar files alongside original images — readable by Lightroom Classic and Capture One"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-500/10 border border-teal-500/30 text-teal-400 hover:bg-teal-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <Tag size={14} className={exportingXmp ? 'animate-pulse' : ''} />
+                  <span>{exportingXmp ? 'Writing XMP…' : 'Export XMP'}</span>
+                </button>
+                {/* Inline toggle: include AI reasoning in dc:description */}
+                <label
+                  className="flex items-center gap-1 cursor-pointer select-none"
+                  title="Embed AI reasoning text in the XMP dc:description field"
+                >
+                  <input
+                    type="checkbox"
+                    checked={xmpIncludeDescription}
+                    onChange={e => setXmpIncludeDescription(e.target.checked)}
+                    className="w-3 h-3 accent-teal-400 cursor-pointer"
+                  />
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                    incl. reasoning
+                  </span>
+                </label>
+              </div>
+
               <button
                 onClick={onBack}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/10 transition"
@@ -740,7 +819,7 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
               <div className="space-y-1.5 flex-1 min-w-0">
                 <h4 className="text-xs font-bold text-emerald-400">Exported Successfully!</h4>
                 <p className="text-[11px] text-white/70 leading-normal truncate">
-                  {exportToast.count} items written to file
+                  {exportToast.count} {exportToast.count === 1 ? 'file' : 'files'} written
                 </p>
                 <div className="flex gap-3 pt-1">
                   <button
