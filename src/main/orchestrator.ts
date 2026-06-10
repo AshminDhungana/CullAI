@@ -387,20 +387,24 @@ export async function* runPipeline(
       { batchIndex: batchIdx + 1, totalBatches },
     )) {
       if (event.type === 'pipeline-complete') {
-        batchSession = event.session;
+        const currentBatchSession = event.session;
+        if (!currentBatchSession) continue;
+        batchSession = currentBatchSession;
+
         // Accumulate into masterSession — merge scores maps so every batch
         // contributes its ScoreRecords to the final result.
         if (masterSession === null) {
           // First completed batch becomes the base session.
-          masterSession = { ...batchSession };
+          masterSession = { ...currentBatchSession };
         } else {
+          const currentMasterSession = masterSession as import('../shared/types').Session;
           // Subsequent batches: merge scores and update aggregate counts.
           masterSession = {
-            ...masterSession,
+            ...currentMasterSession,
             // Keep the original session's identity / timestamps
-            totalImages: masterSession.totalImages + batchSession.totalImages,
-            scoredCount: masterSession.scoredCount + batchSession.scoredCount,
-            scores: { ...masterSession.scores, ...batchSession.scores },
+            totalImages: currentMasterSession.totalImages + currentBatchSession.totalImages,
+            scoredCount: currentMasterSession.scoredCount + currentBatchSession.scoredCount,
+            scores: { ...currentMasterSession.scores, ...currentBatchSession.scores },
             // The master session is "complete" only after the final batch.
             status: 'running',
           };
@@ -821,6 +825,69 @@ async function* _runSingleFolderBatch(
     } catch { /* non-fatal */ }
   }
   const selectedSCount = tiered.filter(e => e.record.tier === 'S').length;
+
+  // =========================================================================
+  // Step 9b — Generate gallery thumbnails
+  // =========================================================================
+  //
+  // Create ~200px JPEG thumbnails for each scored image and store them as
+  // files in {outputFolder}/.cullai_cache/thumbnails/. This follows the
+  // file-based caching pattern recommended for Electron image galleries
+  // (vs base64 in session.json which bloats memory and has no browser caching).
+
+  if (devMode) console.log('[orchestrator] Step 9b: generating gallery thumbnails');
+
+  const thumbDir = path.join(path.resolve(settings.outputFolder), '.cullai_cache', 'thumbnails');
+  try {
+    await fs.promises.mkdir(thumbDir, { recursive: true });
+  } catch { /* non-fatal — thumbnails are optional */ }
+
+  // Build a lookup from imageId → base64 so we can generate thumbnails
+  // from the already-in-memory data. allRecords contains all images with
+  // their base64 from the processFolder step.
+  const idToBase64 = new Map<string, string>();
+  for (const rec of allRecords) {
+    idToBase64.set(rec.id, rec.base64);
+  }
+
+  for (const { id, record } of tiered) {
+    if (signal.aborted) break;
+    const base64Data = idToBase64.get(id);
+    if (!base64Data) continue;
+
+    try {
+      const srcBuffer = Buffer.from(base64Data, 'base64');
+      // Use sharp (via lazy import from image-processor) to resize to ~200px
+      let thumbBuffer: Buffer;
+      try {
+        const sharpMod = (await import('sharp')).default as unknown as typeof import('sharp');
+        const { data } = await (sharpMod as any)(srcBuffer)
+          .resize({ width: 200, height: 200, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 70, mozjpeg: true })
+          .toBuffer({ resolveWithObject: true });
+        thumbBuffer = data as Buffer;
+      } catch {
+        // sharp not available — store the full buffer (suboptimal but functional)
+        thumbBuffer = srcBuffer;
+      }
+
+      const thumbFilename = `${id}.jpg`;
+      const thumbPath = path.join(thumbDir, thumbFilename);
+      await fs.promises.writeFile(thumbPath, thumbBuffer);
+      record.thumbnailPath = `.cullai_cache/thumbnails/${thumbFilename}`;
+
+      // Persist the updated thumbnailPath to session
+      try {
+        await saveScore(settings.outputFolder, id, record);
+      } catch { /* non-fatal */ }
+    } catch (thumbErr: unknown) {
+      // Non-fatal — gallery will show a placeholder for this image
+      if (devMode) {
+        const msg = thumbErr instanceof Error ? thumbErr.message : String(thumbErr);
+        console.warn(`[orchestrator] Thumbnail generation failed for ${record.filename}: ${msg}`);
+      }
+    }
+  }
 
 
   // =========================================================================

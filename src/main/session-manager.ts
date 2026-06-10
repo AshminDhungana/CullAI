@@ -340,6 +340,53 @@ export async function clearSession(outputFolder: string): Promise<void> {
   }
 }
 
+/**
+ * Updates the tier of a single image in the session.
+ *
+ * Used by the Results screen when the user manually overrides a tier via
+ * keyboard shortcuts (P/X/R) or drag-and-drop. Persists the change
+ * atomically using the existing write-lock mechanism.
+ *
+ * @param outputFolder  Absolute path to the output folder.
+ * @param imageId       The ImageRecord.id (session scores key).
+ * @param newTier       The new tier to assign.
+ * @returns             The updated ScoreRecord, or null if the image was not found.
+ */
+export async function updateTier(
+  outputFolder: string,
+  imageId: string,
+  newTier: 'S' | 'A' | 'B' | 'rejected',
+): Promise<ScoreRecord | null> {
+  const filePath = sessionFilePath(outputFolder);
+  let result: ScoreRecord | null = null;
+
+  await withWriteLock(filePath, async () => {
+    const session = await _readSessionUnsafe(filePath);
+    if (!session) {
+      throw new Error(
+        `[session-manager] updateTier: session file not found at ${filePath}`,
+      );
+    }
+    const record = session.scores[imageId];
+    if (!record) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[session-manager] updateTier: image ${imageId} not found in session scores`);
+      }
+      return;
+    }
+    record.tier = newTier;
+    session.scores[imageId] = record;
+    await atomicWrite(filePath, JSON.stringify(session, null, 2));
+    result = record;
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[session-manager] Updated tier for ${record.filename}: ${newTier}`);
+    }
+  });
+
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------

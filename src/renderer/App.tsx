@@ -3,7 +3,7 @@ import { SplashScreen } from "./components/SplashScreen";
 import SetupScreen from "./screens/Setup";
 import ProcessingScreen from "./screens/Processing";
 import ResultsScreen from "./screens/Results";
-import type { AppSettings } from "../shared/types";
+import type { AppSettings, Session } from "../shared/types";
 import { defaultAppSettings } from "../shared/types";
 import { useTheme } from "./hooks/useTheme";
 import { Sun, Moon } from "lucide-react";
@@ -23,6 +23,9 @@ function App() {
   // Holds the settings chosen in Setup so Processing + Results can read them.
   // Initialised with defaults so the type is always non-nullable downstream.
   const [currentSettings, setCurrentSettings] = useState<AppSettings>(defaultAppSettings());
+
+  // Holds the completed session from the pipeline so Results can display scores.
+  const [completedSession, setCompletedSession] = useState<Session | null>(null);
 
   const { toggle, isDark } = useTheme();
 
@@ -45,6 +48,7 @@ function App() {
   /** Called by Setup's "Start Culling" button. */
   const handleStartCulling = useCallback((settings: AppSettings) => {
     setCurrentSettings(settings);
+    setCompletedSession(null);
     setScreen("processing");
   }, []);
 
@@ -52,12 +56,16 @@ function App() {
     setScreen("setup");
   }, []);
 
-  const handleProcessingComplete = useCallback(() => {
+  const handleProcessingComplete = useCallback((session?: Session) => {
+    if (session) {
+      setCompletedSession(session);
+    }
     setScreen("results");
   }, []);
 
   /** Results → back to Setup for another run. */
   const handleBackToSetup = () => {
+    setCompletedSession(null);
     setScreen("setup");
   };
 
@@ -143,6 +151,7 @@ function App() {
         <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
           <ResultsScreen
             settings={currentSettings}
+            session={completedSession}
             onBack={handleBackToSetup}
           />
         </div>

@@ -424,6 +424,20 @@ export type ScoreRecord = {
     inputTokens: number;
     outputTokens: number;
   };
+  /**
+   * Relative path to the ~200px JPEG thumbnail cached in the output folder's
+   * `.cullai_cache/thumbnails/` directory. Used by the Results screen gallery.
+   *
+   * The path is relative to the output folder root, e.g.
+   *   `.cullai_cache/thumbnails/a1b2c3d4.jpg`
+   *
+   * The renderer prepends the output folder's absolute path and uses the
+   * `file://` protocol to display the image in an `<img>` tag.
+   *
+   * Populated by the orchestrator after scoring. May be undefined if thumbnail
+   * generation failed or was skipped (e.g. dry-run mode).
+   */
+  thumbnailPath?: string;
 };
 
 export type SessionStatus = 'running' | 'completed' | 'cancelled' | 'crashed';

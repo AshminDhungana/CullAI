@@ -1027,7 +1027,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ## Phase 12 — Results Screen (Enhanced)
 
-> Goal: A full-featured gallery for reviewing, comparing, and manually adjusting AI selections.
+Goal: A full-featured gallery for reviewing, comparing, and manually adjusting AI selections.
 
 ### 12.1 Build ImageTile Component
 

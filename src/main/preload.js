@@ -367,4 +367,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   sessionGetScoredIds: (payload) =>
     ipcRenderer.invoke('session-get-scored-ids', payload),
+
+  // ── Phase 12 — Results Screen ─────────────────────────────────────────────
+
+  /**
+   * Updates the tier of a single image in the persisted session.
+   * Used by the Results screen for manual tier overrides (P/X/R shortcuts).
+   *
+   * @param {{ outputFolder: string, imageId: string, newTier: 'S'|'A'|'B'|'rejected' }} payload
+   * @returns {Promise<import('../shared/types').ScoreRecord | null>}
+   */
+  sessionUpdateTier: (payload) =>
+    ipcRenderer.invoke('session-update-tier', payload),
+
+  /**
+   * Exports session results as a clean, user-facing JSON file to the output
+   * folder. The export contains only filename, tier, score, reasoning, and
+   * keywords — no internal IDs, thumbnails, or session metadata.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<{ filePath: string, imageCount: number }>}
+   */
+  exportResultsJson: (payload) =>
+    ipcRenderer.invoke('export-results-json', payload),
 });

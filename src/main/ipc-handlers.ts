@@ -53,6 +53,7 @@ import {
   saveDiscoveryContext,
   saveShortfallReasons,
   clearSession,
+  updateTier,
 } from './session-manager';
 import {
   runPipeline,
@@ -1582,6 +1583,98 @@ export function registerIpcHandlers(store: AppStore): void {
       const { outputFolder, targetCount } = payload;
       const updatedSession = await fillShortfall(outputFolder, targetCount);
       return updatedSession;
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Phase 12 — Results Screen IPC
+  // -------------------------------------------------------------------------
+
+  /**
+   * Updates the tier of a single image in the persisted session.
+   * Used by the Results screen when the user manually overrides via keyboard
+   * shortcuts (P/X/R) or other UI interactions.
+   *
+   * Payload: { outputFolder: string, imageId: string, newTier: 'S' | 'A' | 'B' | 'rejected' }
+   * Returns: ScoreRecord | null
+   */
+  ipcMain.handle(
+    'session-update-tier',
+    async (
+      _event,
+      payload: { outputFolder: string; imageId: string; newTier: 'S' | 'A' | 'B' | 'rejected' },
+    ) => {
+      if (!payload?.outputFolder || !payload?.imageId || !payload?.newTier) {
+        throw new Error('session-update-tier: missing required fields');
+      }
+      const validTiers = ['S', 'A', 'B', 'rejected'];
+      if (!validTiers.includes(payload.newTier)) {
+        throw new Error(`session-update-tier: invalid tier "${payload.newTier}"`);
+      }
+      return updateTier(payload.outputFolder, payload.imageId, payload.newTier);
+    },
+  );
+
+  /**
+   * Exports session results as a clean, user-facing JSON file.
+   *
+   * The export is a sidecar-style array of objects with only the fields that
+   * matter to downstream tools (Lightroom, scripts, manual review). Internal
+   * IDs, session metadata, and thumbnails are excluded.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: { filePath: string, imageCount: number }
+   */
+  ipcMain.handle(
+    'export-results-json',
+    async (_event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) {
+        throw new Error('export-results-json: outputFolder is required');
+      }
+      const session = await loadSession(payload.outputFolder);
+      if (!session) {
+        throw new Error('export-results-json: no session found in output folder');
+      }
+
+      // Build clean export array
+      const results = Object.values(session.scores).map((score) => ({
+        filename: score.filename,
+        tier: score.tier,
+        score: score.total,
+        scores: {
+          quality: score.scores.quality,
+          aesthetic: score.scores.aesthetic,
+          composition: score.scores.composition,
+          sharpness: score.scores.sharpness,
+          exposure: score.scores.exposure,
+          faceEyes: score.scores.faceEyes,
+        },
+        reasoning: score.reasoning,
+        keywords: score.keywords ?? [],
+        faces: score.faceMetadata ? {
+          detected: score.faceMetadata.hasFaces,
+          count: score.faceMetadata.faceCount,
+          eyesOpen: score.faceMetadata.eyesOpen,
+          blinkDetected: score.faceMetadata.blinkDetected,
+        } : null,
+      }));
+
+      // Sort: S first, then A, B, rejected; within each tier, by score desc
+      const tierOrder: Record<string, number> = { S: 0, A: 1, B: 2, rejected: 3 };
+      results.sort((a, b) => {
+        const tierDiff = (tierOrder[a.tier] ?? 4) - (tierOrder[b.tier] ?? 4);
+        if (tierDiff !== 0) return tierDiff;
+        return b.score - a.score;
+      });
+
+      const exportPath = path.join(path.resolve(payload.outputFolder), 'results.json');
+      await fs.promises.writeFile(exportPath, JSON.stringify(results, null, 2), 'utf8');
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[ipc] export-results-json → ${exportPath} (${results.length} images)`);
+      }
+
+      return { filePath: exportPath, imageCount: results.length };
     },
   );
 }
