@@ -1,7 +1,8 @@
 /**
  * src/main/orchestrator.ts
  *
- * Phase 10 — Full Batch Pipeline (Serial)
+ * Phase 10 — Full Batch Pipeline
+ * Phase 11 — Parallel Scoring via BatchScheduler
  *
  * Implements the three core pipeline functions:
  *
@@ -15,11 +16,11 @@
  *       rejected regardless of percentile).
  *
  *   runPipeline(settings, senderId, signal)
- *     → AsyncGenerator<PipelineEvent>. The full serial pipeline:
+ *     → AsyncGenerator<PipelineEvent>. The full pipeline:
  *       scan → §10.5 input-count validation → processFolder → duplicate
  *       detection → face detection → discovery pass → createSession →
- *       serial scoring loop → tier assignment → shortfall summary →
- *       markSessionComplete.
+ *       parallel scoring (BatchScheduler) → tier assignment → shortfall
+ *       summary → markSessionComplete.
  *
  * MAIN-PROCESS ONLY. Never import from src/renderer or src/shared.
  */
@@ -33,8 +34,8 @@ import { detectFaces } from './face-detector';
 import {
   buildDiscoveryPrompt,
   callAIDiscovery,
-  scoreImage,
 } from './ai-client';
+import { BatchScheduler } from './batch-scheduler';
 import {
   createSession,
   saveScore,
@@ -690,7 +691,6 @@ async function* _runSingleFolderBatch(
 
   const startMs = Date.now();
   const scoreEntries: Array<{ id: string; record: ScoreRecord }> = [];
-  let scoredCount = 0;
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
 
@@ -722,14 +722,17 @@ async function* _runSingleFolderBatch(
     } catch { /* non-fatal — session will still complete */ }
   }
 
-  // Score each non-pre-rejected representative serially.
-  for (const rep of scorableReps) {
-    if (signal.aborted) {
-      await markSessionCancelled(settings.outputFolder);
-      return;
-    }
+  // ── Phase 11: Parallel scoring via BatchScheduler ─────────────────────────
+  //
+  // BatchScheduler.run() is an AsyncGenerator that yields one SchedulerResult
+  // per image as each worker finishes. Because we `for await` it directly
+  // inside this generator function, we can `yield` IPC events immediately
+  // after each result — no buffering, fully live progress and cost updates.
 
-    const aiParams: AICallParams = {
+  // Build the flat work queue from scorable representatives.
+  const workQueue: Array<{ id: string; params: AICallParams }> = scorableReps.map((rep) => ({
+    id: rep.id,
+    params: {
       imageBase64: rep.base64,
       filename: rep.filename,
       discoveryContext,
@@ -740,63 +743,68 @@ async function* _runSingleFolderBatch(
       apiKey,
       model: settings.model,
       baseUrl: settings.baseUrl,
-    };
+    },
+  }));
 
-    let scoreRecord: ScoreRecord;
-    try {
-      scoreRecord = await scoreImage(aiParams);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // Non-fatal: give this image a zero score with a rejection note.
-      console.warn(`[orchestrator] Scoring failed for ${rep.filename}: ${msg}`);
-      scoreRecord = {
-        filename: rep.filename,
-        scores: { quality: 0, aesthetic: 0, composition: 0, sharpness: 0, exposure: 0, faceEyes: 0 },
-        total: 0,
-        tier: 'rejected',
-        reasoning: `Scoring failed: ${msg}`,
-        faceMetadata: rep.faceMetadata ?? EMPTY_FACE_METADATA,
-        usage: { inputTokens: 0, outputTokens: 0 },
+  const scheduler = new BatchScheduler({ concurrency: settings.concurrency, signal });
+  let parallelScoredCount = 0;
+
+  for await (const result of scheduler.run(workQueue)) {
+    // ── Auth error — abort immediately, surface to renderer ──────────────────
+    if (result.authError) {
+      yield {
+        type: 'pipeline-error',
+        code: 'AUTH_FAILED',
+        message: result.authError.message,
+        recoverable: false,
       };
+      await markSessionCancelled(settings.outputFolder);
+      return;
     }
 
-    scoreEntries.push({ id: rep.id, record: scoreRecord });
+    const { id: imageId, record } = result;
 
+    // Persist to session immediately — crash-safe resume.
     try {
-      await saveScore(settings.outputFolder, rep.id, scoreRecord);
+      await saveScore(settings.outputFolder, imageId, record);
     } catch { /* non-fatal */ }
 
-    scoredCount++;
+    scoreEntries.push({ id: imageId, record });
+    parallelScoredCount++;
 
-    // Accumulate token usage for cost-update events.
-    totalInputTokens  += scoreRecord.usage?.inputTokens  ?? 0;
-    totalOutputTokens += scoreRecord.usage?.outputTokens ?? 0;
+    // Accumulate token usage.
+    totalInputTokens  += record.usage?.inputTokens  ?? 0;
+    totalOutputTokens += record.usage?.outputTokens ?? 0;
 
-    // ETA calculation.
+    // ETA: account for parallel throughput by dividing elapsed wall-clock
+    // time by concurrency — gives actual expected time remaining.
     const elapsedMs = Date.now() - startMs;
-    const avgMs = elapsedMs / scoredCount;
-    const remaining = scorableReps.length - scoredCount;
+    const effectiveConcurrency = Math.max(1, settings.concurrency);
+    const avgMs = (elapsedMs / parallelScoredCount) / effectiveConcurrency;
+    const remaining = scorableReps.length - parallelScoredCount;
     const etaSeconds = remaining > 0 ? Math.round((avgMs * remaining) / 1000) : 0;
 
+    // ── Live IPC events — emitted immediately as each image completes ─────────
     yield {
       type: 'pipeline-image-scored',
-      filename: rep.filename,
-      score: scoreRecord,
-      scoredCount,
+      filename: record.filename,
+      score: record,
+      scoredCount: parallelScoredCount,
       etaSeconds,
     };
 
-    // Emit cost update every 10 images (or on every image if < 10 total).
-    if (scoredCount % 10 === 0 || scoredCount === scorableReps.length) {
-      yield {
-        type: 'pipeline-cost-update',
-        totalInputTokens,
-        totalOutputTokens,
-      };
-    }
+    yield {
+      type: 'pipeline-cost-update',
+      totalInputTokens,
+      totalOutputTokens,
+    };
   }
 
-  if (await checkAbort(settings.outputFolder)) return;
+  // If the signal was aborted (user cancel) during parallel scoring, exit now.
+  if (signal.aborted) {
+    await markSessionCancelled(settings.outputFolder);
+    return;
+  }
 
   // =========================================================================
   // Step 9 — Tier assignment
