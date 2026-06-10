@@ -390,4 +390,52 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   exportResultsJson: (payload) =>
     ipcRenderer.invoke('export-results-json', payload),
+
+  // ── Phase 12b — Results Performance & UX ─────────────────────────────────
+
+  /**
+   * Exports all session scores as a UTF-8 BOM CSV file (Excel-friendly).
+   * Opens a native save dialog. Returns null if the user cancels.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<{ filePath: string, imageCount: number } | null>}
+   */
+  exportResultsCsv: (payload) =>
+    ipcRenderer.invoke('export-results-csv', payload),
+
+  /**
+   * Zips session.json, results.json, and all XMP sidecars into a user-chosen
+   * .zip file. Opens a native save dialog. Returns null if cancelled.
+   * Pushes 'zip-progress' events (0–100) during archiving — subscribe via
+   * onZipProgress() before calling this.
+   *
+   * @param {{ outputFolder: string }} payload
+   * @returns {Promise<{ filePath: string, fileCount: number } | null>}
+   */
+  exportSessionZip: (payload) =>
+    ipcRenderer.invoke('export-session-zip', payload),
+
+  /**
+   * Subscribes to 'zip-progress' events emitted during exportSessionZip().
+   * Returns an unsubscribe function — call it after the export completes.
+   *
+   * @param {(pct: number) => void} callback
+   * @returns {() => void} Unsubscribe function.
+   */
+  onZipProgress: (callback) => {
+    const handler = (_e, pct) => callback(pct);
+    ipcRenderer.on('zip-progress', handler);
+    return () => ipcRenderer.removeListener('zip-progress', handler);
+  },
+
+  /**
+   * Re-scores a subset of already-processed images using the current
+   * settings.weights. Emits 'pipeline-event' (pipeline-image-scored) for each
+   * image — subscribe via onPipelineEvent() before calling.
+   *
+   * @param {{ imageIds: string[], outputFolder: string, settings: AppSettings }} payload
+   * @returns {Promise<void>}
+   */
+  rescoreImages: (payload) =>
+    ipcRenderer.invoke('re-score-images', payload),
 });

@@ -6,7 +6,7 @@
  * and allows quick tier adjustment (P/X/R or button clicks) side-by-side.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Star, Sparkles, Camera, Focus, Sun, Eye, ChevronLeft } from 'lucide-react';
 import type { ScoreRecord } from '../../shared/types';
 import FaceOverlay from './FaceOverlay';
@@ -43,6 +43,18 @@ export default function CompareView({
   const [hoveredImageId, setHoveredImageId] = useState<string | null>(null);
   const imgRefs = useRef<Record<string, HTMLImageElement | null>>({});
 
+  // ── 12b.3 — Before/After Slider (2-image mode only) ──────────────────────
+  const [sliderMode, setSliderMode] = useState(false);
+  const [sliderPct, setSliderPct] = useState(50);
+  const isDragging = useRef(false);
+  const sliderRef = useRef<HTMLDivElement>(null);
+
+  // Reset slider when selection changes
+  useEffect(() => {
+    setSliderPct(50);
+    setSliderMode(false);
+  }, [selectedItems]);
+
   // Determine grid layout based on selection count
   const count = selectedItems.length;
   let gridClass = 'grid-cols-2';
@@ -76,6 +88,18 @@ export default function CompareView({
             <ChevronLeft size={20} />
           </button>
           <h2 className="text-lg font-semibold tracking-tight">Compare View ({count} images)</h2>
+          {count === 2 && (
+            <button
+              onClick={() => setSliderMode(m => !m)}
+              className={`ml-4 px-3 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                sliderMode
+                  ? 'bg-amber-500 border-amber-400 text-black'
+                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+              }`}
+            >
+              {sliderMode ? 'Exit Slider' : 'Split-screen Slider'}
+            </button>
+          )}
         </div>
         <button
           onClick={onClose}
@@ -86,8 +110,73 @@ export default function CompareView({
         </button>
       </div>
 
-      {/* Grid container */}
-      <div className={`flex-1 p-6 grid gap-6 ${gridClass} overflow-hidden min-h-0`}>
+      {/* Slider mode (2-image only) OR normal grid */}
+      {sliderMode && count === 2 ? (
+        <div
+          ref={sliderRef}
+          className="flex-1 relative overflow-hidden select-none cursor-col-resize"
+          onMouseDown={(e) => { isDragging.current = true; e.preventDefault(); }}
+          onMouseMove={(e) => {
+            if (!isDragging.current || !sliderRef.current) return;
+            const rect = sliderRef.current.getBoundingClientRect();
+            const pct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+            setSliderPct(pct);
+          }}
+          onMouseUp={() => { isDragging.current = false; }}
+          onMouseLeave={() => { isDragging.current = false; }}
+        >
+          {/* LEFT image — clipped to sliderPct% */}
+          {(() => {
+            const { record: leftRecord } = selectedItems[0];
+            const leftSrc = leftRecord.thumbnailPath
+              ? `file:///${outputFolder.replace(/\\/g, '/')}/${leftRecord.thumbnailPath}`
+              : undefined;
+            return (
+              <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - sliderPct}% 0 0)` }}>
+                {leftSrc
+                  ? <img src={leftSrc} alt={leftRecord.filename} className="w-full h-full object-contain" draggable={false} />
+                  : <div className="w-full h-full bg-black/40 flex items-center justify-center text-white/30 text-sm">No preview</div>
+                }
+                <div className="absolute bottom-3 left-3 px-2 py-0.5 text-xs font-bold bg-black/70 rounded text-amber-300 truncate max-w-[45%]">
+                  {leftRecord.filename}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* RIGHT image */}
+          {(() => {
+            const { record: rightRecord } = selectedItems[1];
+            const rightSrc = rightRecord.thumbnailPath
+              ? `file:///${outputFolder.replace(/\\/g, '/')}/${rightRecord.thumbnailPath}`
+              : undefined;
+            return (
+              <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 0 0 ${sliderPct}%)` }}>
+                {rightSrc
+                  ? <img src={rightSrc} alt={rightRecord.filename} className="w-full h-full object-contain" draggable={false} />
+                  : <div className="w-full h-full bg-black/40 flex items-center justify-center text-white/30 text-sm">No preview</div>
+                }
+                <div className="absolute bottom-3 right-3 px-2 py-0.5 text-xs font-bold bg-black/70 rounded text-sky-300 truncate max-w-[45%]">
+                  {rightRecord.filename}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Draggable divider line */}
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-white/80 shadow-[0_0_8px_rgba(255,255,255,0.5)] pointer-events-none"
+            style={{ left: `${sliderPct}%` }}
+          >
+            {/* Handle */}
+            <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 border-2 border-white flex items-center justify-center shadow-lg">
+              <span className="text-black text-[10px] font-bold select-none">⇔</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Grid container */
+        <div className={`flex-1 p-6 grid gap-6 ${gridClass} overflow-hidden min-h-0`}>
         {selectedItems.map(({ id, record }) => {
           const tierStyle = TIER_COLORS[record.tier] ?? TIER_COLORS.rejected;
           const thumbnailSrc = record.thumbnailPath
@@ -191,6 +280,7 @@ export default function CompareView({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

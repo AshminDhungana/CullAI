@@ -34,6 +34,7 @@ import { detectFaces } from './face-detector';
 import {
   buildDiscoveryPrompt,
   callAIDiscovery,
+  scoreImage,
 } from './ai-client';
 import { BatchScheduler } from './batch-scheduler';
 import {
@@ -1121,4 +1122,143 @@ export async function fillShortfall(
   const updatedSession = await loadSession(outputFolder);
   if (!updatedSession) throw new Error('Failed to reload session after fill');
   return updatedSession;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 12b.4 — Re-score Selected Images
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-scores a subset of already-processed images using the current weights
+ * without re-running folder scan or duplicate detection.
+ *
+ * For each image:
+ *   1. Load the existing ScoreRecord from session to get filename + faceMetadata.
+ *   2. Load the cached thumbnail JPEG from `.cullai_cache/thumbnails/{id}.jpg`
+ *      and convert it to base64 for the AI call.
+ *   3. Call scoreImage() with the new weights.
+ *   4. Persist the updated record.
+ *   5. Emit a `pipeline-image-scored` event so the renderer updates in real time.
+ *
+ * After all images are scored, run assignTiers() on the full session so tier
+ * percentiles are recalculated across the entire image set.
+ *
+ * @param imageIds     Array of session image IDs to re-score.
+ * @param outputFolder Absolute path to the output folder (contains session.json).
+ * @param settings     AppSettings with the new weights and provider config.
+ * @param sender       WebContents to push `pipeline-image-scored` events to.
+ */
+export async function rescoreImages(
+  imageIds: string[],
+  outputFolder: string,
+  settings: AppSettings,
+  sender: import('electron').WebContents,
+): Promise<void> {
+  const session = await loadSession(outputFolder);
+  if (!session) throw new Error('re-score-images: no session found in output folder.');
+
+  const devMode = process.env.NODE_ENV === 'development';
+  const thumbDir = path.join(path.resolve(outputFolder), '.cullai_cache', 'thumbnails');
+
+  // Build an in-memory map of all entries for tier recalculation later
+  const allEntries: Array<{ id: string; record: ScoreRecord }> = Object.entries(session.scores).map(
+    ([id, record]) => ({ id, record }),
+  );
+
+  let scoredCount = 0;
+
+  for (const imageId of imageIds) {
+    const existing = session.scores[imageId];
+    if (!existing) {
+      if (devMode) console.warn(`[rescoreImages] imageId "${imageId}" not found in session — skipping`);
+      continue;
+    }
+
+    // Load thumbnail base64 from disk cache
+    const thumbPath = path.join(thumbDir, `${imageId}.jpg`);
+    let imageBase64: string;
+    try {
+      const thumbBuffer = await fs.promises.readFile(thumbPath);
+      imageBase64 = thumbBuffer.toString('base64');
+    } catch {
+      if (devMode) console.warn(`[rescoreImages] No thumbnail for ${existing.filename} — skipping`);
+      continue;
+    }
+
+    // Build a minimal StyleProfile from current settings
+    const styleProfile: StyleProfile = {
+      id:            settings.activeProfileId ?? 'ad-hoc',
+      name:          'Ad-hoc',
+      genre:         settings.genre as import('../shared/types').GenrePreset,
+      weights:       settings.weights,
+      preferenceText: settings.preferenceText,
+      createdAt:     new Date().toISOString(),
+      lastUsedAt:    new Date().toISOString(),
+    };
+
+    const params: AICallParams = {
+      imageBase64,
+      filename:       existing.filename,
+      discoveryContext: session.discoveryContext ?? '',
+      styleProfile,
+      weights:        settings.weights,
+      faceMetadata:   existing.faceMetadata,
+      provider:       settings.provider,
+      apiKey:         settings.apiKey,
+      model:          settings.model,
+      baseUrl:        settings.baseUrl,
+    };
+
+    let newRecord: ScoreRecord;
+    try {
+      newRecord = await scoreImage(params);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[rescoreImages] scoreImage failed for ${existing.filename}: ${msg}`);
+      continue;
+    }
+
+    // Preserve fields that scoreImage doesn't populate
+    newRecord.thumbnailPath = existing.thumbnailPath;
+    newRecord.keywords      = existing.keywords;
+
+    // Update the in-memory entry for tier recalculation
+    const entryRef = allEntries.find(e => e.id === imageId);
+    if (entryRef) entryRef.record = newRecord;
+
+    // Persist to session
+    try {
+      await saveScore(outputFolder, imageId, newRecord);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[rescoreImages] saveScore failed for ${existing.filename}: ${msg}`);
+    }
+
+    scoredCount++;
+
+    // Notify renderer — reuse the pipeline-image-scored event type.
+    // We send imageId in the `filename` field so the renderer can key by ID.
+    if (!sender.isDestroyed()) {
+      sender.send('pipeline-event', {
+        type:        'pipeline-image-scored',
+        filename:    imageId,
+        score:       newRecord,
+        scoredCount,
+        etaSeconds:  null,
+      });
+    }
+  }
+
+  // Re-run tier assignment on the full updated session so percentiles are
+  // correct across the whole image set (not just the re-scored subset).
+  const retiered = assignTiers(allEntries);
+  for (const { id, record } of retiered) {
+    try {
+      await saveScore(outputFolder, id, record);
+    } catch { /* non-fatal */ }
+  }
+
+  if (devMode) {
+    console.log(`[rescoreImages] Completed: ${scoredCount}/${imageIds.length} images re-scored.`);
+  }
 }

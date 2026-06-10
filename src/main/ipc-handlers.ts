@@ -19,6 +19,7 @@
 import { dialog, ipcMain, safeStorage, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import archiver from 'archiver';
 import { storeApiKey, getApiKey, deleteApiKey } from './safe-storage';
 import {
   getLicenseStatus,
@@ -60,6 +61,7 @@ import {
   resolvePipelineConfirmation,
   rejectPipelineConfirmation,
   fillShortfall,
+  rescoreImages,
 } from './orchestrator';
 import { walkFolders } from './folder-walker';
 
@@ -1675,6 +1677,193 @@ export function registerIpcHandlers(store: AppStore): void {
       }
 
       return { filePath: exportPath, imageCount: results.length };
+    },
+  );
+
+  // ── 12b.5 — Export Scores as CSV ──────────────────────────────────────────
+
+  /**
+   * Exports all session scores as a UTF-8 BOM CSV (Excel-friendly).
+   * Columns: Filename, Tier, Total Score, Quality, Aesthetic, Composition,
+   *          Sharpness, Exposure, FaceEyes, Reasoning
+   * Sorted by total score descending.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: { filePath: string, imageCount: number } | null (null if cancelled)
+   */
+  ipcMain.handle(
+    'export-results-csv',
+    async (_event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) {
+        throw new Error('export-results-csv: outputFolder is required');
+      }
+      const session = await loadSession(payload.outputFolder);
+      if (!session) {
+        throw new Error('export-results-csv: no session found in output folder');
+      }
+
+      // UTF-8 BOM so Windows Excel opens without encoding dialog
+      const BOM = '\uFEFF';
+      const HEADER = 'Filename,Tier,Total Score,Quality,Aesthetic,Composition,Sharpness,Exposure,FaceEyes,Reasoning\n';
+
+      const rows = Object.values(session.scores)
+        .sort((a, b) => b.total - a.total)
+        .map(r => {
+          const reasoning = `"${(r.reasoning || '').replace(/"/g, '""')}"`;
+          return [
+            r.filename,
+            r.tier,
+            r.total.toFixed(2),
+            r.scores.quality,
+            r.scores.aesthetic,
+            r.scores.composition,
+            r.scores.sharpness,
+            r.scores.exposure,
+            r.scores.faceEyes,
+            reasoning,
+          ].join(',');
+        })
+        .join('\n');
+
+      const csvContent = BOM + HEADER + rows;
+
+      const { filePath, canceled } = await dialog.showSaveDialog({
+        defaultPath: path.join(payload.outputFolder, 'cullai_scores.csv'),
+        filters: [{ name: 'CSV', extensions: ['csv'] }],
+      });
+      if (canceled || !filePath) return null;
+
+      await fs.promises.writeFile(filePath, csvContent, 'utf-8');
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[ipc] export-results-csv → ${filePath} (${Object.keys(session.scores).length} images)`);
+      }
+
+      return { filePath, imageCount: Object.keys(session.scores).length };
+    },
+  );
+
+  // ── 12b.6 — Export Session as Portable Archive (.zip) ─────────────────────
+
+  /**
+   * Zips session.json, results.json, and all XMP sidecars into a user-chosen
+   * .zip file. Emits 'zip-progress' events (0–100) during archiving.
+   *
+   * Payload: { outputFolder: string }
+   * Returns: { filePath: string, fileCount: number } | null (null if cancelled)
+   */
+  ipcMain.handle(
+    'export-session-zip',
+    async (event, payload: { outputFolder: string }) => {
+      if (!payload?.outputFolder) {
+        throw new Error('export-session-zip: outputFolder is required');
+      }
+
+      const outputFolder = payload.outputFolder;
+
+      // Choose save path
+      const { filePath, canceled } = await dialog.showSaveDialog({
+        defaultPath: path.join(outputFolder, `cullai_session_${Date.now()}.zip`),
+        filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+      });
+      if (canceled || !filePath) return null;
+
+      // Collect files to include
+      const filesToZip: { disk: string; archive: string }[] = [];
+
+      const candidates = [
+        path.join(outputFolder, 'session.json'),
+        path.join(outputFolder, 'results.json'),
+      ];
+      for (const f of candidates) {
+        if (fs.existsSync(f)) {
+          filesToZip.push({ disk: f, archive: path.basename(f) });
+        }
+      }
+
+      // Collect XMP sidecars via recursive walk (no glob dep needed)
+      const findXmpFiles = (dir: string, baseDir: string): void => {
+        let entries: fs.Dirent[];
+        try {
+          entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch { return; }
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            // Skip the thumbnail cache directory
+            if (entry.name !== '.cullai_cache') {
+              findXmpFiles(fullPath, baseDir);
+            }
+          } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.xmp')) {
+            filesToZip.push({
+              disk: fullPath,
+              archive: path.relative(baseDir, fullPath),
+            });
+          }
+        }
+      };
+      findXmpFiles(outputFolder, outputFolder);
+
+      // Create archive with progress events
+      await new Promise<void>((resolve, reject) => {
+        const output = fs.createWriteStream(filePath);
+        const archive = archiver('zip', { zlib: { level: 6 } });
+
+        archive.on('progress', (progressData) => {
+          const pct = Math.round(
+            (progressData.entries.processed / Math.max(1, progressData.entries.total)) * 100,
+          );
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('zip-progress', pct);
+          }
+        });
+
+        output.on('close', resolve);
+        archive.on('error', reject);
+        archive.pipe(output);
+
+        for (const { disk, archive: archivePath } of filesToZip) {
+          archive.file(disk, { name: archivePath });
+        }
+
+        archive.finalize();
+      });
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[ipc] export-session-zip → ${filePath} (${filesToZip.length} files)`);
+      }
+
+      return { filePath, fileCount: filesToZip.length };
+    },
+  );
+
+  // ── 12b.4 — Re-score Selected Images with New Weights ─────────────────────
+
+  /**
+   * Re-scores a subset of already-processed images using the current
+   * settings.weights without re-running folder scan or duplicate detection.
+   * Emits 'pipeline-event' (pipeline-image-scored) for each scored image so
+   * the renderer can update tiles in real time.
+   *
+   * Payload: { imageIds: string[], outputFolder: string, settings: AppSettings }
+   * Returns: void
+   */
+  ipcMain.handle(
+    're-score-images',
+    async (_event, payload: {
+      imageIds: string[];
+      outputFolder: string;
+      settings: import('../shared/types').AppSettings;
+    }) => {
+      if (!payload?.outputFolder || !Array.isArray(payload?.imageIds)) {
+        throw new Error('re-score-images: invalid payload');
+      }
+      return rescoreImages(
+        payload.imageIds,
+        payload.outputFolder,
+        payload.settings,
+        _event.sender,
+      );
     },
   );
 }

@@ -1090,55 +1090,55 @@ Goal: A full-featured gallery for reviewing, comparing, and manually adjusting A
 
 ### 12b.1 Add Virtualized Grid
 
-- [ ] Install `react-window`: `npm install react-window`
-- [ ] In `Results.tsx`, replace simple grid with `FixedSizeGrid` or `VariableSizeGrid`
-- [ ] Only render tiles that are visible in the viewport
-- [ ] Lazy‑load high‑res previews when tile becomes visible
+- [x] Install `react-window`: `npm install react-window`
+- [x] In `Results.tsx`, replace simple grid with `FixedSizeGrid` or `VariableSizeGrid`
+- [x] Only render tiles that are visible in the viewport
+- [x] Lazy‑load high‑res previews when tile becomes visible
 
 ### 12b.2 Add Undo for Manual Overrides
 
-- [ ] Create a simple undo stack in Results screen state: store `{ previousTier, imageId, timestamp }` (max 20 entries)
-- [ ] On `P`, `X`, `R`, or drag‑and‑drop tier change, push previous state to stack
-- [ ] Add keyboard shortcut: `Cmd+Z` / `Ctrl+Z` – pop last action and revert tier
-- [ ] Show a small toast: "Undo moved IMG_001 back to A tier"
+- [x] Create a simple undo stack in Results screen state: store `{ previousTier, imageId, timestamp }` (max 20 entries)
+- [x] On `P`, `X`, `R`, or drag‑and‑drop tier change, push previous state to stack
+- [x] Add keyboard shortcut: `Cmd+Z` / `Ctrl+Z` – pop last action and revert tier
+- [x] Show a small toast: "Undo moved IMG_001 back to A tier"
 
 ### 12b.3 Add Before/After Slider in Compare Mode
 
-- [ ] In `CompareView.tsx`, when exactly 2 images are selected, add a toggle: "Split‑screen slider"
-- [ ] Render two images absolutely positioned, with a draggable vertical divider
-- [ ] On slider drag, clip left/right images accordingly
+- [x] In `CompareView.tsx`, when exactly 2 images are selected, add a toggle: "Split‑screen slider"
+- [x] Render two images absolutely positioned, with a draggable vertical divider
+- [x] On slider drag, clip left/right images accordingly
 
 ### 12b.4 🔥 Re‑Score Selected Images with New Weights
 
-- [ ] Add a button in the Results screen toolbar: "Re‑score selected (with current weights)"
-- [ ] Enabled only when one or more images are selected in the active tab
-- [ ] On click, collect the `ImageRecord`s for selected images (from the session)
-- [ ] Call a new IPC `'re-score-images'` with the list of image IDs, current `AppSettings` (weights, etc.)
-- [ ] Re‑use the existing scoring pipeline (including face metadata, discovery context) but skip duplicate detection and scanning
-- [ ] Re-run `assignTiers()` on the updated scores and refresh the UI
-- [ ] Show a progress modal: "Re‑scoring 12 images…"
+- [x] Add a button in the Results screen toolbar: "Re‑score selected (with current weights)"
+- [x] Enabled only when one or more images are selected in the active tab
+- [x] On click, collect the `ImageRecord`s for selected images (from the session)
+- [x] Call a new IPC `'re-score-images'` with the list of image IDs, current `AppSettings` (weights, etc.)
+- [x] Re‑use the existing scoring pipeline (including face metadata, discovery context) but skip duplicate detection and scanning
+- [x] Re-run `assignTiers()` on the updated scores and refresh the UI
+- [x] Show a progress modal: "Re‑scoring 12 images…"
 
 ### 12b.5 🔥 Export Scores as CSV
 
-- [ ] Add "Export CSV" button next to "Export results.json"
-- [ ] Generate a CSV file with columns: Filename, Tier, Total Score, Quality, Aesthetic, Composition, Sharpness, Exposure, FaceEyes, Reasoning
-- [ ] Use the same file‑save dialog as JSON export, default name `cullai_scores.csv`
-- [ ] CSV is UTF‑8 encoded and can be opened in Excel / Google Sheets
+- [x] Add "Export CSV" button next to "Export results.json"
+- [x] Generate a CSV file with columns: Filename, Tier, Total Score, Quality, Aesthetic, Composition, Sharpness, Exposure, FaceEyes, Reasoning
+- [x] Use the same file‑save dialog as JSON export, default name `cullai_scores.csv`
+- [x] CSV is UTF‑8 encoded and can be opened in Excel / Google Sheets
 
 ### 12b.6 🔥 Export Session as Portable Archive
 
-- [ ] Install `archiver`: `npm install archiver` and `npm install --save-dev @types/archiver`
+- [x] Install `archiver`: `npm install archiver` and `npm install --save-dev @types/archiver`
   > **Fix #8:** This install step was missing from the original todo. `archiver` is required
   > for the zip export feature below.
-- [ ] Add "Export session bundle (.zip)" button
-- [ ] Zip includes: `session.json`, `results.json`, and **all XMP sidecar files** generated for this session (if XMP export was enabled)
-- [ ] Does **not** include original or output images – only metadata
-- [ ] Show progress during zip creation and then save dialog
+- [x] Add "Export session bundle (.zip)" button
+- [x] Zip includes: `session.json`, `results.json`, and **all XMP sidecar files** generated for this session (if XMP export was enabled)
+- [x] Does **not** include original or output images – only metadata
+- [x] Show progress during zip creation and then save dialog
 
 ### 12b.7 🔥 Reject / Keep Count Badges in Tab Headers
 
-- [ ] In addition to the count badge (e.g., "S (12)"), show a small proportion bar or tooltip: "12 of 200 total"
-- [ ] Keep it clean – optionally show "12/200" next to the tab name
+- [x] In addition to the count badge (e.g., "S (12)"), show a small proportion bar or tooltip: "12 of 200 total"
+- [x] Keep it clean – optionally show "12/200" next to the tab name
 
 ✅ **Done Criteria:** Results screen handles 10,000 images without lag. Undo works for manual tier changes. Two‑image compare mode has a working split‑screen slider. All new export and re‑scoring features work without crashing. Re‑scoring updates the session and UI correctly. CSV exports contain all scores.
 

@@ -43,9 +43,12 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^25.9.2",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
+    "@types/react-virtualized-auto-sizer": "^1.0.4",
+    "@types/react-window": "^1.8.8",
     "@vitejs/plugin-react": "^4.5.2",
     "autoprefixer": "^10.5.0",
     "concurrently": "^10.0.3",
@@ -62,6 +65,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@vladmandic/human": "^3.3.6",
+    "archiver": "^8.0.0",
     "electron-store": "^11.0.2",
     "framer-motion": "^12.40.0",
     "imghash": "^1.1.4",
@@ -72,6 +76,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.77.0",
+    "react-virtualized-auto-sizer": "^2.0.3",
     "react-window": "^2.2.7",
     "zod": "^4.4.3"
   }
