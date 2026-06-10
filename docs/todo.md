@@ -23,9 +23,9 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 7     | Duplicate Detection                    | ✅ Complete    |
 | 8     | Session Manager                        | ✅ Complete    |
 | 9     | Single AI Call (Enhanced)              | ✅ Complete    |
-| 10    | Full Batch Pipeline + Input Validation | ⬜ Not Started |
-| 10b   | Concurrent Directory Processing        | ⬜ Not Started |
-| 11    | Parallel Batching                      | ⬜ Not Started |
+| 10    | Full Batch Pipeline + Input Validation | ✅ Complete    |
+| 10b   | Concurrent Directory Processing        | ✅ Complete    |
+| 11    | Parallel Batching                      | ✅ Complete    |
 | 12    | Results Screen (Enhanced)              | ⬜ Not Started |
 | 12b   | Results Performance & UX               | ⬜ Not Started |
 | 13    | XMP Export + Auto‑Tagging              | ⬜ Not Started |
@@ -982,8 +982,8 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 11.1 Create the Batch Scheduler
 
-- [ ] Create `src/main/batch-scheduler.ts`
-- [ ] Implement `BatchScheduler` class:
+- [x] Create `src/main/batch-scheduler.ts`
+- [x] Implement `BatchScheduler` class:
   - Constructor takes `{ concurrency: number, batchSize: number, onProgress, onError }`
   - `queue(images: ImageRecord[]): void` — adds images to internal queue
   - `run(): Promise<ScoreRecord[]>` — processes queue with N concurrent workers
@@ -993,33 +993,33 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 11.2 Implement Rate Limiting & Retry
 
-- [ ] On `AIRateLimitError`: pause that worker for `retryAfter` seconds, then retry the same image
-- [ ] On `AIServerError` (5xx): retry up to 3 times with exponential backoff (1s, 2s, 4s)
-- [ ] On `AIAuthError`: abort entire pipeline immediately, surface error to user
-- [ ] On `AITimeoutError`: retry once, then mark image as scoring-failed with a note in reasoning
-- [ ] Track retry count per image — log warnings if an image takes more than 2 retries
+- [x] On `AIRateLimitError`: pause that worker for `retryAfter` seconds, then retry the same image
+- [x] On `AIServerError` (5xx): retry up to 3 times with exponential backoff (1s, 2s, 4s)
+- [x] On `AIAuthError`: abort entire pipeline immediately, surface error to user
+- [x] On `AITimeoutError`: retry once, then mark image as scoring-failed with a note in reasoning
+- [x] Track retry count per image — log warnings if an image takes more than 2 retries
 
 ### 11.3 Replace Serial Loop in Pipeline
 
-- [ ] In `orchestrator.ts`, replace the serial scoring `for` loop with `BatchScheduler.run()`
-- [ ] Pass concurrency setting from `AppSettings`
-- [ ] Emit `'pipeline-image-scored'` progress event after each individual image scores (not each batch)
-- [ ] Scores still saved to session after each image via `session-manager`
-- [ ] After `BatchScheduler.run()` resolves, call `assignTiers()` on all collected scores
+- [x] In `orchestrator.ts`, replace the serial scoring `for` loop with `BatchScheduler.run()`
+- [x] Pass concurrency setting from `AppSettings`
+- [x] Emit `'pipeline-image-scored'` progress event after each individual image scores (not each batch)
+- [x] Scores still saved to session after each image via `session-manager`
+- [x] After `BatchScheduler.run()` resolves, call `assignTiers()` on all collected scores
 
 ### 11.4 Update Processing Screen
 
-- [ ] Update time-remaining estimate to account for parallel processing (total time ÷ concurrency rate)
-- [ ] Show current batch indicator in log: "Scoring batch 3/12 (5 parallel calls)..."
+- [x] Update time-remaining estimate to account for parallel processing (total time ÷ concurrency rate)
+- [x] Show current batch indicator in log: "Scoring batch 3/12 (5 parallel calls)..."
 
 ### 11.5 🔥 Live Cost & Token Tracking
 
-- [ ] In `orchestrator.ts`, maintain cumulative `totalInputTokens`, `totalOutputTokens` across all scored images
-- [ ] After each image scores, update the counters and emit IPC event `'pipeline-cost-update'` with the current totals
-- [ ] In Processing screen, display:
+- [x] In `orchestrator.ts`, maintain cumulative `totalInputTokens`, `totalOutputTokens` across all scored images
+- [x] After each image scores, update the counters and emit IPC event `'pipeline-cost-update'` with the current totals
+- [x] In Processing screen, display:
   - Estimated total cost (using provider's per‑token pricing from `src/shared/constants.ts`)
   - Optionally show per‑provider cost breakdown
-- [ ] If dry‑run mode is active, also show **predicted** cost based on average tokens per image (already in Phase 16.1)
+  - [x] If dry‑run mode is active, also show **predicted** cost based on average tokens per image (already in Phase 16.1)
 
 ✅ **Done Criteria:** 50-image folder with concurrency=5 completes in roughly 1/5 the time vs. serial. Rate limit errors cause retry (not crash). Auth errors abort and surface a clear message. User sees real‑time token usage and estimated cost while scoring runs. The estimate updates after each image or batch.
 

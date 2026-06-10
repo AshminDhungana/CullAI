@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { XCircle, Cpu, FolderOpen, ImageIcon, Settings2, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import type { AppSettings, PipelineEvent, ShortfallReasons, ScoreRecord } from '../../shared/types';
+import { estimateCost } from '../../shared/constants';
 
 interface ProcessingScreenProps {
   settings: AppSettings;
@@ -15,7 +16,7 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
   const [scoredCount, setScoredCount] = useState(0);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const [currentFilename, setCurrentFilename] = useState('');
-  const [logLines, setLogLines] = useState<Array<{ filename: string; total: number; tier: string; reasoning?: string }>>([]);
+  const [logLines, setLogLines] = useState<Array<{ filename: string; total: number; tier: string; reasoning?: string; isMessage?: boolean; message?: string }>>([]);
   const [totalInputTokens, setTotalInputTokens] = useState(0);
   const [totalOutputTokens, setTotalOutputTokens] = useState(0);
   const [inputCountWarning, setInputCountWarning] = useState<{ requested: number; available: number } | null>(null);
@@ -25,6 +26,7 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
   const [isCancelling, setIsCancelling] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [startTime] = useState(Date.now());
+  const estimatedCost = estimateCost(settings.provider, totalInputTokens, totalOutputTokens);
 
   // ── Batch progress (Phase 10b — multi-folder mode) ────────────────────────
   const [batchProgress, setBatchProgress] = useState<{
@@ -69,7 +71,15 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
           setTotalImages(event.totalImages);
           setScoredCount(0);
           setEtaSeconds(null);
-          setLogLines([]);
+          setLogLines([
+            {
+              isMessage: true,
+              message: `Starting pipeline... Scoring with ${settings.concurrency} parallel API calls`,
+              filename: '',
+              total: 0,
+              tier: '',
+            },
+          ]);
           setShortfallSummary(null);
           setShortfallDismissed(false);
           setPipelineError(null);
@@ -131,6 +141,18 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
           setScoredCount(0);
           setEtaSeconds(null);
           setCurrentFilename('');
+          setLogLines((prev) => [
+            ...prev,
+            {
+              isMessage: true,
+              message: event.totalBatches > 1
+                ? `Scoring batch ${event.batchIndex}/${event.totalBatches} ("${event.folderName}", ${event.batchImageCount} images) with ${settings.concurrency} parallel calls...`
+                : `Scoring ${event.batchImageCount} images with ${settings.concurrency} parallel calls...`,
+              filename: '',
+              total: 0,
+              tier: '',
+            },
+          ]);
           break;
 
         case 'pipeline-batch-complete':
@@ -435,12 +457,19 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
               </p>
               {etaSeconds !== null && etaSeconds > 0 && !isComplete && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  ~{etaSeconds} seconds remaining
+                  {formatEta(etaSeconds)}
                 </p>
+              )}
+              {!isComplete && (
+                <div className="mt-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-[#1e2535] shadow-sm">
+                    Scoring with {settings.concurrency} parallel API calls
+                  </span>
+                </div>
               )}
             </div>
 
-            {/* Stats row */}
+             {/* Stats row */}
             <div className="flex gap-6 text-center">
               <div>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">{scoredCount}</p>
@@ -454,11 +483,18 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
                 <p className="text-xs text-gray-500 dark:text-gray-400">Target keepers</p>
               </div>
               <div className="w-px bg-gray-200 dark:bg-[#1e2535]" />
-              <div>
+              <div title={`Input: ${totalInputTokens.toLocaleString()} tokens\nOutput: ${totalOutputTokens.toLocaleString()} tokens`}>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
                   {Math.round((totalInputTokens + totalOutputTokens) / 1000)}k
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Tokens</p>
+              </div>
+              <div className="w-px bg-gray-200 dark:bg-[#1e2535]" />
+              <div title={`Input: ${totalInputTokens.toLocaleString()} tokens\nOutput: ${totalOutputTokens.toLocaleString()} tokens`}>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  ${estimatedCost >= 0.01 || estimatedCost === 0 ? estimatedCost.toFixed(2) : estimatedCost.toFixed(4)}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Est. Cost</p>
               </div>
             </div>
 
@@ -538,18 +574,28 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
             {logLines.length === 0 && !pipelineError && (
               <p className="text-gray-400 dark:text-gray-600">— awaiting pipeline —</p>
             )}
-            {logLines.map((line, idx) => (
-              <div key={idx} className="flex items-center gap-3 border-b border-gray-100 dark:border-[#1e2535] pb-1 last:border-0">
-                <span className="text-gray-500 dark:text-gray-500 w-8 shrink-0">{idx + 1}</span>
-                <span className="text-gray-700 dark:text-gray-300 truncate flex-1">{line.filename}</span>
-                <span className={`px-1.5 py-0.5 rounded text-xs font-mono font-medium ${getTierColor(line.tier)}`}>
-                  {line.total}
-                </span>
-                <span className={`text-xs font-mono w-6 text-center ${getTierBadgeColor(line.tier)}`}>
-                  {line.tier === 'S' ? 'S' : line.tier === 'A' ? 'A' : line.tier === 'B' ? 'B' : 'R'}
-                </span>
-              </div>
-            ))}
+            {logLines.map((line, idx) => {
+              if (line.isMessage) {
+                return (
+                  <div key={idx} className="flex items-center gap-3 text-gray-500 dark:text-gray-400 italic py-0.5 border-b border-gray-100 dark:border-[#1e2535] last:border-0">
+                    <span className="w-8 shrink-0 text-left">—</span>
+                    <span className="truncate flex-1">{line.message}</span>
+                  </div>
+                );
+              }
+              return (
+                <div key={idx} className="flex items-center gap-3 border-b border-gray-100 dark:border-[#1e2535] pb-1 last:border-0">
+                  <span className="text-gray-500 dark:text-gray-500 w-8 shrink-0">{idx + 1}</span>
+                  <span className="text-gray-700 dark:text-gray-300 truncate flex-1">{line.filename}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-mono font-medium ${getTierColor(line.tier)}`}>
+                    {line.total}
+                  </span>
+                  <span className={`text-xs font-mono w-6 text-center ${getTierBadgeColor(line.tier)}`}>
+                    {line.tier === 'S' ? 'S' : line.tier === 'A' ? 'A' : line.tier === 'B' ? 'B' : 'R'}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -589,4 +635,16 @@ function getTierBadgeColor(tier: string): string {
     case 'B': return 'text-blue-600 dark:text-blue-400 font-bold';
     default: return 'text-gray-500 dark:text-gray-500';
   }
+}
+
+function formatEta(seconds: number): string {
+  if (seconds < 60) {
+    return `~${seconds}s remaining`;
+  }
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (secs === 0) {
+    return `~${mins} min remaining`;
+  }
+  return `~${mins} min ${secs}s remaining`;
 }
