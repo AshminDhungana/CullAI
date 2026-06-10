@@ -25,6 +25,9 @@
  */
 
 import { scanFolder, processFolder } from './image-processor';
+import { walkFolders } from './folder-walker';
+import * as fs from 'fs';
+import * as path from 'path';
 import { groupDuplicates } from './duplicate-detector';
 import { detectFaces } from './face-detector';
 import {
@@ -267,27 +270,154 @@ export function assignTiers(
 // ---------------------------------------------------------------------------
 
 /**
- * Runs the full serial culling pipeline for the given settings.
+ * Runs the full culling pipeline for the given settings.
  *
- * Yields PipelineEvent objects which the IPC handler streams to the renderer
- * via webContents.send('pipeline-event', event).
+ * When settings.processSubfolders is false (default), behaves exactly as
+ * before — single batch, single session.
  *
- * The generator is cancellable via `signal.aborted`. Check the signal at the
- * top of every major step; if aborted, mark the session cancelled and return.
- *
- * §10.5 input-count validation: if the folder contains fewer images than
- * `settings.numImagesToSelect`, the generator yields 'pipeline-needs-confirmation'
- * and then awaits a Promise stored in `pendingConfirmations`. The IPC handler
- * resolves (continue) or rejects (cancel) that Promise.
- *
- * @param settings  Full AppSettings including the decrypted apiKey.
- * @param senderId  webContents.id of the requesting window (for confirmation map).
- * @param signal    AbortSignal from the window's AbortController.
+ * When settings.processSubfolders is true, discovers all subdirectories,
+ * processes each as a separate batch, and emits batch progress events
+ * throughout. A combined pipeline-complete event is emitted at the end
+ * using the last batch's session.
  */
 export async function* runPipeline(
   settings: AppSettings,
   senderId: number,
   signal: AbortSignal,
+): AsyncGenerator<PipelineEvent> {
+  if (!settings.processSubfolders) {
+    // ── Single-folder mode (existing behaviour) ──────────────────────────────
+    yield* _runSingleFolderBatch(settings, settings.inputFolder, senderId, signal, {
+      batchIndex: 1,
+      totalBatches: 1,
+    });
+    return;
+  }
+
+  // ── Multi-folder mode (Phase 10b) ────────────────────────────────────────
+  const devMode = process.env.NODE_ENV === 'development';
+
+  let subfolders: string[];
+  try {
+    subfolders = await walkFolders(settings.inputFolder);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    yield {
+      type: 'pipeline-error',
+      code: 'WALK_FAILED',
+      message: `Failed to walk subfolders: ${msg}`,
+      recoverable: false,
+    };
+    return;
+  }
+
+  if (devMode) {
+    console.log(`[orchestrator] Phase 10b: ${subfolders.length} folder(s) to process`);
+  }
+
+  const totalBatches = subfolders.length;
+  let masterSession: import('../shared/types').Session | null = null;
+
+  for (let batchIdx = 0; batchIdx < subfolders.length; batchIdx++) {
+    if (signal.aborted) break;
+
+    const relFolder = subfolders[batchIdx];
+    const absoluteFolderPath = relFolder === ''
+      ? settings.inputFolder
+      : path.join(settings.inputFolder, relFolder);
+
+    // Determine batch output folder
+    let batchOutputFolder: string;
+    if (settings.preserveSubfolderStructure && relFolder !== '') {
+      batchOutputFolder = path.join(settings.outputFolder, relFolder);
+    } else {
+      batchOutputFolder = settings.outputFolder;
+    }
+
+    // Ensure batch output folder exists
+    await fs.promises.mkdir(path.resolve(batchOutputFolder), { recursive: true });
+
+    const folderName = relFolder === ''
+      ? path.basename(settings.inputFolder)
+      : path.basename(relFolder);
+
+    // Quick scan to get image count for the batch header event
+    let batchFilePaths: string[] = [];
+    try {
+      batchFilePaths = await scanFolder(absoluteFolderPath, {
+        extensions: settings.extensionFilter,
+        prefixes: settings.prefixFilter,
+        prefixCaseInsensitive: settings.prefixCaseInsensitive,
+        ignorePatterns: settings.ignorePatterns,
+        recursive: false,
+      });
+    } catch { /* emit 0 — batch will handle its own error */ }
+
+    yield {
+      type: 'pipeline-batch-started',
+      batchIndex: batchIdx + 1,
+      totalBatches,
+      folderName,
+      batchImageCount: batchFilePaths.length,
+    };
+
+    // Build per-batch settings (override input/output folders only)
+    const batchSettings: AppSettings = {
+      ...settings,
+      inputFolder: absoluteFolderPath,
+      outputFolder: batchOutputFolder,
+      processSubfolders: false, // Prevent infinite recursion
+    };
+
+    // Run the batch and forward all events except pipeline-complete
+    // (we emit our own combined complete at the end)
+    for await (const event of _runSingleFolderBatch(
+      batchSettings,
+      absoluteFolderPath,
+      senderId,
+      signal,
+      { batchIndex: batchIdx + 1, totalBatches },
+    )) {
+      if (event.type === 'pipeline-complete') {
+        masterSession = event.session;
+        // Don't yield — we emit our own combined complete at the very end
+        continue;
+      }
+      // Re-emit all other events to the renderer unchanged
+      yield event;
+    }
+
+    yield {
+      type: 'pipeline-batch-complete',
+      batchIndex: batchIdx + 1,
+      totalBatches,
+    };
+
+    if (signal.aborted) break;
+  }
+
+  // Emit the final complete event using the last batch's session as a proxy.
+  if (masterSession) {
+    yield { type: 'pipeline-complete', session: masterSession };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internal: single-folder pipeline batch
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs the full serial culling pipeline for one folder.
+ *
+ * This is the original runPipeline body, extracted so it can be called
+ * once in single-folder mode or N times in multi-folder mode.
+ */
+async function* _runSingleFolderBatch(
+  settings: AppSettings,
+  folderPath: string,
+  senderId: number,
+  signal: AbortSignal,
+  _batchMeta: { batchIndex: number; totalBatches: number },
 ): AsyncGenerator<PipelineEvent> {
   const devMode = process.env.NODE_ENV === 'development';
   const apiKey = settings.apiKey;
@@ -314,7 +444,7 @@ export async function* runPipeline(
       prefixes: settings.prefixFilter,
       prefixCaseInsensitive: settings.prefixCaseInsensitive,
       ignorePatterns: settings.ignorePatterns,
-      recursive: settings.processSubfolders,
+      recursive: false, // Each batch is its own folder — walkFolders handles multi-folder dispatch
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -371,7 +501,7 @@ export async function* runPipeline(
       prefixes: settings.prefixFilter,
       prefixCaseInsensitive: settings.prefixCaseInsensitive,
       ignorePatterns: settings.ignorePatterns,
-      recursive: settings.processSubfolders,
+      recursive: false, // Each batch is its own folder — walkFolders handles multi-folder dispatch
       useEmbeddedPreview: settings.useEmbeddedPreview,
       signal,
     })) {
@@ -701,6 +831,78 @@ function selectEvenlySpaced(total: number, count: number): number[] {
   return Array.from({ length: count }, (_, i) =>
     Math.min(total - 1, Math.floor(i * (total - 1) / (count - 1))),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Phase 10b — Output helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Copies a keeper file to the output folder, preserving subfolder structure
+ * if `preserveSubfolderStructure` is true, or flattening into outputFolder
+ * if false.
+ *
+ * When flattening and a filename collision occurs, appends _1, _2, ... until
+ * the name is unique.
+ *
+ * @param sourceFilePath     Absolute path to the source file.
+ * @param rootInputFolder    The top-level input folder (used to compute relative path).
+ * @param outputFolder       Root output folder.
+ * @param preserve           Whether to mirror the subfolder hierarchy.
+ */
+export async function copyKeeperFile(
+  sourceFilePath: string,
+  rootInputFolder: string,
+  outputFolder: string,
+  preserve: boolean,
+): Promise<void> {
+  const filename = path.basename(sourceFilePath);
+  let destPath: string;
+
+  if (preserve) {
+    // Reconstruct relative subfolder path
+    const relativeDir = path.relative(
+      path.resolve(rootInputFolder),
+      path.dirname(path.resolve(sourceFilePath)),
+    );
+    const destDir = path.join(path.resolve(outputFolder), relativeDir);
+    await fs.promises.mkdir(destDir, { recursive: true });
+    destPath = path.join(destDir, filename);
+  } else {
+    // Flat output — resolve collisions
+    destPath = await resolveConflict(outputFolder, filename);
+  }
+
+  await fs.promises.copyFile(sourceFilePath, destPath);
+}
+
+/**
+ * Resolves a flat-output filename collision by appending _N until unique.
+ * e.g. IMG_001.jpg → IMG_001_1.jpg → IMG_001_2.jpg
+ */
+async function resolveConflict(
+  outputFolder: string,
+  filename: string,
+): Promise<string> {
+  const ext = path.extname(filename);
+  const base = path.basename(filename, ext);
+  let candidate = path.join(path.resolve(outputFolder), filename);
+  let counter = 0;
+
+  while (true) {
+    try {
+      await fs.promises.access(candidate);
+      // File exists — try next suffix
+      counter++;
+      candidate = path.join(
+        path.resolve(outputFolder),
+        `${base}_${counter}${ext}`,
+      );
+    } catch {
+      // access() threw ENOENT — path is free
+      return candidate;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

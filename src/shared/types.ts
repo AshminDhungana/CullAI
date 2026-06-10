@@ -523,5 +523,21 @@ export type PipelineEvent =
       finalSelectedCount: number;
       selectedSCount?: number;
     }
+  | {
+      type: 'pipeline-batch-started';
+      /** 1-based index of this batch (folder) */
+      batchIndex: number;
+      /** Total number of batches (folders) */
+      totalBatches: number;
+      /** Display name of the subfolder being processed (e.g. "Reception") */
+      folderName: string;
+      /** Number of images in this specific batch */
+      batchImageCount: number;
+    }
+  | {
+      type: 'pipeline-batch-complete';
+      batchIndex: number;
+      totalBatches: number;
+    }
   | { type: 'pipeline-complete'; session: Session }
   | { type: 'pipeline-error'; code: string; message: string; recoverable: boolean };

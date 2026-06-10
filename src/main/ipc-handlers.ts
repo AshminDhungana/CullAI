@@ -60,6 +60,7 @@ import {
   rejectPipelineConfirmation,
   fillShortfall,
 } from './orchestrator';
+import { walkFolders } from './folder-walker';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -287,6 +288,23 @@ export function registerIpcHandlers(store: AppStore): void {
   // -------------------------------------------------------------------------
   // Folder helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Recursively discovers all subdirectories under `rootPath` that contain
+   * at least one file. Hidden dirs and .cullai_cache are excluded.
+   *
+   * Returns an array of relative paths ('' for root, 'sub/dir' for children).
+   * Used by the renderer to preview how many folders will be processed.
+   *
+   * Payload: rootPath: string
+   * Returns: string[]
+   */
+  ipcMain.handle('walk-subfolders', async (_event, rootPath: string) => {
+    if (!rootPath || typeof rootPath !== 'string') {
+      throw new Error('walk-subfolders: rootPath must be a non-empty string');
+    }
+    return walkFolders(rootPath);
+  });
 
   /** Opens a native folder-picker dialog. Returns the selected path or undefined. */
   ipcMain.handle('open-folder-dialog', async () => {

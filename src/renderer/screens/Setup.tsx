@@ -107,6 +107,8 @@ const setupSchema = z.object({
   rawCacheMaxSizeGb: z.number().min(1).max(50),
   rawCacheMaxAgeDays: z.number().min(1).max(365),
   disableRawCache: z.boolean(),
+  processSubfolders: z.boolean(),
+  preserveSubfolderStructure: z.boolean(),
 });
 
 type SetupFormValues = z.infer<typeof setupSchema>;
@@ -240,6 +242,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       rawCacheMaxSizeGb: 5,
       rawCacheMaxAgeDays: 30,
       disableRawCache: false,
+      processSubfolders: false,
+      preserveSubfolderStructure: false,
     },
     mode: 'onChange',
   });
@@ -256,6 +260,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const watchedRawCacheMaxAgeDays = useWatch({ control, name: 'rawCacheMaxAgeDays' });
   const watchedDisableRawCache = useWatch({ control, name: 'disableRawCache' });
   const watchedBaseUrl = useWatch({ control, name: 'baseUrl' });
+  const watchedProcessSubfolders = useWatch({ control, name: 'processSubfolders' });
 
   const {
     patterns: ignorePatterns,
@@ -287,6 +292,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             rawCacheMaxSizeGb: stored.rawCacheMaxSizeGb ?? 5,
             rawCacheMaxAgeDays: stored.rawCacheMaxAgeDays ?? 30,
             disableRawCache: stored.disableRawCache ?? false,
+            processSubfolders: stored.processSubfolders ?? false,
+            preserveSubfolderStructure: stored.preserveSubfolderStructure ?? false,
           });
         }
       } catch (err) {
@@ -533,6 +540,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       rawCacheMaxSizeGb: 5,
       rawCacheMaxAgeDays: 30,
       disableRawCache: false,
+      processSubfolders: data.processSubfolders ?? false,
+      preserveSubfolderStructure: data.preserveSubfolderStructure ?? false,
       activeProfileId: null,
     };
     onStart(fullSettings);
@@ -807,6 +816,109 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   />
                 )}
               />
+            </div>
+          )}
+
+          {/* Subfolder Processing Card */}
+          {watchedInputFolder && (
+            <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl shrink-0">
+                  <Layers className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                    Subfolder Processing
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Process images across nested folders
+                  </p>
+                </div>
+              </div>
+
+              {/* Checkbox 1: Process subfolders recursively */}
+              <Controller
+                name="processSubfolders"
+                control={control}
+                render={({ field }) => (
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <div className="relative mt-0.5 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        className="sr-only"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                          field.value
+                            ? 'bg-amber-500 border-amber-500'
+                            : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
+                        }`}
+                      >
+                        {field.value && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        Process subfolders recursively
+                      </span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        Scan all nested folders inside the input folder as separate batches.
+                      </p>
+                    </div>
+                  </label>
+                )}
+              />
+
+              {/* Checkbox 2: Preserve subfolder structure (conditional) */}
+              <AnimatePresence>
+                {watchedProcessSubfolders && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="overflow-hidden pl-8"
+                  >
+                    <Controller
+                      name="preserveSubfolderStructure"
+                      control={control}
+                      render={({ field }) => (
+                        <label className="flex items-start gap-3 cursor-pointer group">
+                          <div className="relative mt-0.5 shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                              className="sr-only"
+                            />
+                            <div
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                field.value
+                                  ? 'bg-amber-500 border-amber-500'
+                                  : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
+                              }`}
+                            >
+                              {field.value && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              Preserve folder structure in output
+                            </span>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              Mirror the input folder hierarchy under the output folder.
+                              When off, all keepers are flattened into a single folder
+                              (filename conflicts resolved with _1, _2 suffixes).
+                            </p>
+                          </div>
+                        </label>
+                      )}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
@@ -1853,6 +1965,16 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                   {watch('extensionFilter')?.length ? watch('extensionFilter')?.join(', ') : 'All formats'}
                 </span>
               </div>
+              {watch('processSubfolders') && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                  <span className="text-gray-500 dark:text-gray-400">Subfolders</span>
+                  <span className="text-gray-900 dark:text-white text-sm">
+                    {watch('preserveSubfolderStructure')
+                      ? 'Recursive — structure preserved'
+                      : 'Recursive — flat output'}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
                 <span className="text-gray-500 dark:text-gray-400">Prefix filter</span>
                 <span className="text-gray-900 dark:text-white text-sm truncate max-w-[200px]" title={watch('prefixFilter')?.length ? `${watch('prefixFilter')?.join(', ')} (${watch('prefixCaseInsensitive') ? 'case-insensitive' : 'case-sensitive'})` : 'None'}>

@@ -873,17 +873,17 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 10.1 Discovery Pass
 
-- [ ] Create `src/main/orchestrator.ts`
-- [ ] Implement `runDiscoveryPass(images: ImageRecord[], settings: AppSettings): Promise<string>`:
+- [x] Create `src/main/orchestrator.ts`
+- [x] Implement `runDiscoveryPass(images: ImageRecord[], settings: AppSettings): Promise<string>`:
   - Select 5–8 representative sample images from the full set (evenly spaced by index)
   - If a reference image is set in `AppSettings`, prepend it to the sample set
   - Call `callAI()` once with all sample images and a discovery prompt: _"What genre is this shoot? What does 'best' mean in this context? Summarize in 2–3 sentences."_
   - Return the AI's summary string as `discoveryContext`
-- [ ] Store `discoveryContext` in the session immediately after the discovery pass completes
+- [x] Store `discoveryContext` in the session immediately after the discovery pass completes
 
 ### 10.2 Orchestrator (Serial Scoring Loop)
 
-- [ ] In `orchestrator.ts`, implement `runPipeline(settings: AppSettings): AsyncGenerator<PipelineEvent>`:
+- [x] In `orchestrator.ts`, implement `runPipeline(settings: AppSettings): AsyncGenerator<PipelineEvent>`:
   - Scan folder with filters → get full file list
   - Run duplicate detection → get `DuplicateGroup[]`; collect `duplicatesSkipped` count
   - Run face detection on all representative images; mark `exceedsFaceLimit` images as pre-rejected
@@ -898,16 +898,16 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 10.3 Build the Processing Screen
 
-- [ ] Create `src/renderer/screens/Processing.tsx`
-- [ ] On mount, check `'session-has-existing'` IPC — if an existing session is found, show the resume banner (Phase 16.3) before starting
-- [ ] Display: progress bar (`scoredCount / totalImages`), current filename, estimated time remaining
-- [ ] Show a scrollable log of scored images with their raw composite score
-- [ ] "Cancel" button → calls `'session-mark-cancelled'` IPC and returns to Setup screen
-- [ ] On pipeline complete, automatically transition to Results screen
+- [x] Create `src/renderer/screens/Processing.tsx`
+- [x] On mount, check `'session-has-existing'` IPC — if an existing session is found, show the resume banner (Phase 16.3) before starting
+- [x] Display: progress bar (`scoredCount / totalImages`), current filename, estimated time remaining
+- [x] Show a scrollable log of scored images with their raw composite score
+- [x] "Cancel" button → calls `'session-mark-cancelled'` IPC and returns to Setup screen
+- [x] On pipeline complete, automatically transition to Results screen
 
 ### 10.4 Relative Tier Assignment (Post-Scoring)
 
-- [ ] Implement `assignTiers(scores: ScoreRecord[]): ScoreRecord[]` in `orchestrator.ts`:
+- [x] Implement `assignTiers(scores: ScoreRecord[]): ScoreRecord[]` in `orchestrator.ts`:
   - Exclude pre-rejected images (face limit, already marked rejected) from ranking pool
   - Sort remaining images by `total` score descending
   - **S-tier**: top 10% of the ranked pool (minimum 1 image if pool is non-empty)
@@ -917,26 +917,26 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
     > Note: images from A or B tiers can be reclassified to Rejected if their `total < 30`.
     > Apply the absolute threshold check last, after percentile assignment.
   - Images pre-rejected before scoring retain `tier: 'rejected'`
-- [ ] This relative/percentile-based approach ensures S-tier always represents the genuinely best shots from the current set, not an absolute score threshold
+- [x] This relative/percentile-based approach ensures S-tier always represents the genuinely best shots from the current set, not an absolute score threshold
 
 ### 10.5 Input Count Validation
 
-- [ ] In orchestrator, after scanning folder with filters, compare `filteredImageCount` with `settings.numImagesToSelect`
-- [ ] If `numImagesToSelect > filteredImageCount`, emit a warning to renderer and ask for confirmation (via dialog). If user confirms, proceed with all available images.
+- [x] In orchestrator, after scanning folder with filters, compare `filteredImageCount` with `settings.numImagesToSelect`
+- [x] If `numImagesToSelect > filteredImageCount`, emit a warning to renderer and ask for confirmation (via dialog). If user confirms, proceed with all available images.
 
 ### 10.6 Output Shortfall Notification
 
-- [ ] After scoring completes and tiers are assigned, compute final selected image count (S + A tier images)
-- [ ] If `numImagesToSelect === 0`, do not show a "requested vs available" warning. Instead, show:
+- [x] After scoring completes and tiers are assigned, compute final selected image count (S + A tier images)
+- [x] If `numImagesToSelect === 0`, do not show a "requested vs available" warning. Instead, show:
       "No target quantity set → exported all S‑tier images (X total)."
-- [ ] If `finalSelectedCount < settings.numImagesToSelect`, collect reasons into `outputShortfallReasons`
-- [ ] Store breakdown in session as `outputShortfallReasons`
-- [ ] Send IPC event `'pipeline-output-summary'` with reasons to renderer
+- [x] If `finalSelectedCount < settings.numImagesToSelect`, collect reasons into `outputShortfallReasons`
+- [x] Store breakdown in session as `outputShortfallReasons`
+- [x] Send IPC event `'pipeline-output-summary'` with reasons to renderer
 
 ### 10.7 Update Processing Screen to Show Warning
 
-- [ ] On receiving `'pipeline-output-summary'`, show an inline notification (non‑modal) with the reason summary, e.g. _"Requested 200 images, but only 187 selected. 13 excluded: 8 duplicates, 5 below quality threshold. Do you want to add the excluded ones to make it 200?"_ Give notification with option yes and no, if yes, add the excluded ones for total of 200.
-- [ ] Keep notification until user dismisses or navigates away
+- [x] On receiving `'pipeline-output-summary'`, show an inline notification (non‑modal) with the reason summary, e.g. _"Requested 200 images, but only 187 selected. 13 excluded: 8 duplicates, 5 below quality threshold. Do you want to add the excluded ones to make it 200?"_ Give notification with option yes and no, if yes, add the excluded ones for total of 200.
+- [x] Keep notification until user dismisses or navigates away
 
 ✅ **Done Criteria:** If user requests 500 images but only 312 exist, a confirmation dialog appears. After processing, if only 287 are selected, a clear reason summary is shown. Tier assignment is always relative — the best shots in any folder receive S-tier regardless of their absolute score.
 
@@ -948,29 +948,29 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 
 ### 10b.1 Add UI Toggle
 
-- [ ] In Setup screen, add a checkbox: **"Process subfolders recursively"**
-- [ ] Store `processSubfolders: boolean` in `AppSettings`
+- [x] In Setup screen, add a checkbox: **"Process subfolders recursively"**
+- [x] Store `processSubfolders: boolean` in `AppSettings`
 
 ### 10b.2 Implement Recursive Scan
 
-- [ ] Create `src/main/folder-walker.ts`
-- [ ] Implement `walkFolders(rootPath: string): Promise<string[]>` – returns list of all subdirectory paths (excluding hidden folders like `.cullai_cache`)
-- [ ] Modify orchestrator: if `processSubfolders` is true, treat each subfolder as a separate batch
-- [ ] Process batches sequentially (or parallel with separate session files) – combine results into one master session
-- [ ] Output folder: create subfolder structure mirroring input (or flatten with prefix option)
+- [x] Create `src/main/folder-walker.ts`
+- [x] Implement `walkFolders(rootPath: string): Promise<string[]>` – returns list of all subdirectory paths (excluding hidden folders like `.cullai_cache`)
+- [x] Modify orchestrator: if `processSubfolders` is true, treat each subfolder as a separate batch
+- [x] Process batches sequentially (or parallel with separate session files) – combine results into one master session
+- [x] Output folder: create subfolder structure mirroring input (or flatten with prefix option)
 
 ### 10b.3 Progress UI for Batches
 
-- [ ] In Processing screen, show current batch: `Processing folder 3/12: "Reception"`
-- [ ] Overall progress = (sum of scored across batches) / (total images across all batches)
+- [x] In Processing screen, show current batch: `Processing folder 3/12: "Reception"`
+- [x] Overall progress = (sum of scored across batches) / (total images across all batches)
 
 ### 10b.4 🔥 Preserve Subfolder Structure Option
 
-- [ ] In Setup screen, add a checkbox: "Preserve folder structure in output" (only visible when "Process subfolders recursively" is checked)
-- [ ] Store in `AppSettings` as `preserveSubfolderStructure`
-- [ ] When enabled, for each input subfolder (e.g., `input/Wedding/Reception/`), create the same relative path under the output folder (e.g., `output/Wedding/Reception/`)
-- [ ] When disabled (default), flatten all keepers into the root output folder
-- [ ] If filename conflicts occur when flattening, append a suffix (`_1`, `_2`) to the copied filename
+- [x] In Setup screen, add a checkbox: "Preserve folder structure in output" (only visible when "Process subfolders recursively" is checked)
+- [x] Store in `AppSettings` as `preserveSubfolderStructure`
+- [x] When enabled, for each input subfolder (e.g., `input/Wedding/Reception/`), create the same relative path under the output folder (e.g., `output/Wedding/Reception/`)
+- [x] When disabled (default), flatten all keepers into the root output folder
+- [x] If filename conflicts occur when flattening, append a suffix (`_1`, `_2`) to the copied filename
 
 ✅ **Done Criteria:** A folder with 5 subfolders processes all images across all subfolders. Final output contains keepers from all batches. Session resume works across batches. With recursive processing and "preserve structure" on, the output folder mirrors the input folder's hierarchy. With it off, all selected images land in a single folder (with conflict resolution).
 

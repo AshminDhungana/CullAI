@@ -58,6 +58,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Folder helpers ────────────────────────────────────────────────────────
   folderExists:         (folder)                                    => ipcRenderer.invoke('folder-exists', folder),
   /**
+   * Recursively discovers all subdirectories under `rootPath` that contain
+   * at least one file. Hidden dirs and .cullai_cache are excluded.
+   *
+   * Returns an array of relative subfolder paths ('' = root).
+   *
+   * @param {string} rootPath  Absolute path to the input root folder.
+   * @returns {Promise<string[]>}
+   */
+  walkSubfolders: (rootPath) =>
+    ipcRenderer.invoke('walk-subfolders', rootPath),
+  /**
    * Counts (and returns paths of) files in a folder matching optional filters.
    * All arguments after `folder` are optional.
    *
