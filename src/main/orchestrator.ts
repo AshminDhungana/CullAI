@@ -316,6 +316,10 @@ export async function* runPipeline(
   }
 
   const totalBatches = subfolders.length;
+
+  // ── Master session: accumulated across all batches ───────────────────────
+  // We merge scores from every completed batch into a single Session so the
+  // final pipeline-complete event contains all images, not just the last batch.
   let masterSession: import('../shared/types').Session | null = null;
 
   for (let batchIdx = 0; batchIdx < subfolders.length; batchIdx++) {
@@ -369,8 +373,11 @@ export async function* runPipeline(
       processSubfolders: false, // Prevent infinite recursion
     };
 
-    // Run the batch and forward all events except pipeline-complete
-    // (we emit our own combined complete at the end)
+    // Run the batch and forward all events except pipeline-complete.
+    // Intercept pipeline-complete to harvest the batch session and merge it
+    // into the running masterSession instead of replacing it.
+    let batchSession: import('../shared/types').Session | null = null;
+
     for await (const event of _runSingleFolderBatch(
       batchSettings,
       absoluteFolderPath,
@@ -379,12 +386,66 @@ export async function* runPipeline(
       { batchIndex: batchIdx + 1, totalBatches },
     )) {
       if (event.type === 'pipeline-complete') {
-        masterSession = event.session;
-        // Don't yield — we emit our own combined complete at the very end
+        batchSession = event.session;
+        // Accumulate into masterSession — merge scores maps so every batch
+        // contributes its ScoreRecords to the final result.
+        if (masterSession === null) {
+          // First completed batch becomes the base session.
+          masterSession = { ...batchSession };
+        } else {
+          // Subsequent batches: merge scores and update aggregate counts.
+          masterSession = {
+            ...masterSession,
+            // Keep the original session's identity / timestamps
+            totalImages: masterSession.totalImages + batchSession.totalImages,
+            scoredCount: masterSession.scoredCount + batchSession.scoredCount,
+            scores: { ...masterSession.scores, ...batchSession.scores },
+            // The master session is "complete" only after the final batch.
+            status: 'running',
+          };
+        }
+        // Do NOT yield pipeline-complete yet — we emit one combined event at the end.
         continue;
       }
-      // Re-emit all other events to the renderer unchanged
+      // Re-emit all other events to the renderer unchanged.
       yield event;
+    }
+
+    // ── File export for this batch ──────────────────────────────────────────
+    // After each batch completes, copy keeper files (S + A tier) to the output
+    // folder according to lightroomMode and preserveSubfolderStructure.
+    // This is intentionally per-batch (not deferred to the end) so disk writes
+    // are spread across the processing time rather than hitting all at once.
+    if (batchSession && !signal.aborted && settings.lightroomMode === 'copyToOutput') {
+      const keeperEntries = Object.entries(batchSession.scores).filter(
+        ([, rec]) => rec.tier === 'S' || rec.tier === 'A',
+      );
+
+      for (const [, rec] of keeperEntries) {
+        if (signal.aborted) break;
+        // Reconstruct the absolute source path from the batch input folder
+        // and the filename stored in the score record.
+        const sourceFilePath = path.join(absoluteFolderPath, rec.filename);
+        try {
+          await copyKeeperFile(
+            sourceFilePath,
+            settings.inputFolder, // root input — needed to compute relative dir
+            settings.outputFolder, // root output
+            settings.preserveSubfolderStructure,
+          );
+        } catch (copyErr: unknown) {
+          const msg = copyErr instanceof Error ? copyErr.message : String(copyErr);
+          console.warn(`[orchestrator] copyKeeperFile failed for ${rec.filename}: ${msg}`);
+          // Non-fatal: log and continue — other keepers should still be copied.
+        }
+      }
+
+      if (devMode) {
+        console.log(
+          `[orchestrator] Batch ${batchIdx + 1}/${totalBatches}: ` +
+          `copied ${keeperEntries.length} keeper(s) from "${folderName}"`,
+        );
+      }
     }
 
     yield {
@@ -396,9 +457,14 @@ export async function* runPipeline(
     if (signal.aborted) break;
   }
 
-  // Emit the final complete event using the last batch's session as a proxy.
+  // ── Emit the final combined pipeline-complete ─────────────────────────────
   if (masterSession) {
-    yield { type: 'pipeline-complete', session: masterSession };
+    // Mark the master session as completed now that all batches are done.
+    const finalSession: import('../shared/types').Session = {
+      ...masterSession,
+      status: 'completed',
+    };
+    yield { type: 'pipeline-complete', session: finalSession };
   }
 }
 

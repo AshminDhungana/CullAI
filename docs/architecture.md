@@ -12,6 +12,7 @@ cullai/
 │   ├── main/                            # Electron main process (Node.js)
 │   │   ├── index.ts                     # App entry point
 │   │   ├── orchestrator.ts               # Full batch pipeline orchestration (Phase 10)
+│   ├── folder-walker.ts                # Recursive directory scanning & file filtering
 │   │   ├── ipc-handlers.ts              # IPC communication
 │   │   ├── license-manager.ts           # License validation
 │   │   ├── raw-decoder.ts               # RAW → JPEG buffer decoder (Phase 4.2)

@@ -26,6 +26,14 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
   const [isComplete, setIsComplete] = useState(false);
   const [startTime] = useState(Date.now());
 
+  // ── Batch progress (Phase 10b — multi-folder mode) ────────────────────────
+  const [batchProgress, setBatchProgress] = useState<{
+    currentBatch: number;
+    totalBatches: number;
+    currentFolderName: string;
+    completedBatches: number;
+  } | null>(null);
+
   const logContainerRef = useRef<HTMLDivElement>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const startedRef = useRef(false);
@@ -107,6 +115,31 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
 
         case 'pipeline-error':
           setPipelineError(event.message);
+          break;
+
+        case 'pipeline-batch-started':
+          // Multi-folder mode: a new subfolder batch is beginning.
+          // Reset per-batch counters so the progress ring reflects the current folder.
+          setBatchProgress({
+            currentBatch: event.batchIndex,
+            totalBatches: event.totalBatches,
+            currentFolderName: event.folderName,
+            completedBatches: event.batchIndex - 1,
+          });
+          // Reset image-level counters for the incoming batch.
+          setTotalImages(event.batchImageCount);
+          setScoredCount(0);
+          setEtaSeconds(null);
+          setCurrentFilename('');
+          break;
+
+        case 'pipeline-batch-complete':
+          // Mark this batch as done in the progress tracker.
+          setBatchProgress((prev) =>
+            prev
+              ? { ...prev, completedBatches: event.batchIndex }
+              : { currentBatch: event.batchIndex, totalBatches: event.totalBatches, currentFolderName: '', completedBatches: event.batchIndex }
+          );
           break;
 
         default:
@@ -319,6 +352,44 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
 
       {/* Body */}
       <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
+        {/* Batch progress strip — only shown in multi-folder mode */}
+        {batchProgress && batchProgress.totalBatches > 1 && (
+          <div className="rounded-2xl border border-gray-200 dark:border-[#1e2535] bg-white dark:bg-[#161b27] px-6 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  Folder {batchProgress.currentBatch} of {batchProgress.totalBatches}
+                  {batchProgress.currentFolderName ? ` — "${batchProgress.currentFolderName}"` : ''}
+                </span>
+              </div>
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {batchProgress.completedBatches} completed
+              </span>
+            </div>
+            {/* Segmented progress track */}
+            <div className="flex gap-1">
+              {Array.from({ length: batchProgress.totalBatches }, (_, i) => {
+                const idx = i + 1;
+                const isDone = idx < batchProgress.currentBatch;
+                const isCurrent = idx === batchProgress.currentBatch;
+                return (
+                  <div
+                    key={idx}
+                    className={`h-2 flex-1 rounded-full transition-all duration-500 ${
+                      isDone
+                        ? 'bg-green-500'
+                        : isCurrent
+                        ? 'bg-amber-500 animate-pulse'
+                        : 'bg-gray-200 dark:bg-[#1e2535]'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Progress card */}
         <div className="rounded-2xl border border-gray-200 dark:border-[#1e2535] bg-white dark:bg-[#161b27] p-8">
           <div className="flex flex-col items-center text-center gap-5">
