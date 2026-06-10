@@ -26,7 +26,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 10    | Full Batch Pipeline + Input Validation | ✅ Complete    |
 | 10b   | Concurrent Directory Processing        | ✅ Complete    |
 | 11    | Parallel Batching                      | ✅ Complete    |
-| 12    | Results Screen (Enhanced)              | ⬜ Not Started |
+| 12    | Results Screen (Enhanced)              | ✅ Complete    |
 | 12b   | Results Performance & UX               | ⬜ Not Started |
 | 13    | XMP Export + Auto‑Tagging              | ⬜ Not Started |
 | 13b   | AI‑Powered Auto‑Tagging                | ⬜ Not Started |
@@ -1031,54 +1031,54 @@ Goal: A full-featured gallery for reviewing, comparing, and manually adjusting A
 
 ### 12.1 Build ImageTile Component
 
-- [ ] Create `src/renderer/components/ImageTile.tsx`
-- [ ] Display: thumbnail image, filename, tier badge (S/A/B/Rejected with color coding), composite score number
-- [ ] Expandable reasoning panel — click to show AI's reasoning text
-- [ ] Per-dimension score bars — 6 mini bars showing each dimension score
-- [ ] Visual selection state — highlighted border when selected
-- [ ] Accept `score: ScoreRecord`, `isSelected: boolean`, `onClick: () => void` as props
+- [x] Create `src/renderer/components/ImageTile.tsx`
+- [x] Display: thumbnail image, filename, tier badge (S/A/B/Rejected with color coding), composite score number
+- [x] Expandable reasoning panel — click to show AI's reasoning text
+- [x] Per-dimension score bars — 6 mini bars showing each dimension score
+- [x] Visual selection state — highlighted border when selected
+- [x] Accept `score: ScoreRecord`, `isSelected: boolean`, `onClick: () => void` as props
 
 ### 12.2 Build the Results Screen Layout
 
-- [ ] Create `src/renderer/screens/Results.tsx`
-- [ ] Tab navigation: **S** / **A** / **B** / **Rejected** — each tab shows count badge
-- [ ] Grid of `ImageTile` components for active tab
-- [ ] "Open output folder" button — calls `'shell-open-folder'` IPC
-- [ ] "Export results.json" button — calls `'export-results-json'` IPC
-- [ ] "Export XMP sidecars" button — calls `'export-xmp'` IPC (if auto-export was off)
-- [ ] "Save style profile from this session" button — opens a name-entry dialog
-- [ ] "Back to Setup" button — clears state and navigates to Setup screen
+- [x] Create `src/renderer/screens/Results.tsx`
+- [x] Tab navigation: **S** / **A** / **B** / **Rejected** — each tab shows count badge
+- [x] Grid of `ImageTile` components for active tab
+- [x] "Open output folder" button — calls `'shell-open-folder'` IPC
+- [x] "Export results.json" button — calls `'export-results-json'` IPC
+- [x] "Export XMP sidecars" button — calls `'export-xmp'` IPC (if auto-export was off)
+- [x] "Save style profile from this session" button — opens a name-entry dialog
+- [x] "Back to Setup" button — clears state and navigates to Setup screen
 
 ### 12.3 Build CompareView Component
 
-- [ ] Create `src/renderer/components/CompareView.tsx`
-- [ ] Activated when user selects 2–4 images (multi-select via Shift+click or Ctrl+click)
-- [ ] Side-by-side panel showing each selected image at equal size
-- [ ] Below each image: score breakdown bars + tier badge + reasoning text
-- [ ] "Close compare" button returns to grid view
-- [ ] Handle 2, 3, and 4 image layouts correctly (2-column, 3-column, 2×2 grid)
+- [x] Create `src/renderer/components/CompareView.tsx`
+- [x] Activated when user selects 2–4 images (multi-select via Shift+click or Ctrl+click)
+- [x] Side-by-side panel showing each selected image at equal size
+- [x] Below each image: score breakdown bars + tier badge + reasoning text
+- [x] "Close compare" button returns to grid view
+- [x] Handle 2, 3, and 4 image layouts correctly (2-column, 3-column, 2×2 grid)
 
 ### 12.4 Build FaceOverlay Component
 
-- [ ] Create `src/renderer/components/FaceOverlay.tsx`
-- [ ] On hover over an `ImageTile`, show bounding boxes for detected faces
-- [ ] Use `position: absolute` boxes calculated from `FaceBoundingBox` coordinates scaled to thumbnail size
-- [ ] Color code: green box = eyes open, orange box = blink detected
-- [ ] Only render if `faceMetadata.hasFaces === true`
+- [x] Create `src/renderer/components/FaceOverlay.tsx`
+- [x] On hover over an `ImageTile`, show bounding boxes for detected faces
+- [x] Use `position: absolute` boxes calculated from `FaceBoundingBox` coordinates scaled to thumbnail size
+- [x] Color code: green box = eyes open, orange box = blink detected
+- [x] Only render if `faceMetadata.hasFaces === true`
 
 ### 12.5 Build KeyboardCuller Component
 
-- [ ] Create `src/renderer/components/KeyboardCuller.tsx`
-- [ ] Attach `keydown` listener to `document` when Results screen is mounted
-- [ ] Implement shortcuts:
+- [x] Create `src/renderer/components/KeyboardCuller.tsx`
+- [x] Attach `keydown` listener to `document` when Results screen is mounted
+- [x] Implement shortcuts:
   - `↑` / `↓` — move focus to previous/next image in current tab
   - `P` — pick: move focused image to A-tier if in lower tier
   - `X` — reject: move focused image to Rejected tier
   - `R` — rescue: move focused image up one tier
   - `C` — open compare mode for selected images
   - `Escape` — close compare mode or clear selection
-- [ ] Show a keyboard shortcut legend/tooltip in the UI (dismissable)
-- [ ] Detach listener on component unmount
+- [x] Show a keyboard shortcut legend/tooltip in the UI (dismissable)
+- [x] Detach listener on component unmount
 
 ✅ **Done Criteria:** Results screen renders all tiers correctly. Keyboard shortcuts work. Compare mode shows side-by-side images with score breakdowns. Face overlay appears on hover when faces were detected.
 
