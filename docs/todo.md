@@ -29,8 +29,8 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 12    | Results Screen (Enhanced)              | ✅ Complete    |
 | 12b   | Results Performance & UX               | ✅ Complete    |
 | 13    | XMP Export + Auto‑Tagging              | ✅ Complete    |
-| 13b   | AI‑Powered Auto‑Tagging                | ⬜ Not Started |
-| 14    | Style Profile System                   | ⬜ Not Started |
+| 13b   | AI‑Powered Auto‑Tagging                | ✅ Complete    |
+| 14    | Style Profile System                   | ✅ Complete    |
 | 15    | Multi-Provider AI Support              | ⬜ Not Started |
 | 16    | Polish & Error Handling (Enhanced)     | ⬜ Not Started |
 | 17    | Test Suite (Enhanced)                  | ⬜ Not Started |
@@ -1274,7 +1274,7 @@ Goal: A full-featured gallery for reviewing, comparing, and manually adjusting A
 
 ### 15.1 Extend ai-client.ts for All Providers
 
-- [ ] Define provider configs in `src/shared/constants.ts`:
+- [x] Define provider configs in `src/shared/constants.ts`:
 
 ```ts
 PROVIDER_DEFAULTS = {
@@ -1297,7 +1297,7 @@ PROVIDER_DEFAULTS = {
 > **Note:** Keep model string defaults up to date as providers release new versions.
 > The values above should reflect the most current stable vision models at build time.
 
-- [ ] **In `ai-client.ts`, route based on provider:**
+- [x] **In `ai-client.ts`, route based on provider:**
   - **If provider === 'claude'**:
     - Ignore `baseUrl` setting.
     - Use **`https://api.anthropic.com/v1/messages`** (never `/chat/completions`).
@@ -1307,27 +1307,27 @@ PROVIDER_DEFAULTS = {
     - Use `baseUrl + '/chat/completions'` (OpenAI-compatible).
     - Headers: `Authorization: Bearer {apiKey}` (omit for ollama).
 
-- [ ] **Double-check**: The Claude branch must **never** append `/chat/completions`. Doing so will cause a 404.
+- [x] **Double-check**: The Claude branch must **never** append `/chat/completions`. Doing so will cause a 404.
 
 ### 15.2 Connection Validation
 
-- [ ] Implement `validateProvider(provider: AIProvider, apiKey: string, baseUrl: string, model: string): Promise<boolean>`:
+- [x] Implement `validateProvider(provider: AIProvider, apiKey: string, baseUrl: string, model: string): Promise<boolean>`:
   - Send a minimal test request (single small image, 10-token max response)
   - Return `true` on 200, `false` on auth/network error
-- [ ] Add IPC handler: `'validate-provider'`
-- [ ] In Setup screen: add "Test Connection" button next to API key field
+- [x] Add IPC handler: `'validate-provider'`
+- [x] In Setup screen: add "Test Connection" button next to API key field
   - On click: spinner → green checkmark (success) or red X (failure) with error message
 
 ### 15.3 Ollama-Specific Handling
 
-- [ ] For Ollama: skip API key input entirely (hide the field, do not require it)
-- [ ] Add a "Check Ollama" button that pings `http://localhost:11434/api/tags` to verify Ollama is running and lists available models
-- [ ] Populate model dropdown from Ollama's model list (filter to vision-capable models: llava, moondream, etc.)
-- [ ] Show helpful message if Ollama is not running: "Ollama not found. Start Ollama and ensure a vision model is installed."
+- [x] For Ollama: skip API key input entirely (hide the field, do not require it)
+- [x] Add a "Check Ollama" button that pings `http://localhost:11434/api/tags` to verify Ollama is running and lists available models
+- [x] Populate model dropdown from Ollama's model list (filter to vision-capable models: llava, moondream, etc.)
+- [x] Show helpful message if Ollama is not running: "Ollama not found. Start Ollama and ensure a vision model is installed."
 
 ### 15.4 Auto-Populate Defaults
 
-- [ ] When provider selection changes in Setup screen:
+- [x] When provider selection changes in Setup screen:
   - Auto-fill Base URL from `PROVIDER_DEFAULTS`
   - Auto-fill Model from `PROVIDER_DEFAULTS`
   - Clear API key field (different key per provider)
@@ -1340,7 +1340,7 @@ PROVIDER_DEFAULTS = {
 
 ### 15.5.1 Add IPC Endpoint for Fetching Models
 
-- [ ] Create IPC handler `'fetch-models'` in `src/main/ipc-handlers.ts`
+- [x] Create IPC handler `'fetch-models'` in `src/main/ipc-handlers.ts`
   - Accepts `{ provider: AIProvider, apiKey: string, baseUrl: string }`
   - Routes to appropriate API:
 
@@ -1364,30 +1364,30 @@ PROVIDER_DEFAULTS = {
     - Already implemented in Phase 15.3: `GET /api/tags`
     - Filter to vision models (llava, moondream, bakllava, etc.)
 
-- [ ] Cache model list for 1 hour per provider (avoid repeated API calls)
-- [ ] On failure (auth / network / invalid endpoint), fall back to the default model text input – keep manual entry possible for Custom providers or when API fails
+- [x] Cache model list for 1 hour per provider (avoid repeated API calls)
+- [x] On failure (auth / network / invalid endpoint), fall back to the default model text input – keep manual entry possible for Custom providers or when API fails
 
 ### 15.5.2 Extend Setup Screen UI
 
-- [ ] Replace the free‑text “Model name” field with a **dropdown + “Manual” toggle**
+- [x] Replace the free‑text “Model name” field with a **dropdown + “Manual” toggle**
   - Default: dropdown shows models fetched from provider (and shows “Loading…” while fetching)
   - User can click “Enter custom model” to switch to a text input (for unsupported, preview, or local models)
-- [ ] When provider changes, auto‑fetch models if API key is present (and for Ollama, if service is reachable)
-- [ ] While fetching, show a spinner and disable the dropdown
-- [ ] If fetch fails, show a small error icon and keep the manual text input visible (pre‑filled with the provider’s default model)
+- [x] When provider changes, auto‑fetch models if API key is present (and for Ollama, if service is reachable)
+- [x] While fetching, show a spinner and disable the dropdown
+- [x] If fetch fails, show a small error icon and keep the manual text input visible (pre‑filled with the provider’s default model)
 
 ### 15.5.3 Persist Selected Model
 
-- [ ] Store the selected model ID (or custom string) in `AppSettings.model` as before (no schema change needed)
-- [ ] When reloading settings, if the stored model exists in the fetched list, pre‑select it in the dropdown
-- [ ] If the stored model is not in the list (or fetch failed), switch to manual mode and populate the text input with the stored model name
+- [x] Store the selected model ID (or custom string) in `AppSettings.model` as before (no schema change needed)
+- [x] When reloading settings, if the stored model exists in the fetched list, pre‑select it in the dropdown
+- [x] If the stored model is not in the list (or fetch failed), switch to manual mode and populate the text input with the stored model name
 
 ### 15.5.4 Gemini‑Specific Handling
 
-- [ ] Use the native Google endpoint (not the OpenAI‑compatible one) for model listing
-- [ ] Parse response: `models[].name` (remove `models/` prefix) and `supportedGenerationMethods`
-- [ ] Filter to models that include `"generateContent"` (all generative models) and optionally check `"vision"` in name or description
-- [ ] Test with a valid Gemini API key – ensure the dropdown shows `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-2.0-flash-exp`, etc.
+- [x] Use the native Google endpoint (not the OpenAI‑compatible one) for model listing
+- [x] Parse response: `models[].name` (remove `models/` prefix) and `supportedGenerationMethods`
+- [x] Filter to models that include `"generateContent"` (all generative models) and optionally check `"vision"` in name or description
+- [x] Test with a valid Gemini API key – ensure the dropdown shows `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-2.0-flash-exp`, etc.
 
 ✅ **Done Criteria:** For OpenAI, Claude, Gemini, and Ollama, the model dropdown populates with real, vision‑capable models. Selecting a model stores it correctly. Manual override works for all providers. Gemini’s model list fetches successfully using the native REST API. If any fetch fails, the UI gracefully falls back to the original text input without blocking setup.
 

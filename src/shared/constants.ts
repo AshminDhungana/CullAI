@@ -16,9 +16,9 @@ export const SPLASH_DURATION_MS = 3000;
 // scientific notation, and the renderer divides by 1_000_000 when computing.
 //
 // Sources (update when providers revise pricing):
-//   Claude:  https://www.anthropic.com/pricing  (claude-sonnet-4-6 / opus-4-7)
-//   OpenAI:  https://openai.com/pricing         (gpt-4o)
-//   Gemini:  https://ai.google.dev/pricing       (gemini-1.5-pro)
+//   Claude:  https://www.anthropic.com/pricing  (claude-sonnet-4-6)
+//   OpenAI:  https://openai.com/pricing         (gpt-4.1 — replaces gpt-4o as API default)
+//   Gemini:  https://ai.google.dev/pricing       (gemini-3.5-flash — GA May 2026)
 //   Ollama:  local model — no cost
 //   Custom:  unknown endpoint — no cost
 //
@@ -46,10 +46,10 @@ export type ProviderTokenCost = {
 export const PROVIDER_TOKEN_COSTS: Record<string, ProviderTokenCost> = {
   // claude-sonnet-4-6 pricing
   claude:  { inputPerMToken: 3.00,  outputPerMToken: 15.00 },
-  // gpt-4o pricing
-  openai:  { inputPerMToken: 2.50,  outputPerMToken: 10.00 },
-  // gemini-1.5-pro pricing
-  gemini:  { inputPerMToken: 1.25,  outputPerMToken: 5.00  },
+  // gpt-4.1 pricing (replaces gpt-4o as recommended API default)
+  openai:  { inputPerMToken: 2.00,  outputPerMToken: 8.00  },
+  // gemini-3.5-flash pricing (GA May 2026, replaces gemini-1.5-pro as default)
+  gemini:  { inputPerMToken: 1.50,  outputPerMToken: 9.00  },
   // local — no API cost
   ollama:  { inputPerMToken: 0,     outputPerMToken: 0     },
   // user-supplied endpoint — cost unknown
@@ -77,3 +77,42 @@ export function estimateCost(
     (totalOutputTokens / 1_000_000) * pricing.outputPerMToken;
   return Math.round(raw * 10_000) / 10_000;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 15 — Provider default configurations
+//
+// Single source of truth for both the renderer (Setup.tsx auto-fill on
+// provider change) and the main process (test-connection fallback model).
+//
+// Model string rationale (updated June 2026):
+//   claude  → claude-sonnet-4-6
+//               Recommended daily-driver. $3/$15 per MTok. Vision-capable.
+//   openai  → gpt-4.1
+//               Launched April 2025. Outperforms gpt-4o across benchmarks.
+//               $2/$8 per MTok. gpt-5.5 exists but is 2.5× more expensive
+//               with no meaningful gain for photo scoring.
+//   gemini  → gemini-3.5-flash
+//               GA'd May 19 2026 at Google I/O. 1M context, multimodal.
+//               $1.50/$9.00 per MTok. gemini-2.5-flash deprecated Jun 17 2026.
+//   ollama  → llava
+//               Canonical local vision model. Free.
+//   custom  → '' (user must supply)
+//
+// Note: claude baseUrl is intentionally empty — ai-client.ts hardcodes
+// https://api.anthropic.com/v1/messages and ignores baseUrl for Claude.
+// ---------------------------------------------------------------------------
+
+export type ProviderDefaults = {
+  /** Base URL for OpenAI-compatible providers. Empty string for Claude (hardcoded in ai-client). */
+  baseUrl: string;
+  /** Default model string pre-filled in Setup UI and used as fallback in test-connection. */
+  defaultModel: string;
+};
+
+export const PROVIDER_DEFAULTS: Record<string, ProviderDefaults> = {
+  claude: { baseUrl: '',                                                         defaultModel: 'claude-sonnet-4-6' },
+  openai: { baseUrl: 'https://api.openai.com/v1',                               defaultModel: 'gpt-4.1'           },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-3.5-flash'  },
+  ollama: { baseUrl: 'http://localhost:11434/v1',                                defaultModel: 'llava'             },
+  custom: { baseUrl: '',                                                         defaultModel: ''                  },
+};

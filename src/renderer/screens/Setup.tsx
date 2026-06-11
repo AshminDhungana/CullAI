@@ -51,6 +51,7 @@ import { useIgnoreRules } from '../hooks/useIgnoreRules';
 import type { AppSettings, AIProvider, ReferenceImage } from '../../shared/types';
 import { defaultAppSettings } from '../../shared/types';
 import { GENRE_PRESETS } from '../../shared/genre-presets';
+import { PROVIDER_DEFAULTS } from '../../shared/constants';
 import LicensePanel from '../components/LicensePanel';
 import type { LicenseStatus as LicenseStatusType } from '../../shared/license';
 import { isAllowed } from '../../shared/license';
@@ -59,17 +60,6 @@ import StyleProfileManager from '../components/StyleProfileManager';
 import RecentSessionsPanel from '../components/RecentSessionsPanel';
 import type { SessionHistoryEntry } from '../../shared/types';
 import ModelCombobox, { type ModelComboboxHandle } from '../components/ModelCombobox';
-
-// -----------------------------------------------------------------------------
-// Provider defaults
-// -----------------------------------------------------------------------------
-const PROVIDER_DEFAULTS: Record<AIProvider, { baseUrl: string; defaultModel: string }> = {
-  claude: { baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-sonnet-4-6' },
-  openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-5.4' },
-  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-3.5-flash' },
-  ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'llama3.2' },
-  custom: { baseUrl: '', defaultModel: '' },
-};
 
 // -----------------------------------------------------------------------------
 // Zod validation schema
@@ -415,6 +405,10 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         const stored: string | null = await window.electronAPI.getApiKey(watchedProvider);
         if (stored) {
           setValue('apiKey', MASKED_SENTINEL, { shouldDirty: false });
+          // Key already stored for this provider → auto-fetch models immediately.
+          // Covers switching between providers where both have saved keys, so the
+          // model dropdown refreshes without requiring an extra button click.
+          modelComboboxRef.current?.triggerFetch();
         } else {
           setValue('apiKey', '', { shouldDirty: false });
         }

@@ -30,6 +30,7 @@ import {
 } from './license-manager';
 import { FEATURES, isAllowed } from '../shared/license';
 import type { Feature } from '../shared/license';
+import { PROVIDER_DEFAULTS } from '../shared/constants';
 import {
   initUsageTracker,
   getUsageStatus,
@@ -192,6 +193,30 @@ const activePipelineJobs = new Map<number, AbortController>();
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Phase 15.5.1 — Model list cache (1-hour TTL per provider + baseUrl key)
+//
+// Avoids redundant network calls when the user visits the AI step multiple
+// times in a session or switches providers quickly. TTL of 1 hour is short
+// enough to reflect newly-pulled Ollama models after a restart.
+// ---------------------------------------------------------------------------
+const _modelCache = new Map<string, { models: string[]; fetchedAt: number }>();
+const MODEL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function getCachedModels(cacheKey: string): string[] | null {
+  const entry = _modelCache.get(cacheKey);
+  if (!entry) return null;
+  if (Date.now() - entry.fetchedAt > MODEL_CACHE_TTL_MS) {
+    _modelCache.delete(cacheKey);
+    return null;
+  }
+  return entry.models;
+}
+
+function setCachedModels(cacheKey: string, models: string[]): void {
+  _modelCache.set(cacheKey, { models, fetchedAt: Date.now() });
+}
 
 export function registerIpcHandlers(store: AppStore): void {
   initUsageTracker(store);
@@ -841,9 +866,122 @@ export function registerIpcHandlers(store: AppStore): void {
   // -------------------------------------------------------------------------
 
   /** Smoke-test handler — confirms IPC bridge is alive. */
-  ipcMain.handle('test-connection', async () => {
-    return { success: true };
-  });
+  // -------------------------------------------------------------------------
+  // Phase 15.2 — Provider connection validation
+  //
+  // Sends a minimal text-only request (max_tokens: 1) to the selected
+  // provider to verify that the stored API key is valid and the endpoint is
+  // reachable. Text-only keeps the test free of per-image token charges and
+  // works uniformly across all providers regardless of which model is chosen.
+  //
+  // Returns: { success: boolean, status?: number, error?: string }
+  // -------------------------------------------------------------------------
+  ipcMain.handle(
+    'test-connection',
+    async (
+      _event,
+      payload: { provider: string; baseUrl?: string; model?: string },
+    ) => {
+      const { provider, baseUrl, model } = payload ?? {};
+
+      if (!provider || typeof provider !== 'string') {
+        return { success: false, error: 'Provider is required' };
+      }
+
+      // Read the stored key — never accept raw keys from the renderer payload.
+      const apiKey = getApiKey(provider as any) ?? '';
+
+      // Resolve the model to test with, falling back to the provider default.
+      const resolvedModel = (model?.trim()) || PROVIDER_DEFAULTS[provider]?.defaultModel || '';
+
+      try {
+        // ── Claude (native Anthropic Messages API) ──────────────────────────
+        if (provider === 'claude') {
+          let res: Response;
+          try {
+            res = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: resolvedModel || 'claude-sonnet-4-6',
+                max_tokens: 1,
+                messages: [{ role: 'user', content: 'hi' }],
+              }),
+              signal: AbortSignal.timeout(12000),
+            });
+          } catch {
+            return {
+              success: false,
+              error: 'Cannot reach Anthropic API — check your internet connection.',
+            };
+          }
+
+          if (res.status === 401) return { success: false, status: 401, error: 'Invalid API key (401). Check your Anthropic key.' };
+          if (res.status === 403) return { success: false, status: 403, error: 'Access denied (403). Check your key permissions.' };
+          if (res.status === 429) return { success: false, status: 429, error: 'Rate limited (429). Try again in a moment.' };
+          if (!res.ok)            return { success: false, status: res.status, error: `Anthropic API error ${res.status}.` };
+          return { success: true, status: res.status };
+        }
+
+        // ── OpenAI-compatible branch (openai, gemini, ollama, custom) ───────
+        let normBase: string;
+        if (provider === 'ollama') {
+          normBase = (baseUrl?.trim().replace(/\/+$/, '') || 'http://localhost:11434/v1');
+        } else if (provider === 'gemini') {
+          normBase = 'https://generativelanguage.googleapis.com/v1beta/openai';
+        } else if (provider === 'openai') {
+          normBase = 'https://api.openai.com/v1';
+        } else {
+          // custom
+          normBase = (baseUrl?.trim().replace(/\/+$/, '') || '');
+          if (!normBase) {
+            return { success: false, error: 'Base URL is required for custom providers.' };
+          }
+        }
+
+        // Ensure the base ends with /v1 exactly once
+        const base = normBase.endsWith('/v1') ? normBase : `${normBase}/v1`;
+        const url  = `${base}/chat/completions`;
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+        let res: Response;
+        try {
+          res = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              model: resolvedModel,
+              max_tokens: 1,
+              messages: [{ role: 'user', content: 'hi' }],
+            }),
+            signal: AbortSignal.timeout(12000),
+          });
+        } catch {
+          const hostLabel = provider === 'ollama' ? 'Ollama' : provider;
+          return {
+            success: false,
+            error: `Cannot reach ${hostLabel} — check URL and internet connection.`,
+          };
+        }
+
+        if (res.status === 401) return { success: false, status: 401, error: 'Invalid API key (401).' };
+        if (res.status === 403) return { success: false, status: 403, error: 'Access denied (403). Check your key.' };
+        if (res.status === 429) return { success: false, status: 429, error: 'Rate limited (429). Try again in a moment.' };
+        if (!res.ok)            return { success: false, status: res.status, error: `API error ${res.status}.` };
+        return { success: true, status: res.status };
+
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { success: false, error: `Unexpected error: ${msg}` };
+      }
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Shell helpers
@@ -1051,6 +1189,10 @@ export function registerIpcHandlers(store: AppStore): void {
 
         switch (provider) {
           case 'claude': {
+            const cacheKey = 'claude:';
+            const cached = getCachedModels(cacheKey);
+            if (cached) return { models: cached, error: null };
+
             const url = 'https://api.anthropic.com/v1/models';
             let res: Response;
             try {
@@ -1084,10 +1226,15 @@ export function registerIpcHandlers(store: AppStore): void {
               .sort()
               .reverse(); // newest first
 
+            setCachedModels(cacheKey, models);
             return { models, error: null };
           }
 
           case 'openai': {
+            const cacheKey = 'openai:';
+            const cached = getCachedModels(cacheKey);
+            if (cached) return { models: cached, error: null };
+
             const url = 'https://api.openai.com/v1/models';
             let res: Response;
             try {
@@ -1112,16 +1259,27 @@ export function registerIpcHandlers(store: AppStore): void {
 
             const data = await res.json().catch(() => ({}));
             const list: unknown[] = (data as any)?.data ?? [];
+            // Include gpt-4x, gpt-5x, o1/o3/o4-mini, and chatgpt-4o variants;
+            // exclude dall-e, whisper, tts, babbage, davinci, embedding models.
+            const OPENAI_VISION_PREFIXES = ['gpt-4', 'gpt-5', 'o1', 'o3', 'o4', 'chatgpt-4o'];
             const models = list
               .map((m: any) => m?.id)
-              .filter((id): id is string => typeof id === 'string' && id.startsWith('gpt'))
+              .filter((id): id is string =>
+                typeof id === 'string' &&
+                OPENAI_VISION_PREFIXES.some(p => id.toLowerCase().startsWith(p))
+              )
               .sort()
               .reverse();
 
+            setCachedModels(cacheKey, models);
             return { models, error: null };
           }
 
           case 'gemini': {
+            const cacheKey = 'gemini:';
+            const cached = getCachedModels(cacheKey);
+            if (cached) return { models: cached, error: null };
+
             const geminiBase = 'https://generativelanguage.googleapis.com/v1beta/models';
             const geminiUrl = `${geminiBase}?key=${apiKey}`;
             let res: Response;
@@ -1143,17 +1301,29 @@ export function registerIpcHandlers(store: AppStore): void {
 
             const data = await res.json().catch(() => ({}));
             const list: unknown[] = (data as any)?.models ?? [];
+            // Filter to models that support generateContent — this correctly
+            // excludes embedding, TTS, and legacy models while including all
+            // generative Gemini versions (1.5, 2.0, 2.5, 3.x, etc.).
             const models = list
+              .filter((m: any) => {
+                const methods: string[] = m?.supportedGenerationMethods ?? [];
+                return methods.includes('generateContent');
+              })
               .map((m: any) => m?.name?.replace('models/', '') ?? m?.id)
               .filter((id): id is string => typeof id === 'string' && id.includes('gemini'))
               .sort()
               .reverse();
 
+            setCachedModels(cacheKey, models);
             return { models, error: null };
           }
 
           case 'ollama': {
             const ollamaBase = baseUrl?.trim().replace(/\/+$/, '') || 'http://localhost:11434';
+            const cacheKey = `ollama:${ollamaBase}`;
+            const cached = getCachedModels(cacheKey);
+            if (cached) return { models: cached, error: null };
+
             const modelsUrl = `${ollamaBase}/api/tags`;
             let res: Response;
             try {
@@ -1174,11 +1344,28 @@ export function registerIpcHandlers(store: AppStore): void {
 
             const data = await res.json().catch(() => ({}));
             const list: unknown[] = (data as any)?.models ?? [];
-            const models = list
+            const allNames = list
               .map((m: any) => m?.name)
               .filter((id): id is string => typeof id === 'string' && id.length > 0)
               .sort();
 
+            // Sort-to-top strategy: known vision model prefixes appear first,
+            // everything else follows. No models are dropped — the user may have
+            // installed a vision model with an unfamiliar name (qwen2-vl, etc.).
+            const OLLAMA_VISION_PREFIXES = [
+              'llava', 'moondream', 'bakllava', 'minicpm-v',
+              'llama3.2-vision', 'cogvlm', 'qwen2-vl', 'granite3-vision',
+              'phi3.5-vision', 'internvl',
+            ];
+            const visionModels = allNames.filter(id =>
+              OLLAMA_VISION_PREFIXES.some(p => id.toLowerCase().startsWith(p))
+            );
+            const otherModels = allNames.filter(id =>
+              !OLLAMA_VISION_PREFIXES.some(p => id.toLowerCase().startsWith(p))
+            );
+            const models = [...visionModels, ...otherModels];
+
+            setCachedModels(cacheKey, models);
             return { models, error: null };
           }
 
@@ -1190,6 +1377,10 @@ export function registerIpcHandlers(store: AppStore): void {
             const modelsUrl = normBase.endsWith('/v1')
               ? `${normBase}/models`
               : `${normBase}/v1/models`;
+
+            const cacheKey = `custom:${normBase}`;
+            const cached = getCachedModels(cacheKey);
+            if (cached) return { models: cached, error: null };
 
             const headers: Record<string, string> = {};
             if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
@@ -1221,6 +1412,7 @@ export function registerIpcHandlers(store: AppStore): void {
               .filter((id): id is string => typeof id === 'string' && id.length > 0)
               .sort();
 
+            setCachedModels(cacheKey, models);
             return { models, error: null };
           }
 
