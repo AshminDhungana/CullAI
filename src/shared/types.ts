@@ -477,6 +477,40 @@ export type Session = {
 };
 
 // -----------------------------------------------------------------------------
+// Session History (Phase 14.3)
+// -----------------------------------------------------------------------------
+
+/**
+ * Lightweight summary of a completed culling session stored in electron-store.
+ * Used by RecentSessionsPanel to let users quickly restore prior settings.
+ *
+ * Store key: 'sessionHistory'  (SessionHistoryEntry[], newest-first, max 10)
+ * Written by: ipc-handlers.ts pipeline-start handler on pipeline-complete.
+ */
+export type SessionHistoryEntry = {
+  /** Matches Session.sessionId for traceability. */
+  sessionId: string;
+  /** ISO timestamp — equals Session.createdAt. */
+  date: string;
+  /** Absolute path to the input folder. */
+  inputFolder: string;
+  /** Total images processed in this session. */
+  imageCount: number;
+  /** ID of the StyleProfile active when the session ran, or null. */
+  profileUsed: string | null;
+  /** Resolved profile name for display (avoids a profile list lookup). */
+  profileName: string | null;
+  /** Maximum composite ScoreRecord.total across all scored images (0–100). */
+  topScore: number;
+  /** ISO timestamp of when the pipeline-complete event fired. */
+  completedAt: string;
+  // ── Settings snapshot — the three fields the panel can restore ──────────
+  genre: GenrePreset;
+  weights: ScoringWeights;
+  preferenceText: string;
+};
+
+// -----------------------------------------------------------------------------
 // AI Client Types (Phase 9)
 // -----------------------------------------------------------------------------
 

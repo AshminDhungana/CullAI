@@ -43,8 +43,11 @@ import {
   RotateCcw,
   Tag,
   Sparkles,
+  Bookmark,        // ← Phase 14.4
+  X,               // ← Phase 14.4
+  Loader2,         // ← Phase 14.4
 } from 'lucide-react';
-import type { AppSettings, Session, ScoreRecord, PipelineEvent } from '../../shared/types';
+import type { AppSettings, Session, ScoreRecord, PipelineEvent, StyleProfile } from '../../shared/types';
 import ImageTile from '../components/ImageTile';
 import CompareView from '../components/CompareView';
 import KeyboardCuller from '../components/KeyboardCuller';
@@ -105,6 +108,13 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
   // ── Auto-tagging state (Phase 13b) ────────────────────────────────────────────
   const [isAutoTagging,    setIsAutoTagging]    = useState(false);
   const [autoTagToast,     setAutoTagToast]     = useState<string | null>(null);
+
+  // ── Save style profile (Phase 14.4) ──────────────────────────────────────────
+  const [isSavingProfile,   setIsSavingProfile]   = useState(false);
+  const [showProfileSave,   setShowProfileSave]   = useState(false);
+  const [profileSaveName,   setProfileSaveName]   = useState('');
+  const [profileSaveError,  setProfileSaveError]  = useState<string | null>(null);
+  const [profileSaveToast,  setProfileSaveToast]  = useState<string | null>(null);
 
   // ── Re-score (12b.4) ──────────────────────────────────────────────────────────
   const [isRescoring,     setIsRescoring]     = useState(false);
@@ -439,6 +449,54 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
     }
   };
 
+  // Phase 14.4 — Save style profile from Results screen
+  const handleOpenProfileSave = useCallback(async () => {
+    const genre = settings.genre ?? 'general';
+    const month = new Date().toLocaleString(undefined, { month: 'long', year: 'numeric' });
+    const genreLabel = (genre as string).charAt(0).toUpperCase() + (genre as string).slice(1);
+    setProfileSaveName(`${genreLabel} — ${month}`);
+    setProfileSaveError(null);
+    setShowProfileSave(true);
+  }, [settings.genre]);
+
+  const handleSaveProfile = useCallback(async () => {
+    const name = profileSaveName.trim();
+    if (!name) return;
+    setIsSavingProfile(true);
+    setProfileSaveError(null);
+    try {
+      // Check free tier limit
+      // @ts-expect-error — electronAPI bridge
+      const existing: StyleProfile[] = await window.electronAPI.profilesList();
+      // @ts-expect-error — electronAPI bridge
+      const tier = await window.electronAPI.licenseGetTier();
+      if (tier === 'free' && existing.length >= 2) {
+        setProfileSaveError('Free plan allows 2 profiles. Upgrade to Pro for unlimited profiles.');
+        return;
+      }
+
+      const newProfile: StyleProfile = {
+        id: crypto.randomUUID(),
+        name,
+        genre: settings.genre,
+        weights: settings.weights,
+        preferenceText: settings.preferenceText ?? '',
+        createdAt: new Date().toISOString(),
+        lastUsedAt: new Date().toISOString(),
+      };
+      // @ts-expect-error — electronAPI bridge
+      await window.electronAPI.profilesSave(newProfile);
+      setShowProfileSave(false);
+      setProfileSaveName('');
+      setProfileSaveToast(`Profile "${name}" saved.`);
+      setTimeout(() => setProfileSaveToast(null), 4000);
+    } catch (err: any) {
+      setProfileSaveError(`Failed to save profile: ${err.message || err}`);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }, [profileSaveName, settings]);
+
   // 12b.4 — Re-score selected
   const handleRescore = useCallback(async () => {
     if (selectedImageIds.size === 0) return;
@@ -698,6 +756,17 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
                 </button>
               )}
 
+              {/* Save as Style Profile — Phase 14.4 */}
+              <button
+                onClick={handleOpenProfileSave}
+                disabled={showProfileSave}
+                title="Save this session's genre, weights, and style text as a reusable profile"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                <Bookmark size={14} />
+                <span>Save Profile</span>
+              </button>
+
               <button
                 onClick={onBack}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/10 transition"
@@ -930,6 +999,72 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
           >
             <Sparkles size={14} className="text-purple-400 shrink-0" />
             <span>{autoTagToast}</span>
+          </motion.div>
+        )}
+
+        {/* Save-profile inline panel — Phase 14.4 */}
+        {showProfileSave && (
+          <motion.div
+            key="profile-save-panel"
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0,  scale: 1    }}
+            exit={{    opacity: 0, y: 20,  scale: 0.95 }}
+            className="fixed bottom-6 left-6 z-50 w-full max-w-sm bg-[#10131e] border border-amber-500/30 rounded-xl p-4 shadow-xl backdrop-blur-md text-white"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Bookmark size={15} className="text-amber-400 shrink-0" />
+              <h4 className="text-xs font-bold text-amber-400 flex-1">Save Style Profile</h4>
+              <button
+                onClick={() => { setShowProfileSave(false); setProfileSaveError(null); }}
+                className="p-0.5 text-white/40 hover:text-white/70 transition"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <input
+              autoFocus
+              value={profileSaveName}
+              onChange={e => { setProfileSaveName(e.target.value); setProfileSaveError(null); }}
+              onKeyDown={e => { if (e.key === 'Enter') handleSaveProfile(); if (e.key === 'Escape') setShowProfileSave(false); }}
+              placeholder="Profile name…"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-amber-500 mb-2"
+            />
+            {profileSaveError && (
+              <p className="text-[11px] text-red-400 mb-2 flex items-center gap-1.5">
+                <AlertTriangle size={11} className="shrink-0" />
+                {profileSaveError}
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSaveProfile}
+                disabled={isSavingProfile || !profileSaveName.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-black text-xs font-bold rounded-lg transition"
+              >
+                {isSavingProfile
+                  ? <Loader2 size={12} className="animate-spin" />
+                  : <Check size={12} />
+                }
+                Save
+              </button>
+              <p className="text-[10px] text-white/40">
+                Genre: <span className="text-white/60 capitalize">{settings.genre}</span>
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Profile saved toast — Phase 14.4 */}
+        {profileSaveToast && (
+          <motion.div
+            key="profile-save-toast"
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0  }}
+            exit={{    opacity: 0, y: 20  }}
+            className="fixed bottom-6 right-6 z-50 bg-[#161217] border border-amber-500/30 text-amber-300 text-xs px-4 py-3 rounded-lg shadow-xl flex items-center gap-2"
+          >
+            <Bookmark size={13} className="text-amber-400 shrink-0" />
+            <span>{profileSaveToast}</span>
           </motion.div>
         )}
       </AnimatePresence>

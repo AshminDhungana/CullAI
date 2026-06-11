@@ -1490,6 +1490,45 @@ export function registerIpcHandlers(store: AppStore): void {
           )) {
             // Guard against destroyed webContents (window closed mid-run).
             if (event.sender.isDestroyed()) break;
+
+            // Phase 14.3 — persist session history on successful completion
+            if (pipelineEvent.type === 'pipeline-complete' && pipelineEvent.session) {
+              try {
+                const session = pipelineEvent.session;
+                const scores  = Object.values(session.scores);
+                const topScore = scores.length > 0
+                  ? Math.max(...scores.map(s => s.total))
+                  : 0;
+
+                // Resolve profile name if one was active
+                let profileName: string | null = null;
+                if (settings.activeProfileId) {
+                  const saved = (store.get('styleProfiles') as any[] | undefined) ?? [];
+                  profileName = saved.find((p: any) => p.id === settings.activeProfileId)?.name ?? null;
+                }
+
+                const entry: import('../shared/types').SessionHistoryEntry = {
+                  sessionId:      session.sessionId,
+                  date:           session.createdAt,
+                  inputFolder:    session.inputFolder,
+                  imageCount:     session.totalImages,
+                  profileUsed:    settings.activeProfileId ?? null,
+                  profileName,
+                  topScore:       Math.round(topScore * 100) / 100,
+                  completedAt:    new Date().toISOString(),
+                  genre:          settings.genre,
+                  weights:        settings.weights,
+                  preferenceText: settings.preferenceText ?? '',
+                };
+
+                const history = (store.get('sessionHistory') as any[] | undefined) ?? [];
+                store.set('sessionHistory', [entry, ...history].slice(0, SESSION_HISTORY_MAX));
+              } catch (histErr: unknown) {
+                // Non-fatal — never block the pipeline-complete event for history I/O
+                console.warn('[ipc] session-history write failed:', histErr);
+              }
+            }
+
             event.sender.send('pipeline-event', pipelineEvent);
           }
         } catch (err: unknown) {
@@ -2057,4 +2096,77 @@ export function registerIpcHandlers(store: AppStore): void {
       return { success: true, written };
     },
   );
+
+  // =========================================================================
+  // Phase 14.2 — Style Profile Storage
+  // =========================================================================
+
+  /**
+   * Returns all saved StyleProfile objects, newest-first.
+   * Returns an empty array if no profiles have been saved yet.
+   */
+  ipcMain.handle('profiles-list', () => {
+    const profiles = store.get('styleProfiles') as import('../shared/types').StyleProfile[] | undefined;
+    return profiles ?? [];
+  });
+
+  /**
+   * Saves (creates or updates) a single StyleProfile by its `id` field.
+   * If a profile with the same id exists it is replaced; otherwise appended.
+   *
+   * Payload: StyleProfile  (must have a non-empty id string)
+   * Returns: true
+   */
+  ipcMain.handle('profiles-save', (_event, profile: import('../shared/types').StyleProfile) => {
+    if (!profile?.id || typeof profile.id !== 'string') {
+      throw new Error('profiles-save: profile.id is required');
+    }
+    if (!profile.name || typeof profile.name !== 'string') {
+      throw new Error('profiles-save: profile.name is required');
+    }
+    if (!profile.genre || !profile.weights) {
+      throw new Error('profiles-save: profile.genre and profile.weights are required');
+    }
+
+    const current = (store.get('styleProfiles') as import('../shared/types').StyleProfile[] | undefined) ?? [];
+    const exists = current.some(p => p.id === profile.id);
+    const updated = exists
+      ? current.map(p => p.id === profile.id ? profile : p)
+      : [...current, profile];
+
+    store.set('styleProfiles', updated);
+    return true;
+  });
+
+  /**
+   * Removes a StyleProfile by id. No-op if the id is not found.
+   *
+   * Payload: id string
+   * Returns: true
+   */
+  ipcMain.handle('profiles-delete', (_event, id: string) => {
+    if (!id || typeof id !== 'string') {
+      throw new Error('profiles-delete: id is required');
+    }
+    const current = (store.get('styleProfiles') as import('../shared/types').StyleProfile[] | undefined) ?? [];
+    store.set('styleProfiles', current.filter(p => p.id !== id));
+    return true;
+  });
+
+  // =========================================================================
+  // Phase 14.3 — Session History
+  // =========================================================================
+
+  const SESSION_HISTORY_MAX = 10;
+
+  /**
+   * Returns the last SESSION_HISTORY_MAX completed session summaries.
+   * Newest entry first.
+   *
+   * Returns: SessionHistoryEntry[]
+   */
+  ipcMain.handle('session-history-get', () => {
+    const history = store.get('sessionHistory') as import('../shared/types').SessionHistoryEntry[] | undefined;
+    return history ?? [];
+  });
 }

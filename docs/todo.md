@@ -1233,33 +1233,33 @@ Goal: A full-featured gallery for reviewing, comparing, and manually adjusting A
 
 ### 14.1 Build StyleProfileManager Component
 
-- [ ] Create `src/renderer/components/StyleProfileManager.tsx`
-- [ ] Dropdown listing all saved profiles by name + a "New Profile" option
-- [ ] "Load" button — populates Setup screen fields from selected profile
-- [ ] "Save current as..." button — opens inline name input, saves current settings as new profile
-- [ ] "Delete" button — removes selected profile (with confirmation dialog)
-- [ ] "Rename" button — inline edit of profile name
-- [ ] Free tier: disable "Create New" if user already has 2 profiles; show upgrade prompt
-- [ ] Display profile metadata: genre, creation date, last used date
+- [x] Create `src/renderer/components/StyleProfileManager.tsx`
+- [x] Dropdown listing all saved profiles by name + a "New Profile" option
+- [x] "Load" button — populates Setup screen fields from selected profile
+- [x] "Save current as..." button — opens inline name input, saves current settings as new profile
+- [x] "Delete" button — removes selected profile (with confirmation dialog)
+- [x] "Rename" button — inline edit of profile name
+- [x] Free tier: disable "Create New" if user already has 2 profiles; show upgrade prompt
+- [x] Display profile metadata: genre, creation date, last used date
 
 ### 14.2 Wire Profile Storage
 
-- [ ] Add IPC handler: `'profiles-list'` — returns all saved `StyleProfile[]` from `electron-store`
-- [ ] Add IPC handler: `'profiles-save'` — saves or updates a profile by ID
-- [ ] Add IPC handler: `'profiles-delete'` — removes a profile by ID
-- [ ] Generate UUID for each new profile
-- [ ] Auto-save "Last Used" timestamp on profile load
+- [x] Add IPC handler: `'profiles-list'` — returns all saved `StyleProfile[]` from `electron-store`
+- [x] Add IPC handler: `'profiles-save'` — saves or updates a profile by ID
+- [x] Add IPC handler: `'profiles-delete'` — removes a profile by ID
+- [x] Generate UUID for each new profile
+- [x] Auto-save "Last Used" timestamp on profile load
 
 ### 14.3 Session History
 
-- [ ] Store a summary of each completed session in `electron-store`:
+- [x] Store a summary of each completed session in `electron-store`:
       `{ date, inputFolder, imageCount, profileUsed, topScore, completedAt }`
-- [ ] Display last 10 sessions in a collapsible "Recent Sessions" panel on Setup screen
-- [ ] Clicking a session entry re-loads its settings into Setup screen
+- [x] Display last 10 sessions in a collapsible "Recent Sessions" panel on Setup screen
+- [x] Clicking a session entry re-loads its settings into Setup screen
 
 ### 14.4 Save Profile from Results Screen
 
-- [ ] "Save style profile from this session" button in Results screen:
+- [x] "Save style profile from this session" button in Results screen:
   - Pre-fills name as `"[Genre] — [Date]"` (e.g. "Wedding — May 2026")
   - Saves current session's genre, weights, and preference text as a new profile
   - Respects Free tier 2-profile limit

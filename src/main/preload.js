@@ -476,4 +476,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   runAutoTagging: (payload) =>
     ipcRenderer.invoke('run-auto-tagging', payload),
+
+  // ── Phase 14 — Style Profile System ─────────────────────────────────────
+
+  /**
+   * Returns all saved StyleProfile objects, newest-first.
+   *
+   * @returns {Promise<StyleProfile[]>}
+   */
+  profilesList: () =>
+    ipcRenderer.invoke('profiles-list'),
+
+  /**
+   * Saves (creates or updates) a StyleProfile by its `id` field.
+   * Upserts: if a profile with the same id exists it is replaced; otherwise
+   * a new entry is appended.
+   *
+   * @param {StyleProfile} profile
+   * @returns {Promise<true>}
+   */
+  profilesSave: (profile) =>
+    ipcRenderer.invoke('profiles-save', profile),
+
+  /**
+   * Permanently deletes the profile with the given id. No-op if not found.
+   *
+   * @param {string} id  UUID of the profile to delete.
+   * @returns {Promise<true>}
+   */
+  profilesDelete: (id) =>
+    ipcRenderer.invoke('profiles-delete', id),
+
+  /**
+   * Returns the last 10 completed session summaries, newest-first.
+   * Used by RecentSessionsPanel to let users reload prior settings.
+   *
+   * @returns {Promise<SessionHistoryEntry[]>}
+   */
+  sessionHistoryGet: () =>
+    ipcRenderer.invoke('session-history-get'),
 });

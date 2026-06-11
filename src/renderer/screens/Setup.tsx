@@ -55,6 +55,9 @@ import LicensePanel from '../components/LicensePanel';
 import type { LicenseStatus as LicenseStatusType } from '../../shared/license';
 import { isAllowed } from '../../shared/license';
 import CacheSettingsPanel from '../components/CacheSettingsPanel';
+import StyleProfileManager from '../components/StyleProfileManager';
+import RecentSessionsPanel from '../components/RecentSessionsPanel';
+import type { SessionHistoryEntry } from '../../shared/types';
 import ModelCombobox, { type ModelComboboxHandle } from '../components/ModelCombobox';
 
 // -----------------------------------------------------------------------------
@@ -190,6 +193,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [folderRelationship, setFolderRelationship] = useState<FolderRelationship>(null);
   const [ignoreFolderWarning, setIgnoreFolderWarning] = useState(false);
   const [showDuplicateTooltip, setShowDuplicateTooltip] = useState(false);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [apiKeySaveError, setApiKeySaveError] = useState<string>('');
   const modelComboboxRef = useRef<ModelComboboxHandle>(null);
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatusType | null>(null);
@@ -347,6 +351,32 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       return () => subscription.unsubscribe();
     }
   }, [watch, isLoading, isDirty, saveSettings]);
+
+  /**
+   * Called by StyleProfileManager when the user clicks "Load".
+   * Populates genre, weights, and preferenceText from the saved profile.
+   */
+  const handleLoadProfile = useCallback((profile: import('../../shared/types').StyleProfile) => {
+    setValue('genre',          profile.genre,         { shouldDirty: true });
+    setValue('weights',        profile.weights,        { shouldDirty: true });
+    setValue('preferenceText', profile.preferenceText, { shouldDirty: true });
+    setActiveProfileId(profile.id);
+  }, [setValue]);
+
+  /**
+   * Called by RecentSessionsPanel when the user clicks "Load settings".
+   * Restores genre, weights, and preferenceText from the history entry.
+   * Does NOT restore inputFolder/outputFolder — those are session-specific.
+   */
+  const handleLoadSessionHistory = useCallback((entry: SessionHistoryEntry) => {
+    setValue('genre',          entry.genre,           { shouldDirty: true });
+    setValue('weights',        entry.weights,          { shouldDirty: true });
+    setValue('preferenceText', entry.preferenceText,   { shouldDirty: true });
+    // If the entry was run with a named profile, re-activate it
+    if (entry.profileUsed) {
+      setActiveProfileId(entry.profileUsed);
+    }
+  }, [setValue]);
 
   // When genre changes, update weights
   useEffect(() => {
@@ -547,7 +577,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       disableRawCache: false,
       processSubfolders: data.processSubfolders ?? false,
       preserveSubfolderStructure: data.preserveSubfolderStructure ?? false,
-      activeProfileId: null,
+      activeProfileId,          // ← Phase 14: carry the loaded profile ID
     };
     onStart(fullSettings);
   };
@@ -1180,6 +1210,21 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     <div className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
+
+          {/* Style Profile Manager — Phase 14.1 */}
+          <StyleProfileManager
+            currentGenre={watchedGenre}
+            currentWeights={watchedWeights}
+            currentPreferenceText={watch('preferenceText') ?? ''}
+            activeProfileId={activeProfileId}
+            onLoad={handleLoadProfile}
+            onActiveProfileChange={setActiveProfileId}
+            tier={tier}
+          />
+
+          {/* Recent Sessions — Phase 14.3 */}
+          <RecentSessionsPanel onLoad={handleLoadSessionHistory} />
+
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <Controller
               name="genre"
