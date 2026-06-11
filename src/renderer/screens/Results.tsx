@@ -42,6 +42,7 @@ import {
   Archive,
   RotateCcw,
   Tag,
+  Sparkles,
 } from 'lucide-react';
 import type { AppSettings, Session, ScoreRecord, PipelineEvent } from '../../shared/types';
 import ImageTile from '../components/ImageTile';
@@ -100,6 +101,10 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
   // ── XMP export state (Phase 13) ───────────────────────────────────────────────
   const [exportingXmp,          setExportingXmp]          = useState(false);
   const [xmpIncludeDescription, setXmpIncludeDescription] = useState(true);
+
+  // ── Auto-tagging state (Phase 13b) ────────────────────────────────────────────
+  const [isAutoTagging,    setIsAutoTagging]    = useState(false);
+  const [autoTagToast,     setAutoTagToast]     = useState<string | null>(null);
 
   // ── Re-score (12b.4) ──────────────────────────────────────────────────────────
   const [isRescoring,     setIsRescoring]     = useState(false);
@@ -398,6 +403,42 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
     }
   };
 
+  // Phase 13b — AI auto-tagging (on-demand)
+  const handleAutoTag = async () => {
+    if (isAutoTagging) return;
+    setIsAutoTagging(true);
+    try {
+      // @ts-expect-error — electronAPI is typed in preload.js
+      const res = await window.electronAPI.runAutoTagging({
+        outputFolder: settings.outputFolder,
+        settings,
+      });
+
+      if (!res?.success) {
+        setErrorMsg(res?.error ?? 'Auto-tagging failed.');
+        setTimeout(() => setErrorMsg(null), 7000);
+        return;
+      }
+
+      if (res.written === 0) {
+        setAutoTagToast('No qualifying keepers to tag.');
+      } else {
+        setAutoTagToast(`${res.written} image${res.written !== 1 ? 's' : ''} tagged with AI keywords.`);
+        // Reload session scores so keyword pills appear without a full refresh.
+        try {
+          const loaded = await window.electronAPI.sessionLoad({ outputFolder: settings.outputFolder });
+          if (loaded) setScoresState(loaded.scores || {});
+        } catch { /* non-fatal — stale display is acceptable */ }
+      }
+      setTimeout(() => setAutoTagToast(null), 5000);
+    } catch (err: any) {
+      setErrorMsg(`Auto-tagging failed: ${err.message || err}`);
+      setTimeout(() => setErrorMsg(null), 5000);
+    } finally {
+      setIsAutoTagging(false);
+    }
+  };
+
   // 12b.4 — Re-score selected
   const handleRescore = useCallback(async () => {
     if (selectedImageIds.size === 0) return;
@@ -644,6 +685,19 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
                 </label>
               </div>
 
+              {/* AI keyword tagging — Phase 13b */}
+              {settings.enableAutoTagging && (
+                <button
+                  onClick={handleAutoTag}
+                  disabled={isAutoTagging || (stats.S === 0 && stats.A === 0)}
+                  title="Generate AI keyword tags for S and A-tier keepers and write them to XMP sidecars"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <Sparkles size={14} className={isAutoTagging ? 'animate-pulse' : ''} />
+                  <span>{isAutoTagging ? 'Tagging…' : 'Generate AI Keywords'}</span>
+                </button>
+              )}
+
               <button
                 onClick={onBack}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/10 transition"
@@ -864,6 +918,18 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
           >
             <AlertTriangle size={14} className="text-red-400 shrink-0" />
             <span>{errorMsg}</span>
+          </motion.div>
+        )}
+        {autoTagToast && (
+          <motion.div
+            key="autotag-toast"
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0  }}
+            exit={{    opacity: 0, y: 20  }}
+            className="fixed bottom-6 right-6 z-50 bg-[#161217] border border-purple-500/30 text-purple-200 text-xs px-4 py-3 rounded-lg shadow-xl flex items-center gap-2"
+          >
+            <Sparkles size={14} className="text-purple-400 shrink-0" />
+            <span>{autoTagToast}</span>
           </motion.div>
         )}
       </AnimatePresence>

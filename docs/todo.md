@@ -27,8 +27,8 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 10b   | Concurrent Directory Processing        | ✅ Complete    |
 | 11    | Parallel Batching                      | ✅ Complete    |
 | 12    | Results Screen (Enhanced)              | ✅ Complete    |
-| 12b   | Results Performance & UX               | ⬜ Not Started |
-| 13    | XMP Export + Auto‑Tagging              | ⬜ Not Started |
+| 12b   | Results Performance & UX               | ✅ Complete    |
+| 13    | XMP Export + Auto‑Tagging              | ✅ Complete    |
 | 13b   | AI‑Powered Auto‑Tagging                | ⬜ Not Started |
 | 14    | Style Profile System                   | ⬜ Not Started |
 | 15    | Multi-Provider AI Support              | ⬜ Not Started |
@@ -1196,32 +1196,32 @@ Goal: A full-featured gallery for reviewing, comparing, and manually adjusting A
 
 ### 13b.1 Create the Auto-Tagging Module
 
-- [ ] Create `src/main/auto-tagging.ts`
-- [ ] After scoring and tier assignment are complete, collect all S-tier and A-tier `ImageRecord`s
-- [ ] For each qualifying image, call the AI with a separate, lightweight prompt: _"Generate 5–10 descriptive keywords for this image. Return as a JSON array of strings only, no other text."_
-- [ ] To save API costs, only tag the top 20% of S+A keepers by score (configurable via `AppSettings.tagTopPercent`)
-- [ ] Batch tagging: send up to 5 images per API call (vision model can handle multiple images in one request) to minimise cost
-- [ ] Parse the returned JSON array; on parse failure, log and skip (do not crash the pipeline)
+- [x] Create `src/main/auto-tagging.ts`
+- [x] After scoring and tier assignment are complete, collect all S-tier and A-tier `ImageRecord`s
+- [x] For each qualifying image, call the AI with a separate, lightweight prompt: _"Generate 5–10 descriptive keywords for this image. Return as a JSON array of strings only, no other text."_
+- [x] To save API costs, only tag the top 20% of S+A keepers by score (configurable via `AppSettings.tagTopPercent`)
+- [x] Batch tagging: send up to 5 images per API call (vision model can handle multiple images in one request) to minimise cost
+- [x] Parse the returned JSON array; on parse failure, log and skip (do not crash the pipeline)
 
 ### 13b.2 Write Keywords to XMP
 
-- [ ] Extend `writeXmpSidecar()` in `xmp-writer.ts` to accept an optional `keywords: string[]` parameter
-- [ ] Write keywords under `<dc:subject>` as an `rdf:Bag` of `rdf:li` elements (the correct XMP structure for multi-value arrays)
-- [ ] If keywords are empty or undefined, omit the `<dc:subject>` element entirely (do not write an empty bag)
-- [ ] Re-export XMP sidecars for tagged images (overwrite existing sidecars)
+- [x] Extend `writeXmpSidecar()` in `xmp-writer.ts` to accept an optional `keywords: string[]` parameter
+- [x] Write keywords under `<dc:subject>` as an `rdf:Bag` of `rdf:li` elements (the correct XMP structure for multi-value arrays)
+- [x] If keywords are empty or undefined, omit the `<dc:subject>` element entirely (do not write an empty bag)
+- [x] Re-export XMP sidecars for tagged images (overwrite existing sidecars)
 
 ### 13b.3 Wire into Setup Screen
 
-- [ ] Add toggle in Setup screen: "Generate AI keywords (S/A tier only)" – default off
-- [ ] Mark as a Pro feature — show lock icon for Free tier users
-- [ ] Store setting in `AppSettings` as `enableAutoTagging`
-- [ ] Add number input: "Tag top X% of keepers" (range 10–100, default 20)
+- [x] Add toggle in Setup screen: "Generate AI keywords (S/A tier only)" – default off
+- [x] Mark as a Pro feature — show lock icon for Free tier users
+- [x] Store setting in `AppSettings` as `enableAutoTagging`
+- [x] Add number input: "Tag top X% of keepers" (range 10–100, default 20)
 
 ### 13b.4 Store Keywords in Session
 
-- [ ] `keywords?: string[]` is already part of `ScoreRecord` (added in Phase 8.1)
-- [ ] After tagging, update `ScoreRecord.keywords` in session via `session-manager`
-- [ ] Keywords should be re-exportable from the Results screen without re-running the AI (i.e., stored in session)
+- [x] `keywords?: string[]` is already part of `ScoreRecord` (added in Phase 8.1)
+- [x] After tagging, update `ScoreRecord.keywords` in session via `session-manager`
+- [x] Keywords should be re-exportable from the Results screen without re-running the AI (i.e., stored in session)
 
 ✅ **Done Criteria:** After scoring, sidecars for top-tier images contain `<dc:subject>` with 5–10 relevant keywords visible in Lightroom. Keywords are stored in the session and included in CSV and ZIP exports. Disabling the toggle skips tagging entirely. Free tier users see the lock icon and cannot enable the feature.
 

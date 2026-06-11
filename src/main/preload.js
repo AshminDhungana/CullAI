@@ -460,4 +460,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   exportXmp: (payload) =>
     ipcRenderer.invoke('export-xmp', payload),
+
+  // ── Phase 13b — AI Auto-Tagging ──────────────────────────────────────────
+
+  /**
+   * Generates AI keyword tags for the S and A-tier keepers of a completed
+   * session and persists them to session.json. Pro feature — returns
+   * { success: false, error: string } for Free tier users instead of throwing.
+   *
+   * Call this from the Results screen. The handler reads thumbnails from
+   * `.cullai_cache/thumbnails/` so no re-processing is needed.
+   *
+   * @param {{ outputFolder: string, settings: AppSettings }} payload
+   * @returns {Promise<{ success: true, written: number } | { success: false, error: string }>}
+   */
+  runAutoTagging: (payload) =>
+    ipcRenderer.invoke('run-auto-tagging', payload),
 });

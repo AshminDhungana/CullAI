@@ -1,15 +1,17 @@
 /**
  * ai-client.ts
  *
- * Phase 9 — Single AI scoring call.
+ * Phase 9  — Single AI scoring call.
  * Phase 10 — Discovery pass (multi-image, plain-text response).
+ * Phase 13b — Auto-tagging pass (multi-image, JSON keyword arrays).
  *
- * Implements five functions that together form the atomic scoring + discovery unit:
+ * Implements six public functions:
  *
  *   buildScoringPrompt()    → deterministic prompt string from AICallParams
  *   buildDiscoveryPrompt()  → discovery-pass prompt for multi-image genre analysis
  *   callAI()               → provider-routed HTTP request → AIRawResponse
  *   callAIDiscovery()      → multi-image plain-text call for the discovery pass
+ *   callAITagging()        → multi-image JSON call for Phase 13b auto-tagging
  *   computeWeightedTotal() → weighted average of 6 dimension scores
  *   scoreImage()           → full ScoreRecord (tier set to 'rejected' placeholder;
  *                            real tier assignment happens in Phase 10 orchestrator)
@@ -228,6 +230,272 @@ export async function callAIDiscovery(
   } else {
     return callOpenAICompatDiscovery(provider, model, apiKey, baseUrl, imageBase64s, prompt, discoveryTimeoutMs);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 13b  callAITagging — multi-image keyword tagging pass
+// ---------------------------------------------------------------------------
+
+/**
+ * Makes a single AI API call with up to 5 images and requests a JSON object
+ * mapping each filename to an array of 5–10 descriptive keyword strings.
+ *
+ * This is the Phase 13b equivalent of callAIDiscovery: same multi-image
+ * batching pattern, different response format (structured JSON instead of
+ * plain text).
+ *
+ * Provider routing mirrors callAI():
+ *   - claude  → Anthropic Messages API (multiple image content blocks)
+ *   - others  → OpenAI-compatible /chat/completions (multiple image_url blocks)
+ *
+ * @param imageBase64s   Array of base64-encoded JPEG strings (no data-URI prefix).
+ *                       Caller should pass at most BATCH_SIZE (5) images per call.
+ * @param filenames      Filenames corresponding 1:1 to imageBase64s. Used as keys
+ *                       in the returned object and in the AI prompt.
+ * @param params         Provider routing fields.
+ * @returns              Record<filename, string[]> — only entries with a valid
+ *                       non-empty keyword array are included in the result.
+ * @throws               AIAuthError, AIRateLimitError, AIParseError, AITimeoutError
+ */
+export async function callAITagging(
+  imageBase64s: string[],
+  filenames: string[],
+  params: Pick<AICallParams, 'provider' | 'apiKey' | 'model' | 'baseUrl'>,
+): Promise<Record<string, string[]>> {
+  const { provider, model, apiKey, baseUrl } = params;
+
+  // Tagging calls are multi-image — use the generous timeout.
+  const taggingTimeoutMs = 60_000;
+
+  const prompt = buildTaggingPrompt(filenames);
+
+  if (provider === 'claude') {
+    return callClaudeTagging(model, apiKey, imageBase64s, filenames, prompt, taggingTimeoutMs);
+  } else {
+    return callOpenAICompatTagging(
+      provider, model, apiKey, baseUrl, imageBase64s, filenames, prompt, taggingTimeoutMs,
+    );
+  }
+}
+
+/**
+ * Builds the tagging prompt for the given filenames.
+ * Instructs the model to return a raw JSON object with no preamble.
+ */
+function buildTaggingPrompt(filenames: string[]): string {
+  const filenameList = filenames.map(f => `  "${f}"`).join(',\n');
+  return [
+    `You are a professional photo keywording assistant. Examine the ${filenames.length} provided image${filenames.length > 1 ? 's' : ''} and generate descriptive keyword tags for each.`,
+    ``,
+    `For each image, produce 5–10 concise, lowercase keyword strings that describe:`,
+    `  • Subject matter (people, animals, objects, scenes)`,
+    `  • Setting or location type (indoor, outdoor, beach, urban, studio, etc.)`,
+    `  • Mood or style (candid, formal, dramatic, minimalist, etc.)`,
+    `  • Technical or visual qualities (golden hour, bokeh, wide-angle, etc.)`,
+    `  • Genre-specific terms (portrait, landscape, editorial, documentary, etc.)`,
+    ``,
+    `CRITICAL: Return ONLY a single valid JSON object. No markdown, no backticks, no preamble.`,
+    `The JSON keys must be the exact filenames listed below. Values must be string arrays.`,
+    ``,
+    `Required keys:`,
+    filenameList,
+    ``,
+    `Example format (replace values with real keywords):`,
+    `{`,
+    `  "${filenames[0]}": ["wedding", "bride", "candid", "golden hour", "outdoor", "emotional"]${filenames.length > 1 ? ',' : ''}`,
+    ...(filenames.length > 1
+      ? [`  "${filenames[filenames.length - 1]}": ["portrait", "studio", "dramatic lighting", "close-up"]`]
+      : []),
+    `}`,
+    ``,
+    `Output only the raw JSON object and nothing else.`,
+  ].join('\n');
+}
+
+/**
+ * Parses and validates the raw JSON text returned by the tagging prompt.
+ * Returns only entries with non-empty string arrays.
+ */
+function parseTaggingResponse(
+  rawText: string,
+  filenames: string[],
+  provider: string,
+  model: string,
+): Record<string, string[]> {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  if (!cleaned) {
+    throw new AIParseError(provider, model, rawText, 'tagging response is empty');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (err) {
+    throw new AIParseError(
+      provider, model, rawText,
+      err instanceof SyntaxError ? err.message : 'JSON.parse failed on tagging response',
+    );
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new AIParseError(
+      provider, model, rawText,
+      'tagging response root value is not an object',
+    );
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  const result: Record<string, string[]> = {};
+
+  for (const filename of filenames) {
+    const val = obj[filename];
+    if (!Array.isArray(val) || val.length === 0) continue;
+
+    // Filter to non-empty strings only; trim whitespace.
+    const keywords = (val as unknown[])
+      .filter((k): k is string => typeof k === 'string' && k.trim().length > 0)
+      .map(k => k.trim().toLowerCase());
+
+    if (keywords.length > 0) {
+      result[filename] = keywords;
+    }
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Claude (Anthropic native API) — multi-image tagging pass
+// ---------------------------------------------------------------------------
+
+async function callClaudeTagging(
+  model: string,
+  apiKey: string,
+  imageBase64s: string[],
+  filenames: string[],
+  prompt: string,
+  timeoutMs: number,
+): Promise<Record<string, string[]>> {
+  const url = `${ANTHROPIC_BASE}/v1/messages`;
+
+  // Images first, then the text prompt — same structure as callClaudeDiscovery.
+  const content: object[] = [
+    ...imageBase64s.map((b64) => ({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: 'image/jpeg',
+        data: b64,
+      },
+    })),
+    { type: 'text', text: prompt },
+  ];
+
+  const body = JSON.stringify({
+    model,
+    max_tokens: 512,
+    messages: [{ role: 'user', content }],
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'Content-Type': 'application/json',
+      },
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+      throw new AITimeoutError('claude', model);
+    }
+    throw err;
+  }
+
+  await assertHttpOk(res, 'claude', model);
+
+  const data = await res.json() as {
+    content: Array<{ type: string; text?: string }>;
+  };
+
+  const rawText = data.content?.find((b) => b.type === 'text')?.text ?? '';
+  return parseTaggingResponse(rawText, filenames, 'claude', model);
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI-compatible — multi-image tagging pass
+// ---------------------------------------------------------------------------
+
+async function callOpenAICompatTagging(
+  provider: AIProvider,
+  model: string,
+  apiKey: string,
+  rawBaseUrl: string,
+  imageBase64s: string[],
+  filenames: string[],
+  prompt: string,
+  timeoutMs: number,
+): Promise<Record<string, string[]>> {
+  const baseUrl = normaliseBaseUrl(
+    rawBaseUrl || (provider === 'ollama' ? 'http://localhost:11434' : ''),
+  );
+  const url = `${baseUrl}/chat/completions`;
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  // Text prompt first, then one image_url block per image.
+  const content: object[] = [
+    { type: 'text', text: prompt },
+    ...imageBase64s.map((b64) => ({
+      type: 'image_url',
+      image_url: {
+        url: `data:image/jpeg;base64,${b64}`,
+        detail: 'low', // Tagging only needs a coarse look — saves tokens.
+      },
+    })),
+  ];
+
+  const body = JSON.stringify({
+    model,
+    max_tokens: 512,
+    messages: [{ role: 'user', content }],
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+      throw new AITimeoutError(provider, model);
+    }
+    throw err;
+  }
+
+  await assertHttpOk(res, provider, model);
+
+  const data = await res.json() as {
+    choices: Array<{ message: { content: string } }>;
+  };
+
+  const rawText = data.choices?.[0]?.message?.content ?? '';
+  return parseTaggingResponse(rawText, filenames, provider, model);
 }
 
 // ---------------------------------------------------------------------------

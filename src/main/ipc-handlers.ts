@@ -63,6 +63,7 @@ import {
   fillShortfall,
   rescoreImages,
 } from './orchestrator';
+import { runAutoTagging } from './auto-tagging';
 import { walkFolders } from './folder-walker';
 import { writeAllSidecars } from './xmp-writer';
 
@@ -1939,6 +1940,121 @@ export function registerIpcHandlers(store: AppStore): void {
         payload.settings,
         _event.sender,
       );
+    },
+  );
+
+  // ── Phase 13b — AI Auto-Tagging (on-demand from Results screen) ───────────
+
+  /**
+   * Generates AI keyword tags for the S and A-tier keepers of an already-
+   * completed session. Called from the Results screen when the user clicks
+   * "Generate AI Keywords". Reads thumbnails from the session's
+   * `.cullai_cache/thumbnails/` directory as the image source.
+   *
+   * This handler enforces the Pro license gate — Free tier users receive an
+   * error response instead of a thrown exception, so the renderer can display
+   * a human-readable upgrade prompt.
+   *
+   * Payload: { outputFolder: string, settings: AppSettings }
+   * Returns: { success: true, written: number }
+   *        | { success: false, error: string }
+   */
+  ipcMain.handle(
+    'run-auto-tagging',
+    async (
+      _event,
+      payload: {
+        outputFolder: string;
+        settings: import('../shared/types').AppSettings;
+      },
+    ) => {
+      if (!payload?.outputFolder) {
+        throw new Error('run-auto-tagging: outputFolder is required');
+      }
+      if (!payload.settings || typeof payload.settings !== 'object') {
+        throw new Error('run-auto-tagging: settings is required');
+      }
+
+      // ── License gate ──────────────────────────────────────────────────────
+      const tier = getLicenseTier();
+      if (!isAllowed('autoTagging' as Feature, tier)) {
+        return {
+          success: false,
+          error: 'AI keyword tagging requires a Pro or Lifetime license. Upgrade to unlock this feature.',
+        };
+      }
+
+      const session = await loadSession(payload.outputFolder);
+      if (!session) {
+        throw new Error('run-auto-tagging: no session found in output folder');
+      }
+
+      const devMode = process.env.NODE_ENV === 'development';
+      const thumbDir = path.join(
+        path.resolve(payload.outputFolder),
+        '.cullai_cache',
+        'thumbnails',
+      );
+
+      // ── Build TaggingEntry array from session thumbnails ──────────────────
+      //
+      // We read from the pre-generated ~200px thumbnails rather than the full
+      // 1024px previews. This keeps the on-demand tagging call cheap and
+      // consistent with the thumbnail quality the user sees in the gallery.
+      const tagEntries: import('./auto-tagging').TaggingEntry[] = [];
+
+      for (const [id, record] of Object.entries(session.scores)) {
+        if (record.tier !== 'S' && record.tier !== 'A') continue;
+
+        const thumbPath = path.join(thumbDir, `${id}.jpg`);
+        try {
+          const buf = await fs.promises.readFile(thumbPath);
+          tagEntries.push({
+            id,
+            record,
+            imageBase64: buf.toString('base64'),
+          });
+        } catch {
+          if (devMode) {
+            console.warn(
+              `[ipc:run-auto-tagging] No thumbnail for ${record.filename} — skipping`,
+            );
+          }
+        }
+      }
+
+      if (tagEntries.length === 0) {
+        return { success: true, written: 0 };
+      }
+
+      if (devMode) {
+        console.log(
+          `[ipc:run-auto-tagging] Running on ${tagEntries.length} S/A-tier keepers`,
+        );
+      }
+
+      // ── Run tagging and persist results ───────────────────────────────────
+      const keywordMap = await runAutoTagging(tagEntries, payload.settings);
+
+      let written = 0;
+      for (const [id, keywords] of keywordMap) {
+        const record = session.scores[id];
+        if (!record) continue;
+        record.keywords = keywords;
+        try {
+          await saveScore(payload.outputFolder, id, record);
+          written++;
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[ipc:run-auto-tagging] saveScore failed for ${record.filename}: ${msg}`);
+        }
+      }
+
+      if (devMode) {
+        console.log(`[ipc:run-auto-tagging] Done — ${written} images tagged`);
+      }
+
+      return { success: true, written };
     },
   );
 }

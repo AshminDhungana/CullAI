@@ -46,6 +46,7 @@ import {
   markSessionCancelled,
   loadSession,
 } from './session-manager';
+import { runAutoTagging } from './auto-tagging';
 
 import type {
   AppSettings,
@@ -890,6 +891,62 @@ async function* _runSingleFolderBatch(
     }
   }
 
+
+
+  // =========================================================================
+  // Step 9c — AI Auto-Tagging (Phase 13b, Pro feature)
+  // =========================================================================
+  //
+  // Runs after tier assignment and thumbnail generation so:
+  //   • Only S and A-tier keepers are tagged (tiers are final by this point).
+  //   • idToBase64 is still in scope — we reuse the already-decoded previews
+  //     rather than re-reading thumbnails from disk.
+  //   • saveScore() is called for each tagged image so keywords are persisted
+  //     to session.json before markSessionComplete() is called below. This
+  //     means keywords are available in the Results screen without re-running
+  //     the pipeline.
+
+  if (settings.enableAutoTagging) {
+    if (devMode) console.log('[orchestrator] Step 9c: AI auto-tagging');
+
+    // Build the entries the auto-tagger needs. Only S and A tier, and only
+    // images for which we have a base64 preview in memory.
+    const tagEntries = tiered
+      .filter(e => (e.record.tier === 'S' || e.record.tier === 'A') && !signal.aborted)
+      .map(e => ({
+        id:           e.id,
+        record:       e.record,
+        imageBase64:  idToBase64.get(e.id) ?? '',
+      }))
+      .filter(e => e.imageBase64.length > 0);
+
+    if (tagEntries.length > 0) {
+      try {
+        const keywordMap = await runAutoTagging(tagEntries, settings);
+
+        for (const [id, keywords] of keywordMap) {
+          const entry = tiered.find(e => e.id === id);
+          if (!entry) continue;
+          entry.record.keywords = keywords;
+          try {
+            await saveScore(settings.outputFolder, id, entry.record);
+          } catch { /* non-fatal — keyword loss is acceptable */ }
+        }
+
+        if (devMode) {
+          console.log(
+            `[orchestrator] Step 9c: tagged ${keywordMap.size}/${tagEntries.length} keepers`,
+          );
+        }
+      } catch (err: unknown) {
+        // runAutoTagging is documented to never throw, but guard anyway.
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[orchestrator] Auto-tagging failed (non-fatal): ${msg}`);
+      }
+    } else if (devMode) {
+      console.log('[orchestrator] Step 9c: no qualifying entries for auto-tagging');
+    }
+  }
 
   // =========================================================================
   // Step 10 — Shortfall computation and summary

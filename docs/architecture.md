@@ -28,6 +28,8 @@ cullai/
 │   │   ├── face-detector.ts             # Face and eye detection
 │   │   ├── ai-client.ts                # AI scoring API client (Phase 9)
 │   │   ├── ai-errors.ts                # AI-specific error handling
+│   │   ├── auto-tagging.ts              # AI-driven automated tagging
+│   │   ├── xmp-writer.ts                # XMP metadata writer
 │   │   ├── lightdrift-libraw.d.ts       # LibRaw ambient declarations
 │   │   └── preload.js                   # Electron preload script
 │   ├── renderer/                        # React UI (Electron window)

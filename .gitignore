@@ -19,6 +19,8 @@ dist/renderer/
 dist/release/
 out/
 build/Release
+.claude/
+
 
 # -------------------------
 # Electron Builder Output

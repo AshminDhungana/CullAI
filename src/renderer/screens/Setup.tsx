@@ -109,6 +109,8 @@ const setupSchema = z.object({
   disableRawCache: z.boolean(),
   processSubfolders: z.boolean(),
   preserveSubfolderStructure: z.boolean(),
+  enableAutoTagging: z.boolean().optional(),
+  tagTopPercent: z.number().min(10).max(100).optional(),
 });
 
 type SetupFormValues = z.infer<typeof setupSchema>;
@@ -199,6 +201,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const canUseXmp      = isAllowed('xmpExport',         tier);
   const canUseRaw      = isAllowed('rawFormats',         tier);
   const canAddProfiles = isAllowed('unlimitedProfiles',  tier);
+  const canAutoTag     = isAllowed('autoTagging' as any, tier);
 
   // FIX #6: fetchLicenseStatus is stable and can be called independently of
   // the isLoading flag. It is called explicitly at the end of the load()
@@ -261,6 +264,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const watchedDisableRawCache = useWatch({ control, name: 'disableRawCache' });
   const watchedBaseUrl = useWatch({ control, name: 'baseUrl' });
   const watchedProcessSubfolders = useWatch({ control, name: 'processSubfolders' });
+  const watchedEnableAutoTagging = useWatch({ control, name: 'enableAutoTagging' });
+  const watchedTagTopPercent = useWatch({ control, name: 'tagTopPercent' });
 
   const {
     patterns: ignorePatterns,
@@ -535,8 +540,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       disableDuplicateGrouping: data.disableDuplicateGrouping || false,
       duplicateThreshold: data.duplicateThreshold || 10,
       maxFacesPerImage: data.maxFacesPerImage || 0,
-      enableAutoTagging: false,
-      tagTopPercent: 20,
+      enableAutoTagging: canAutoTag ? (data.enableAutoTagging ?? false) : false,
+      tagTopPercent: data.tagTopPercent ?? 20,
       rawCacheMaxSizeGb: 5,
       rawCacheMaxAgeDays: 30,
       disableRawCache: false,
@@ -1671,6 +1676,83 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
             />
           </div>
 
+          {/* AI Auto-Tagging Card — Phase 13b */}
+          <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
+            <Controller
+              name="enableAutoTagging"
+              control={control}
+              render={({ field }) => (
+                <label
+                  className={`flex items-start gap-3 group ${
+                    !canAutoTag ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  }`}
+                >
+                  <div className="relative mt-0.5 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={field.value ?? false}
+                      onChange={(e) => {
+                        if (!canAutoTag) return;
+                        field.onChange(e.target.checked);
+                      }}
+                      disabled={!canAutoTag}
+                      className="sr-only"
+                    />
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        field.value
+                          ? 'bg-amber-500 border-amber-500'
+                          : 'border-gray-300 dark:border-gray-600 group-hover:border-amber-400'
+                      } ${!canAutoTag ? 'opacity-50' : ''}`}
+                    >
+                      {field.value && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        Generate AI keywords (S/A tier only)
+                      </span>
+                      {!canAutoTag && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-medium">
+                          PRO
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Tags top keepers with 5–10 descriptive keywords written to XMP sidecars — searchable in Lightroom and Capture One.
+                    </p>
+                  </div>
+                </label>
+              )}
+            />
+            {/* Top-percent control — only visible when toggle is on and tier allows it */}
+            {watchedEnableAutoTagging && canAutoTag && (
+              <div className="mt-4 flex items-center gap-3 pl-8">
+                <span className="text-xs text-gray-600 dark:text-gray-400 shrink-0">Tag top</span>
+                <Controller
+                  name="tagTopPercent"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      type="number"
+                      min={10}
+                      max={100}
+                      step={5}
+                      value={field.value ?? 20}
+                      onChange={(e) => {
+                        const v = Math.max(10, Math.min(100, Number(e.target.value)));
+                        field.onChange(v);
+                      }}
+                      className="w-16 px-2 py-1 text-sm rounded-lg border border-gray-200 dark:border-[#1e2535] bg-transparent text-center text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  )}
+                />
+                <span className="text-xs text-gray-600 dark:text-gray-400">% of S+A keepers</span>
+              </div>
+            )}
+          </div>
+
           {/* RAW Preview Cache Card */}
           <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-gray-200 dark:border-[#1e2535] p-6">
             <CacheSettingsPanel
@@ -1951,6 +2033,14 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
                 <span className="text-gray-500 dark:text-gray-400">XMP sidecar export</span>
                 <span className={`text-sm font-medium ${watch('enableXmpExport') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
                   {watch('enableXmpExport') ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-gray-500 dark:text-gray-400">AI keywords</span>
+                <span className={`text-sm font-medium ${watchedEnableAutoTagging && canAutoTag ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                  {watchedEnableAutoTagging && canAutoTag
+                    ? `Top ${watchedTagTopPercent ?? 20}% of keepers`
+                    : 'Disabled'}
                 </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
