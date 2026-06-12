@@ -49,7 +49,9 @@ cullai/
 │   │   │   ├── RecentFoldersDropdown.tsx
 │   │   │   ├── ReferenceImageUpload.tsx
 │   │   │   ├── ModelCombobox.tsx
-│   │   │   └── SplashScreen.tsx
+│   │   ├── RecentSessionsPanel.tsx
+│   │   ├── StyleProfileManager.tsx
+│   │   └── SplashScreen.tsx
 │   │   ├── hooks/                       # React custom hooks
 │   │   │   ├── useIgnoreRules.ts
 │   │   │   ├── useRecentFolders.ts

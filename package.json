@@ -50,6 +50,7 @@
     "@types/react-virtualized-auto-sizer": "^1.0.4",
     "@types/react-window": "^1.8.8",
     "@vitejs/plugin-react": "^4.5.2",
+    "@vitest/coverage-v8": "^4.1.8",
     "autoprefixer": "^10.5.0",
     "concurrently": "^10.0.3",
     "electron": "^42.3.0",
@@ -60,6 +61,7 @@
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "vite": "^6.3.5",
+    "vitest": "^4.1.8",
     "wait-on": "^9.0.10"
   },
   "dependencies": {
