@@ -135,3 +135,24 @@ export class AIParseError extends Error {
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
+
+// ---------------------------------------------------------------------------
+// CullAI General Errors
+// ---------------------------------------------------------------------------
+
+/**
+ * General application error carrying a machine-readable code
+ * and whether the error can be recovered from.
+ */
+export class CullAIError extends Error {
+  readonly code: string;
+  readonly recoverable: boolean;
+
+  constructor(code: string, message: string, recoverable = false) {
+    super(message);
+    this.name = 'CullAIError';
+    this.code = code;
+    this.recoverable = recoverable;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}

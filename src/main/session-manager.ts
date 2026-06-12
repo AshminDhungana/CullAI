@@ -120,7 +120,7 @@ async function withWriteLock(filePath: string, fn: () => Promise<void>): Promise
 // ---------------------------------------------------------------------------
 
 /** Returns the absolute path to the session file in `outputFolder`. */
-function sessionFilePath(outputFolder: string): string {
+export function sessionFilePath(outputFolder: string): string {
   return path.join(path.resolve(outputFolder), SESSION_FILENAME);
 }
 
@@ -222,6 +222,7 @@ export async function saveScore(
   outputFolder: string,
   imageId: string,
   score: ScoreRecord,
+  elapsedMs?: number,
 ): Promise<void> {
   const filePath = sessionFilePath(outputFolder);
 
@@ -234,6 +235,9 @@ export async function saveScore(
     }
     session.scores[imageId] = score;
     session.scoredCount = Object.keys(session.scores).length;
+    if (typeof elapsedMs === 'number') {
+      session.elapsedMs = elapsedMs;
+    }
     await atomicWrite(filePath, JSON.stringify(session, null, 2));
   });
 }

@@ -37,7 +37,7 @@ import {
   preloadUsageForSession,
   incrementUsage,
 } from './usage-tracker';
-import { scanFolder, processFolder } from './image-processor';
+import { scanFolder, processFolder, ALL_SUPPORTED_EXTENSIONS } from './image-processor';
 import { detectFaces } from './face-detector';
 import { getCacheStats, clearCache, setCacheConfig } from './raw-cache';
 import { enforceCacheLimits } from './cache-cleaner';
@@ -67,6 +67,7 @@ import {
 import { runAutoTagging } from './auto-tagging';
 import { walkFolders } from './folder-walker';
 import { writeAllSidecars } from './xmp-writer';
+import { CullAIError } from './ai-errors';
 
 // ---------------------------------------------------------------------------
 // Structural interface for the electron-store instance.
@@ -395,6 +396,185 @@ export function registerIpcHandlers(store: AppStore): void {
     }
     return incrementUsage(count);
   });
+
+  async function collectAllFiles(dir: string, recursive: boolean): Promise<string[]> {
+    const files: string[] = [];
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    const EXCLUDED_DIRS = new Set(['.cullai_cache', 'node_modules', '.git']);
+    const ALWAYS_EXCLUDED = new Set(['.cullai_cache', '.DS_Store', 'Thumbs.db']);
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.name.startsWith('.') || ALWAYS_EXCLUDED.has(entry.name)) {
+        continue;
+      }
+      if (entry.isFile()) {
+        files.push(fullPath);
+      } else if (entry.isDirectory() && recursive && !EXCLUDED_DIRS.has(entry.name)) {
+        files.push(...(await collectAllFiles(fullPath, true)));
+      }
+    }
+    return files;
+  }
+
+  ipcMain.handle(
+    'pipeline-validate-setup',
+    async (
+      _event,
+      settings: import('../shared/types').AppSettings,
+    ) => {
+      const errors: Record<string, string> = {};
+      let warning: string | undefined;
+      let resultFileCount = 0;
+
+      // 1. Verify input folder exists and is a directory
+      let inputFolderValid = false;
+      if (!settings.inputFolder) {
+        errors.inputFolder = 'Input folder path is required';
+      } else {
+        try {
+          const stat = await fs.promises.stat(path.resolve(settings.inputFolder));
+          if (!stat.isDirectory()) {
+            errors.inputFolder = 'Input folder is not a directory';
+          } else {
+            inputFolderValid = true;
+          }
+        } catch {
+          errors.inputFolder = 'Input folder does not exist';
+        }
+      }
+
+      // 2. Verify output folder exists (or can be created) and is writable
+      if (!settings.outputFolder) {
+        errors.outputFolder = 'Output folder path is required';
+      } else {
+        const outResolved = path.resolve(settings.outputFolder);
+        let outDirExists = false;
+        try {
+          const outStat = await fs.promises.stat(outResolved);
+          if (outStat.isDirectory()) {
+            outDirExists = true;
+          } else {
+            errors.outputFolder = 'Output path exists but is not a directory';
+          }
+        } catch {
+          try {
+            await fs.promises.mkdir(outResolved, { recursive: true });
+            outDirExists = true;
+          } catch {
+            errors.outputFolder = 'Output folder cannot be created';
+          }
+        }
+
+        if (outDirExists) {
+          const testFilePath = path.join(outResolved, `.cullai-write-test-${Date.now()}`);
+          try {
+            await fs.promises.writeFile(testFilePath, 'test');
+            await fs.promises.unlink(testFilePath);
+          } catch {
+            errors.outputFolder = 'OUTPUT_FOLDER_NOT_WRITABLE';
+          }
+        }
+      }
+
+      // 3. Scan images & check format support
+      if (inputFolderValid) {
+        let files: string[] = [];
+        try {
+          files = await collectAllFiles(settings.inputFolder, settings.processSubfolders ?? false);
+        } catch {
+          errors.inputFolder = 'Failed to read input folder contents';
+        }
+
+        if (!errors.inputFolder) {
+          if (files.length === 0) {
+            errors.inputFolder = 'NO_IMAGES_FOUND';
+          } else {
+            const hasSupported = files.some(f => {
+              const ext = path.extname(f).toLowerCase();
+              return ALL_SUPPORTED_EXTENSIONS.has(ext);
+            });
+            if (!hasSupported) {
+              errors.inputFolder = 'UNSUPPORTED_FORMATS_ONLY';
+            } else {
+              // Get actual file count matching extension/prefix/ignore filters
+              let fileCount = 0;
+              try {
+                const subfolders = settings.processSubfolders
+                  ? await walkFolders(settings.inputFolder)
+                  : [''];
+                for (const relFolder of subfolders) {
+                  const absoluteFolderPath = relFolder === ''
+                    ? settings.inputFolder
+                    : path.join(settings.inputFolder, relFolder);
+                  const paths = await scanFolder(absoluteFolderPath, {
+                    extensions: settings.extensionFilter,
+                    prefixes: settings.prefixFilter,
+                    prefixCaseInsensitive: settings.prefixCaseInsensitive,
+                    ignorePatterns: settings.ignorePatterns,
+                    recursive: false,
+                  });
+                  fileCount += paths.length;
+                }
+              } catch (scanErr) {
+                // ignore
+              }
+
+              if (fileCount === 0) {
+                errors.inputFolder = 'No images match the active filters';
+              } else {
+                resultFileCount = fileCount;
+
+                // Check remaining monthly quota
+                const quotaCheck = await preloadUsageForSession(fileCount);
+                if (!quotaCheck.allowed) {
+                  if (quotaCheck.remaining <= 0) {
+                    warning = 'Quota exceeded. You have 0 images remaining in your monthly limit.';
+                  } else {
+                    warning = `Quota limit: Only ${quotaCheck.remaining} of ${fileCount} remaining images will be processed.`;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 4. API Key check if provider !== 'ollama'
+      if (settings.provider !== 'ollama') {
+        const apiKey = settings.apiKey || (getApiKey(settings.provider) ?? '');
+        if (!apiKey) {
+          errors.apiKey = 'API key is required';
+        }
+      }
+
+      // 5. Model check
+      if (!settings.model || settings.model.trim() === '') {
+        errors.model = 'Model is required';
+      } else if (settings.provider === 'ollama') {
+        // Ollama specific check to see if Ollama is running
+        const ollamaBase = settings.baseUrl?.trim().replace(/\/+$/, '') || 'http://localhost:11434';
+        const modelsUrl = `${ollamaBase}/api/tags`;
+        try {
+          const res = await fetch(modelsUrl, {
+            method: 'GET',
+            signal: AbortSignal.timeout(3000),
+          });
+          if (!res.ok) {
+            errors.model = `Ollama returned error status ${res.status}`;
+          }
+        } catch {
+          errors.model = 'OLLAMA_NOT_RUNNING';
+        }
+      }
+
+      return {
+        valid: Object.keys(errors).length === 0,
+        errors,
+        warning,
+        fileCount: resultFileCount,
+      };
+    }
+  );
 
   /** Returns true if `folderPath` is an existing directory. */
   ipcMain.handle('folder-exists', async (_event, folderPath: string) => {
@@ -1724,15 +1904,27 @@ export function registerIpcHandlers(store: AppStore): void {
             event.sender.send('pipeline-event', pipelineEvent);
           }
         } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error('[ipc] pipeline-start: unhandled pipeline error:', msg);
-          if (!event.sender.isDestroyed()) {
-            event.sender.send('pipeline-event', {
-              type: 'pipeline-error',
-              code: 'UNEXPECTED',
-              message: msg,
-              recoverable: false,
-            });
+          if (err instanceof CullAIError) {
+            console.error(`[ipc] pipeline-start: pipeline error [${err.code}]:`, err.message);
+            if (!event.sender.isDestroyed()) {
+              event.sender.send('pipeline-event', {
+                type: 'pipeline-error',
+                code: err.code,
+                message: err.message,
+                recoverable: err.recoverable,
+              });
+            }
+          } else {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error('[ipc] pipeline-start: unhandled pipeline error:', msg);
+            if (!event.sender.isDestroyed()) {
+              event.sender.send('pipeline-event', {
+                type: 'pipeline-error',
+                code: 'UNEXPECTED',
+                message: msg,
+                recoverable: false,
+              });
+            }
           }
         } finally {
           activePipelineJobs.delete(senderContentsId);

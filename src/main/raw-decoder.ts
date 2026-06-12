@@ -53,7 +53,34 @@
  */
 
 import * as path from 'path';
-import LibRaw from 'lightdrift-libraw';
+import { CullAIError } from './ai-errors';
+
+let LibRaw: any = null;
+let librawError: any = null;
+
+async function getLibRaw() {
+  if (LibRaw) return LibRaw;
+  if (librawError) {
+    throw new CullAIError(
+      'LIGHTDRIFT_LIBRAW_INSTALL_MISSING',
+      'The LibRaw native extension is missing or failed to install. RAW formats are not available.',
+      false
+    );
+  }
+  try {
+    const mod = await import('lightdrift-libraw');
+    LibRaw = mod.default || mod;
+    return LibRaw;
+  } catch (err) {
+    librawError = err;
+    throw new CullAIError(
+      'LIGHTDRIFT_LIBRAW_INSTALL_MISSING',
+      'The LibRaw native extension is missing or failed to install. RAW formats are not available.',
+      false
+    );
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // Supported RAW extensions
@@ -241,7 +268,8 @@ export async function extractEmbeddedJpeg(filePath: string): Promise<Buffer | nu
   const filename = path.basename(filePath);
   const devMode = process.env.NODE_ENV === 'development';
   const startNs = devMode ? process.hrtime.bigint() : 0n;
-  const processor = new LibRaw();
+  const LibRawClass = await getLibRaw();
+  const processor = new LibRawClass();
 
   try {
     // ── Step 1: Open the RAW container ─────────────────────────────────────
@@ -378,7 +406,8 @@ export async function extractEmbeddedJpeg(filePath: string): Promise<Buffer | nu
  */
 export async function decodeRaw(filePath: string): Promise<Buffer> {
   const filename = path.basename(filePath);
-  const processor = new LibRaw();
+  const LibRawClass = await getLibRaw();
+  const processor = new LibRawClass();
 
   // Capture start time before any async work so timing includes loadFile().
   // hrtime.bigint() is monotonic and nanosecond-precise — better than Date.now().

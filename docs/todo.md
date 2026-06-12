@@ -31,7 +31,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 13    | XMP Export + Auto‑Tagging              | ✅ Complete    |
 | 13b   | AI‑Powered Auto‑Tagging                | ✅ Complete    |
 | 14    | Style Profile System                   | ✅ Complete    |
-| 15    | Multi-Provider AI Support              | ⬜ Not Started |
+| 15    | Multi-Provider AI Support              | ✅ Complete    |
 | 16    | Polish & Error Handling (Enhanced)     | ⬜ Not Started |
 | 17    | Test Suite (Enhanced)                  | ⬜ Not Started |
 | 18    | Packaging & Release                    | ⬜ Not Started |
@@ -1399,70 +1399,70 @@ PROVIDER_DEFAULTS = {
 
 ### 16.1 Dry-Run / Cost Estimate Mode
 
-- [ ] After "Start" is clicked and dry-run toggle is on:
+- [x] After "Start" is clicked and dry-run toggle is on:
   - Scan folder and count images
   - Estimate tokens per image: `~800 tokens input + ~200 tokens output` (rough average)
   - Calculate total estimated tokens
   - Look up per-token pricing for selected model (use constants, not live API)
   - Display: "~4,200 images × 1,000 tokens = ~4.2M tokens ≈ $2.10 estimated cost"
   - Show "Proceed" and "Cancel" buttons
-- [ ] Make pricing constants easy to update in `src/shared/constants.ts`
+- [x] Make pricing constants easy to update in `src/shared/constants.ts`
 
 ### 16.2 Estimated Time Remaining
 
-- [ ] Track `startTime` when pipeline begins
-- [ ] After each scored image: `elapsed = now - startTime`, `rate = scoredCount / elapsed`, `remaining = (totalImages - scoredCount) / rate`
-- [ ] Display in Processing screen: "~3 min 42 sec remaining"
-- [ ] Update every 5 seconds (not every image to avoid flicker)
+- [x] Track `startTime` when pipeline begins
+- [x] After each scored image: `elapsed = now - startTime`, `rate = scoredCount / elapsed`, `remaining = (totalImages - scoredCount) / rate`
+- [x] Display in Processing screen: "~3 min 42 sec remaining"
+- [x] Update every 5 seconds (not every image to avoid flicker)
 
 ### 16.3 Resume Banner
 
-- [ ] On Processing screen mount: call `'session-has-existing'` IPC for the configured output folder
-- [ ] If existing session found: show prominent banner:
+- [x] On Processing screen mount: call `'session-has-existing'` IPC for the configured output folder
+- [x] If existing session found: show prominent banner:
   - "Previous session found: 47 of 200 images scored on May 14, 2026."
   - "Resume" button → continues from image 48
   - "Start Fresh" button → clears old session and starts over
 
 ### 16.4 Global Error Handling
 
-- [ ] Wrap entire pipeline in try/catch — surface errors as user-readable messages in Processing screen
-- [ ] Create a typed `CullAIError` base class with `code`, `message`, `recoverable: boolean`
-- [ ] Error codes: `FREE_LIMIT_EXCEEDED`, `NO_IMAGES_FOUND`, `UNSUPPORTED_FORMATS_ONLY`, `AUTH_FAILED`, `OUTPUT_FOLDER_NOT_WRITABLE`, `LIGHTDRIFT_LIBRAW_INSTALL_MISSING`, `OLLAMA_NOT_RUNNING`
-- [ ] For recoverable errors: show "Retry" button
-- [ ] For fatal errors: show full error message + "Back to Setup" button
-- [ ] Never show raw stack traces to the user
+- [x] Wrap entire pipeline in try/catch — surface errors as user-readable messages in Processing screen
+- [x] Create a typed `CullAIError` base class with `code`, `message`, `recoverable: boolean`
+- [x] Error codes: `FREE_LIMIT_EXCEEDED`, `NO_IMAGES_FOUND`, `UNSUPPORTED_FORMATS_ONLY`, `AUTH_FAILED`, `OUTPUT_FOLDER_NOT_WRITABLE`, `LIGHTDRIFT_LIBRAW_INSTALL_MISSING`, `OLLAMA_NOT_RUNNING`
+- [x] For recoverable errors: show "Retry" button
+- [x] For fatal errors: show full error message + "Back to Setup" button
+- [x] Never show raw stack traces to the user
 
 ### 16.5 Setup Screen Validation
 
-- [ ] Before enabling "Start" button, validate:
+- [x] Before enabling "Start" button, validate:
   - Input folder exists and is readable
   - Output folder exists (or can be created) and is writable
   - At least one supported image file exists in input folder
   - API key is set (or Ollama is selected)
   - Model name is not empty
-- [ ] Show inline validation error messages below each invalid field
-- [ ] Check free tier limits and show warnings before starting (not just after)
+- [x] Show inline validation error messages below each invalid field
+- [x] Check free tier limits and show warnings before starting (not just after)
 
 ### 16.6 Empty States
 
-- [ ] No images found in folder → "No supported images found in this folder. Supported formats: JPEG, PNG, HEIC, RAW..."
-- [ ] All images already scored (perfect resume) → "All images already scored in a previous session. View results?"
-- [ ] Zero faces detected in portrait session → show info banner: "No faces detected. Consider setting Face & Eyes weight to 0% for this genre."
+- [x] No images found in folder → "No supported images found in this folder. Supported formats: JPEG, PNG, HEIC, RAW..."
+- [x] All images already scored (perfect resume) → "All images already scored in a previous session. View results?"
+- [x] Zero faces detected in portrait session → show info banner: "No faces detected. Consider setting Face & Eyes weight to 0% for this genre."
 
 ### 16.7 Add Output Shortfall Estimation in Dry‑Run
 
-- [ ] In dry‑run mode, after counting images, estimate likely output shortfall:
+- [x] In dry‑run mode, after counting images, estimate likely output shortfall:
   - Assume ~10% duplicates (if burst mode)
   - Assume ~5% quality rejection (based on heuristics)
   - Show: _"Estimated final keepers: ~180–195 out of 200 requested (due to duplicates and quality filtering)"_
 
 ### 16.8 🔥 Resume Banner Enhancement – Show Remaining Time & Cost
 
-- [ ] In Processing screen, when a pending session is found, after loading the session, compute:
+- [x] In Processing screen, when a pending session is found, after loading the session, compute:
   - Remaining images = `totalImages - scoredCount`
   - Estimated remaining time = `(elapsedTime / scoredCount) * remainingImages` (if scoredCount > 0)
   - Estimated remaining cost = `(totalCostSoFar / scoredCount) * remainingImages` (if scoredCount > 0 and costs tracked)
-- [ ] Display these in the resume banner: "Resume from image 47/200 (~12 min remaining, ~$0.35 estimated)"
+- [x] Display these in the resume banner: "Resume from image 47/200 (~12 min remaining, ~$0.35 estimated)"
 
 ✅ **Done Criteria:** Starting with an empty folder shows a clear error. Cancelling mid-run, restarting, and choosing "Resume" continues from the correct image. Dry‑run shows both cost estimate and expected output range. Resume banner shows useful estimates to help user decide whether to resume or start fresh.
 

@@ -474,6 +474,8 @@ export type Session = {
   /** Summary produced by the AI discovery pass. */
   discoveryContext: string;
   outputShortfallReasons?: ShortfallReasons;
+  /** Cumulative culling active duration in milliseconds. */
+  elapsedMs?: number;
 };
 
 // -----------------------------------------------------------------------------

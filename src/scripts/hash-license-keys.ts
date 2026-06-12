@@ -16,9 +16,9 @@ function hash(key: string): string {
 }
 
 const KEYS = [
-  { name: 'FREE_KEY_HASH',     value: 'ashmindhunganafree' },
-  { name: 'PRO_KEY_HASH',      value: 'ashmindhunganapro' },
-  { name: 'LIFETIME_KEY_HASH', value: 'ashmindhunganalifetime' },
+  { name: 'FREE_KEY_HASH',     value: 'dhunganafree' },
+  { name: 'PRO_KEY_HASH',      value: 'dhunganapro' },
+  { name: 'LIFETIME_KEY_HASH', value: 'dhunganalifetime' },
 ];
 
 console.log('// Paste these into src/main/license-manager.ts\n');

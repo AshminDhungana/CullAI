@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   licenseIncrementUsage: (count) => ipcRenderer.invoke('license:increment-usage', count),
 
   startPipeline: (settings) => ipcRenderer.invoke('pipeline-start', settings),
+  pipelineValidateSetup: (settings) => ipcRenderer.invoke('pipeline-validate-setup', settings),
   cancelPipeline: (payload) => ipcRenderer.invoke('pipeline-cancel', payload),
   confirmPipelineContinue: () => ipcRenderer.invoke('pipeline-confirm-continue'),
   onPipelineEvent: (callback) => {

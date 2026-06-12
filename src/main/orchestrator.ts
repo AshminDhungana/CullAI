@@ -25,10 +25,12 @@
  * MAIN-PROCESS ONLY. Never import from src/renderer or src/shared.
  */
 
-import { scanFolder, processFolder } from './image-processor';
+import { scanFolder, processFolder, ALL_SUPPORTED_EXTENSIONS } from './image-processor';
 import { walkFolders } from './folder-walker';
 import * as fs from 'fs';
 import * as path from 'path';
+import { CullAIError } from './ai-errors';
+import { preloadUsageForSession } from './usage-tracker';
 import { groupDuplicates } from './duplicate-detector';
 import { detectFaces } from './face-detector';
 import {
@@ -45,6 +47,7 @@ import {
   markSessionComplete,
   markSessionCancelled,
   loadSession,
+  sessionFilePath,
 } from './session-manager';
 import { runAutoTagging } from './auto-tagging';
 
@@ -268,6 +271,144 @@ export function assignTiers(
   return [...pool, ...preRejected];
 }
 
+async function performPreFlightChecks(settings: AppSettings) {
+  // 1. Verify input folder exists and is a directory
+  try {
+    const stat = await fs.promises.stat(path.resolve(settings.inputFolder));
+    if (!stat.isDirectory()) {
+      throw new CullAIError('INPUT_FOLDER_INVALID', 'Input folder is not a directory.', false);
+    }
+  } catch (err: any) {
+    if (err instanceof CullAIError) throw err;
+    throw new CullAIError('INPUT_FOLDER_INVALID', 'Input folder does not exist.', false);
+  }
+
+  // 2. Verify output folder exists (or can be created) and is writable
+  const outResolved = path.resolve(settings.outputFolder);
+  let outDirExists = false;
+  try {
+    const outStat = await fs.promises.stat(outResolved);
+    if (outStat.isDirectory()) {
+      outDirExists = true;
+    } else {
+      throw new CullAIError('OUTPUT_FOLDER_NOT_WRITABLE', 'Output path exists but is not a directory.', false);
+    }
+  } catch {
+    try {
+      await fs.promises.mkdir(outResolved, { recursive: true });
+      outDirExists = true;
+    } catch {
+      throw new CullAIError('OUTPUT_FOLDER_NOT_WRITABLE', 'Output folder cannot be created.', false);
+    }
+  }
+
+  if (outDirExists) {
+    const testFilePath = path.join(outResolved, `.cullai-write-test-${Date.now()}`);
+    try {
+      await fs.promises.writeFile(testFilePath, 'test');
+      await fs.promises.unlink(testFilePath);
+    } catch {
+      throw new CullAIError('OUTPUT_FOLDER_NOT_WRITABLE', 'Output folder is not writable.', false);
+    }
+  }
+
+  // 3. Ollama health check
+  if (settings.provider === 'ollama') {
+    const ollamaBase = settings.baseUrl?.trim().replace(/\/+$/, '') || 'http://localhost:11434';
+    const modelsUrl = `${ollamaBase}/api/tags`;
+    try {
+      const res = await fetch(modelsUrl, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+      if (!res.ok) {
+        throw new CullAIError('OLLAMA_NOT_RUNNING', `Ollama returned error status ${res.status}.`, true);
+      }
+    } catch {
+      throw new CullAIError('OLLAMA_NOT_RUNNING', `Cannot reach Ollama at ${ollamaBase} — is Ollama running?`, true);
+    }
+  }
+
+  // 4. File counts & format checks
+  let subfolders = [''];
+  if (settings.processSubfolders) {
+    try {
+      subfolders = await walkFolders(settings.inputFolder);
+    } catch {
+      throw new CullAIError('INPUT_FOLDER_INVALID', 'Failed to walk subfolders.', false);
+    }
+  }
+
+  const ALWAYS_EXCLUDED = new Set(['.cullai_cache', '.DS_Store', 'Thumbs.db']);
+  const EXCLUDED_DIRS = new Set(['.cullai_cache', 'node_modules', '.git']);
+
+  async function collectAllFiles(dir: string, recursive: boolean): Promise<string[]> {
+    const files: string[] = [];
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.name.startsWith('.') || ALWAYS_EXCLUDED.has(entry.name)) {
+        continue;
+      }
+      if (entry.isFile()) {
+        files.push(fullPath);
+      } else if (entry.isDirectory() && recursive && !EXCLUDED_DIRS.has(entry.name)) {
+        files.push(...(await collectAllFiles(fullPath, true)));
+      }
+    }
+    return files;
+  }
+
+  let allFiles: string[] = [];
+  try {
+    allFiles = await collectAllFiles(settings.inputFolder, settings.processSubfolders ?? false);
+  } catch {
+    throw new CullAIError('INPUT_FOLDER_INVALID', 'Failed to read input folder contents.', false);
+  }
+
+  if (allFiles.length === 0) {
+    throw new CullAIError('NO_IMAGES_FOUND', 'No images found in the selected folder.', false);
+  }
+
+  const hasSupported = allFiles.some(f => {
+    const ext = path.extname(f).toLowerCase();
+    return ALL_SUPPORTED_EXTENSIONS.has(ext);
+  });
+  if (!hasSupported) {
+    throw new CullAIError('UNSUPPORTED_FORMATS_ONLY', 'The selected folder contains only unsupported file formats.', false);
+  }
+
+  // Count files that match filters
+  let filteredCount = 0;
+  for (const relFolder of subfolders) {
+    const absoluteFolderPath = relFolder === ''
+      ? settings.inputFolder
+      : path.join(settings.inputFolder, relFolder);
+    try {
+      const paths = await scanFolder(absoluteFolderPath, {
+        extensions: settings.extensionFilter,
+        prefixes: settings.prefixFilter,
+        prefixCaseInsensitive: settings.prefixCaseInsensitive,
+        ignorePatterns: settings.ignorePatterns,
+        recursive: false,
+      });
+      filteredCount += paths.length;
+    } catch {
+      // ignore
+    }
+  }
+
+  if (filteredCount === 0) {
+    throw new CullAIError('NO_IMAGES_FOUND', 'No images match the active filters.', false);
+  }
+
+  // 5. Quota check
+  const quotaCheck = await preloadUsageForSession(filteredCount);
+  if (!quotaCheck.allowed && quotaCheck.remaining <= 0) {
+    throw new CullAIError('FREE_LIMIT_EXCEEDED', 'Remaining monthly quota exceeded. Upgrade your license to process more images.', false);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 10.2 runPipeline — the main async generator
 // ---------------------------------------------------------------------------
@@ -288,6 +429,9 @@ export async function* runPipeline(
   senderId: number,
   signal: AbortSignal,
 ): AsyncGenerator<PipelineEvent> {
+  // Run pre-flight checks
+  await performPreFlightChecks(settings);
+
   if (!settings.processSubfolders) {
     // ── Single-folder mode (existing behaviour) ──────────────────────────────
     yield* _runSingleFolderBatch(settings, settings.inputFolder, senderId, signal, {
@@ -323,7 +467,8 @@ export async function* runPipeline(
   // ── Master session: accumulated across all batches ───────────────────────
   // We merge scores from every completed batch into a single Session so the
   // final pipeline-complete event contains all images, not just the last batch.
-  let masterSession: import('../shared/types').Session | null = null;
+  const existingMaster = await loadSession(settings.outputFolder);
+  let masterSession: import('../shared/types').Session | null = existingMaster ? { ...existingMaster, status: 'running' } : null;
 
   for (let batchIdx = 0; batchIdx < subfolders.length; batchIdx++) {
     if (signal.aborted) break;
@@ -400,15 +545,17 @@ export async function* runPipeline(
           masterSession = { ...currentBatchSession };
         } else {
           const currentMasterSession = masterSession as import('../shared/types').Session;
+          const mergedScores = { ...currentMasterSession.scores, ...currentBatchSession.scores };
           // Subsequent batches: merge scores and update aggregate counts.
           masterSession = {
             ...currentMasterSession,
             // Keep the original session's identity / timestamps
-            totalImages: currentMasterSession.totalImages + currentBatchSession.totalImages,
-            scoredCount: currentMasterSession.scoredCount + currentBatchSession.scoredCount,
-            scores: { ...currentMasterSession.scores, ...currentBatchSession.scores },
+            totalImages: existingMaster ? currentMasterSession.totalImages : (currentMasterSession.totalImages + currentBatchSession.totalImages),
+            scores: mergedScores,
+            scoredCount: Object.keys(mergedScores).length,
             // The master session is "complete" only after the final batch.
             status: 'running',
+            elapsedMs: (currentMasterSession.elapsedMs ?? 0) + (currentBatchSession.elapsedMs ?? 0),
           };
         }
         // Do NOT yield pipeline-complete yet — we emit one combined event at the end.
@@ -423,7 +570,7 @@ export async function* runPipeline(
     // folder according to lightroomMode and preserveSubfolderStructure.
     // This is intentionally per-batch (not deferred to the end) so disk writes
     // are spread across the processing time rather than hitting all at once.
-    if (batchSession && !signal.aborted && settings.lightroomMode === 'copyToOutput') {
+    if (batchSession && !signal.aborted && settings.lightroomMode === 'copyToOutput' && !settings.dryRun) {
       const keeperEntries = Object.entries(batchSession.scores).filter(
         ([, rec]) => rec.tier === 'S' || rec.tier === 'A',
       );
@@ -471,6 +618,12 @@ export async function* runPipeline(
       ...masterSession,
       status: 'completed',
     };
+    try {
+      const filePath = sessionFilePath(settings.outputFolder);
+      await fs.promises.writeFile(filePath, JSON.stringify(finalSession, null, 2));
+    } catch (writeErr) {
+      console.warn(`[orchestrator] failed to save master session: ${writeErr}`);
+    }
     yield { type: 'pipeline-complete', session: finalSession };
   }
 }
@@ -678,16 +831,32 @@ async function* _runSingleFolderBatch(
   }
 
   let session: import('../shared/types').Session;
-  try {
-    session = await createSession(settings, scorableReps.length);
-    await saveDiscoveryContext(settings.outputFolder, discoveryContext);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    yield { type: 'pipeline-error', code: 'SESSION_CREATE_FAILED', message: `Failed to create session: ${msg}`, recoverable: false };
-    return;
+  const existingSession = await loadSession(settings.outputFolder);
+  const previouslyScoredCount = existingSession && existingSession.scores
+    ? Object.keys(existingSession.scores).length
+    : 0;
+  const previouslyElapsed = existingSession?.elapsedMs ?? 0;
+
+  if (existingSession) {
+    session = existingSession;
+    session.status = 'running';
+    try {
+      const filePath = sessionFilePath(settings.outputFolder);
+      await fs.promises.writeFile(filePath, JSON.stringify(session, null, 2));
+    } catch { /* non-fatal */ }
+    await saveDiscoveryContext(settings.outputFolder, session.discoveryContext || discoveryContext);
+  } else {
+    try {
+      session = await createSession(settings, scorableReps.length);
+      await saveDiscoveryContext(settings.outputFolder, discoveryContext);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      yield { type: 'pipeline-error', code: 'SESSION_CREATE_FAILED', message: `Failed to create session: ${msg}`, recoverable: false };
+      return;
+    }
   }
 
-  yield { type: 'pipeline-started', totalImages: scorableReps.length };
+  yield { type: 'pipeline-started', totalImages: session.totalImages };
 
   // =========================================================================
   // Step 8 — Scoring loop
@@ -697,6 +866,11 @@ async function* _runSingleFolderBatch(
 
   const startMs = Date.now();
   const scoreEntries: Array<{ id: string; record: ScoreRecord }> = [];
+  if (existingSession && existingSession.scores) {
+    for (const [id, rec] of Object.entries(existingSession.scores)) {
+      scoreEntries.push({ id, record: rec });
+    }
+  }
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
 
@@ -713,6 +887,7 @@ async function* _runSingleFolderBatch(
 
   // Pre-populate pre-rejected records (no AI call — they are auto-rejected).
   for (const rep of representatives.filter((r) => r.faceMetadata?.exceedsFaceLimit)) {
+    if (session.scores[rep.id]) continue;
     const rejected: ScoreRecord = {
       filename: rep.filename,
       scores: { quality: 0, aesthetic: 0, composition: 0, sharpness: 0, exposure: 0, faceEyes: 0 },
@@ -736,21 +911,23 @@ async function* _runSingleFolderBatch(
   // after each result — no buffering, fully live progress and cost updates.
 
   // Build the flat work queue from scorable representatives.
-  const workQueue: Array<{ id: string; params: AICallParams }> = scorableReps.map((rep) => ({
-    id: rep.id,
-    params: {
-      imageBase64: rep.base64,
-      filename: rep.filename,
-      discoveryContext,
-      styleProfile,
-      weights: settings.weights,
-      faceMetadata: rep.faceMetadata ?? EMPTY_FACE_METADATA,
-      provider: settings.provider,
-      apiKey,
-      model: settings.model,
-      baseUrl: settings.baseUrl,
-    },
-  }));
+  const workQueue: Array<{ id: string; params: AICallParams }> = scorableReps
+    .filter((rep) => !session.scores[rep.id])
+    .map((rep) => ({
+      id: rep.id,
+      params: {
+        imageBase64: rep.base64,
+        filename: rep.filename,
+        discoveryContext,
+        styleProfile,
+        weights: settings.weights,
+        faceMetadata: rep.faceMetadata ?? EMPTY_FACE_METADATA,
+        provider: settings.provider,
+        apiKey,
+        model: settings.model,
+        baseUrl: settings.baseUrl,
+      },
+    }));
 
   const scheduler = new BatchScheduler({ concurrency: settings.concurrency, signal });
   let parallelScoredCount = 0;
@@ -770,9 +947,10 @@ async function* _runSingleFolderBatch(
 
     const { id: imageId, record } = result;
 
-    // Persist to session immediately — crash-safe resume.
+    // Persist to session immediately — crash-safe resume, including elapsed culling duration.
+    const currentElapsed = previouslyElapsed + (Date.now() - startMs);
     try {
-      await saveScore(settings.outputFolder, imageId, record);
+      await saveScore(settings.outputFolder, imageId, record, currentElapsed);
     } catch { /* non-fatal */ }
 
     scoreEntries.push({ id: imageId, record });
@@ -787,7 +965,7 @@ async function* _runSingleFolderBatch(
     const elapsedMs = Date.now() - startMs;
     const effectiveConcurrency = Math.max(1, settings.concurrency);
     const avgMs = (elapsedMs / parallelScoredCount) / effectiveConcurrency;
-    const remaining = scorableReps.length - parallelScoredCount;
+    const remaining = workQueue.length - parallelScoredCount;
     const etaSeconds = remaining > 0 ? Math.round((avgMs * remaining) / 1000) : 0;
 
     // ── Live IPC events — emitted immediately as each image completes ─────────
@@ -795,7 +973,7 @@ async function* _runSingleFolderBatch(
       type: 'pipeline-image-scored',
       filename: record.filename,
       score: record,
-      scoredCount: parallelScoredCount,
+      scoredCount: previouslyScoredCount + parallelScoredCount,
       etaSeconds,
     };
 
@@ -1005,6 +1183,28 @@ async function* _runSingleFolderBatch(
       recoverable: false,
     };
     return;
+  }
+
+  if (!settings.processSubfolders && settings.lightroomMode === 'copyToOutput' && !settings.dryRun && !signal.aborted) {
+    const keeperEntries = Object.entries(finalSession.scores).filter(
+      ([, rec]) => rec.tier === 'S' || rec.tier === 'A',
+    );
+
+    for (const [, rec] of keeperEntries) {
+      if (signal.aborted) break;
+      const sourceFilePath = path.join(folderPath, rec.filename);
+      try {
+        await copyKeeperFile(
+          sourceFilePath,
+          settings.inputFolder,
+          settings.outputFolder,
+          settings.preserveSubfolderStructure,
+        );
+      } catch (copyErr: unknown) {
+        const msg = copyErr instanceof Error ? copyErr.message : String(copyErr);
+        console.warn(`[orchestrator] copyKeeperFile failed for ${rec.filename}: ${msg}`);
+      }
+    }
   }
 
   yield { type: 'pipeline-complete', session: finalSession };

@@ -51,7 +51,7 @@ import { useIgnoreRules } from '../hooks/useIgnoreRules';
 import type { AppSettings, AIProvider, ReferenceImage } from '../../shared/types';
 import { defaultAppSettings } from '../../shared/types';
 import { GENRE_PRESETS } from '../../shared/genre-presets';
-import { PROVIDER_DEFAULTS } from '../../shared/constants';
+import { PROVIDER_DEFAULTS, estimateCost } from '../../shared/constants';
 import LicensePanel from '../components/LicensePanel';
 import type { LicenseStatus as LicenseStatusType } from '../../shared/license';
 import { isAllowed } from '../../shared/license';
@@ -185,6 +185,21 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const [showDuplicateTooltip, setShowDuplicateTooltip] = useState(false);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [apiKeySaveError, setApiKeySaveError] = useState<string>('');
+  const [showDryRunModal, setShowDryRunModal] = useState(false);
+  const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
+  const [pendingStartSettings, setPendingStartSettings] = useState<AppSettings | null>(null);
+  const [dryRunEstimates, setDryRunEstimates] = useState<{
+    fileCount: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCost: number;
+    provider: string;
+    expectedKeepersMin: number;
+    expectedKeepersMax: number;
+    shortfallMin: number;
+    shortfallMax: number;
+    warning?: string;
+  } | null>(null);
   const modelComboboxRef = useRef<ModelComboboxHandle>(null);
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatusType | null>(null);
 
@@ -222,6 +237,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     watch,
     trigger,
     getValues,
+    setError,
     formState: { errors, isValid, isDirty },
     reset,
   } = useForm<SetupFormValues>({
@@ -546,12 +562,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
 
   const onSubmit = async (data: SetupFormValues) => {
     setIsStarting(true);
-    const inputValid = await validateInputFolder(data.inputFolder);
-    if (!inputValid) {
-      setIsStarting(false);
-      setStep('project');
-      return;
-    }
     const resolvedApiKey = await resolveApiKey(data.provider, data.apiKey);
     const fullSettings: AppSettings = {
       ...defaultAppSettings(),
@@ -573,7 +583,79 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       preserveSubfolderStructure: data.preserveSubfolderStructure ?? false,
       activeProfileId,          // ← Phase 14: carry the loaded profile ID
     };
-    onStart(fullSettings);
+
+    try {
+      // @ts-expect-error - electronAPI
+      const validation = await window.electronAPI.pipelineValidateSetup(fullSettings);
+
+      if (!validation.valid) {
+        setIsStarting(false);
+        for (const [field, message] of Object.entries(validation.errors || {})) {
+          let displayMessage = message as string;
+          if (displayMessage === 'NO_IMAGES_FOUND') {
+            displayMessage = 'No images found in the selected folder.';
+          } else if (displayMessage === 'UNSUPPORTED_FORMATS_ONLY') {
+            displayMessage = 'The selected folder contains only unsupported file formats.';
+          } else if (displayMessage === 'OUTPUT_FOLDER_NOT_WRITABLE') {
+            displayMessage = 'Output folder is not writable.';
+          } else if (displayMessage === 'OLLAMA_NOT_RUNNING') {
+            displayMessage = 'Cannot reach Ollama. Please make sure Ollama is running.';
+          }
+          
+          setError(field as any, {
+            type: 'manual',
+            message: displayMessage,
+          });
+
+          // Redirect to appropriate step
+          if (field === 'inputFolder' || field === 'outputFolder') {
+            setStep('project');
+          } else if (field === 'apiKey' || field === 'model') {
+            setStep('ai');
+          }
+        }
+        return;
+      }
+
+      const fileCount = validation.fileCount;
+      const inputTokens = fileCount * 800;
+      const outputTokens = fileCount * 200;
+      const costEst = estimateCost(data.provider, inputTokens, outputTokens);
+
+      const expectedKeepersMin = Math.round(fileCount * 0.8);
+      const expectedKeepersMax = Math.round(fileCount * 0.9);
+      const shortfallMin = data.numImagesToSelect > 0
+        ? Math.max(0, data.numImagesToSelect - expectedKeepersMax)
+        : 0;
+      const shortfallMax = data.numImagesToSelect > 0
+        ? Math.max(0, data.numImagesToSelect - expectedKeepersMin)
+        : 0;
+
+      if (data.dryRun) {
+        setPendingStartSettings(fullSettings);
+        setDryRunEstimates({
+          fileCount,
+          inputTokens,
+          outputTokens,
+          estimatedCost: costEst,
+          provider: data.provider,
+          expectedKeepersMin,
+          expectedKeepersMax,
+          shortfallMin,
+          shortfallMax,
+          warning: validation.warning,
+        });
+        setShowDryRunModal(true);
+      } else {
+        onStart(fullSettings);
+      }
+    } catch (err) {
+      setIsStarting(false);
+      setError('inputFolder', {
+        type: 'manual',
+        message: 'Validation failed unexpectedly. Please check your folder path.',
+      });
+    }
   };
 
   // Step navigation
@@ -592,7 +674,75 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       const valid = await trigger(['provider', 'model']);
       return valid;
     }
-    if (step === 'options') return true;
+    if (step === 'options') {
+      // 16.5 — Run full pre-flight validation before entering Review, so
+      // folder/API/model/quota issues surface as inline errors and a
+      // pre-start quota warning instead of only at final submit.
+      setQuotaWarning(null);
+      try {
+        const values = getValues();
+        const resolvedApiKey = await resolveApiKey(values.provider, values.apiKey);
+        const fullSettings: AppSettings = {
+          ...defaultAppSettings(),
+          ...values,
+          apiKey: resolvedApiKey,
+          extensionFilter: values.extensionFilter || [],
+          prefixFilter: values.prefixFilter || [],
+          prefixCaseInsensitive: values.prefixCaseInsensitive ?? true,
+          referenceImage: (values.referenceImage ?? null) as ReferenceImage,
+          disableDuplicateGrouping: values.disableDuplicateGrouping || false,
+          duplicateThreshold: values.duplicateThreshold || 10,
+          maxFacesPerImage: values.maxFacesPerImage || 0,
+          enableAutoTagging: canAutoTag ? (values.enableAutoTagging ?? false) : false,
+          tagTopPercent: values.tagTopPercent ?? 20,
+          rawCacheMaxSizeGb: 5,
+          rawCacheMaxAgeDays: 30,
+          disableRawCache: false,
+          processSubfolders: values.processSubfolders ?? false,
+          preserveSubfolderStructure: values.preserveSubfolderStructure ?? false,
+          activeProfileId,
+        };
+
+        // @ts-expect-error - electronAPI
+        const validation = await window.electronAPI.pipelineValidateSetup(fullSettings);
+
+        if (!validation.valid) {
+          for (const [field, message] of Object.entries(validation.errors || {})) {
+            let displayMessage = message as string;
+            if (displayMessage === 'NO_IMAGES_FOUND') {
+              displayMessage = 'No images found in the selected folder.';
+            } else if (displayMessage === 'UNSUPPORTED_FORMATS_ONLY') {
+              displayMessage = 'The selected folder contains only unsupported file formats.';
+            } else if (displayMessage === 'OUTPUT_FOLDER_NOT_WRITABLE') {
+              displayMessage = 'Output folder is not writable.';
+            } else if (displayMessage === 'OLLAMA_NOT_RUNNING') {
+              displayMessage = 'Cannot reach Ollama. Please make sure Ollama is running.';
+            }
+
+            setError(field as any, {
+              type: 'manual',
+              message: displayMessage,
+            });
+
+            // Redirect to the step containing the invalid field instead of
+            // proceeding to Review.
+            if (field === 'inputFolder' || field === 'outputFolder') {
+              setStep('project');
+            } else if (field === 'apiKey' || field === 'model') {
+              setStep('ai');
+            }
+          }
+          return false;
+        }
+
+        if (validation.warning) {
+          setQuotaWarning(validation.warning);
+        }
+      } catch {
+        // Non-fatal — fall through and let the final submit validation catch it.
+      }
+      return true;
+    }
     return true;
   };
 
@@ -2134,6 +2284,15 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           </div>
 
           <div className="space-y-6">
+            {quotaWarning && (
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-2xl p-4 flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+                <p className="text-sm text-red-800 dark:text-red-300 font-medium">
+                  {quotaWarning}
+                </p>
+              </div>
+            )}
+
             {totalWeight !== 100 && (
               <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-2xl p-4 flex items-center gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
@@ -2338,6 +2497,113 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           </div>
         )}
       </div>
+
+      {showDryRunModal && dryRunEstimates && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            className="w-full max-w-lg bg-white/90 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl p-6 relative overflow-hidden backdrop-blur-md"
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4 text-amber-500">
+              <Sparkles className="w-6 h-6 animate-pulse" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Dry-Run Culling Simulation
+              </h2>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              You are running in <strong>Dry-Run Mode</strong>. No images will be rated in-place or copied to output. This simulation generates estimates for pricing, token usage, and keeper yield.
+            </p>
+
+            {/* Estimates Grid */}
+            <div className="space-y-4 mb-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 p-4 rounded-2xl">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Scanned Images</span>
+                  <span className="text-lg font-bold text-gray-950 dark:text-gray-50">{dryRunEstimates.fileCount}</span>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 p-4 rounded-2xl">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Estimated Cost</span>
+                  <span className="text-lg font-bold text-gray-950 dark:text-gray-50">
+                    {dryRunEstimates.estimatedCost > 0 ? `$${dryRunEstimates.estimatedCost.toFixed(4)}` : 'Free (Local)'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 p-4 rounded-2xl space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Total Input Tokens:</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-200">{dryRunEstimates.inputTokens.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Total Output Tokens:</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-200">{dryRunEstimates.outputTokens.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-800">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Estimated Keeper Yield:</span>
+                  <span className="font-bold text-amber-500">
+                    {dryRunEstimates.expectedKeepersMin} - {dryRunEstimates.expectedKeepersMax} images
+                  </span>
+                </div>
+              </div>
+
+              {/* Shortfall warnings if requested is higher than expected keepers */}
+              {dryRunEstimates.shortfallMax > 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 p-4 rounded-2xl flex gap-3 text-sm">
+                  <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block mb-1">Potential Keeper Shortfall</span>
+                    You requested to select {getValues('numImagesToSelect')} images, but only {dryRunEstimates.expectedKeepersMin} - {dryRunEstimates.expectedKeepersMax} are expected to qualify.
+                    <span className="block mt-1 font-medium">
+                      Estimated Shortfall: {dryRunEstimates.shortfallMin} - {dryRunEstimates.shortfallMax} images.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Warning (Quota warnings from pre-flight) */}
+              {dryRunEstimates.warning && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 p-4 rounded-2xl flex gap-3 text-sm">
+                  <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block mb-1">Quota Warning</span>
+                    {dryRunEstimates.warning}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDryRunModal(false);
+                  setIsStarting(false);
+                }}
+                className="flex-1 py-3 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-2xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDryRunModal(false);
+                  if (pendingStartSettings) {
+                    onStart(pendingStartSettings);
+                  }
+                }}
+                className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-2xl transition shadow-lg shadow-amber-500/20"
+              >
+                Proceed
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 }
