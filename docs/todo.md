@@ -32,7 +32,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 13b   | AI‑Powered Auto‑Tagging                | ✅ Complete    |
 | 14    | Style Profile System                   | ✅ Complete    |
 | 15    | Multi-Provider AI Support              | ✅ Complete    |
-| 16    | Polish & Error Handling (Enhanced)     | ⬜ Not Started |
+| 16    | Polish & Error Handling (Enhanced)     | ✅ Complete    |
 | 17    | Test Suite (Enhanced)                  | ⬜ Not Started |
 | 18    | Packaging & Release                    | ⬜ Not Started |
 | 19    | CLI Mode & Automation                  | ⬜ Not Started |
@@ -1477,7 +1477,7 @@ PROVIDER_DEFAULTS = {
 - [ ] Install Vitest (or Jest): `npm install --save-dev vitest`
 - [ ] Configure `vitest.config.ts` to find tests in `tests/` directory
 - [ ] Add `npm run test` and `npm run test:watch` scripts
-- [ ] Add code coverage reporting: `npm run test:coverage`
+- [ ] Add code coverage hreporting: `npm run test:coverage`
 
 ### 17.2 Add Test Fixtures
 
