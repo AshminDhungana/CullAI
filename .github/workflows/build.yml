@@ -17,8 +17,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libraw-dev
 
       - name: Install dependencies
         run: npm ci
@@ -40,8 +43,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libraw-dev
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libraw
 
       - name: Install dependencies
         run: npm ci
