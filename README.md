@@ -11,7 +11,7 @@
 
 **From memory card to keepers — automatically.**
 
-![Status](https://img.shields.io/badge/Status-Ongoing-yellow)
+![Status](https://img.shields.io/badge/Status-Released-brightgreen)
 
 [Download](#installation) · [Quick Start](#quick-start) · [Features](#features) · [Docs](#usage)
 
@@ -141,11 +141,11 @@ Weights are fully adjustable via sliders in the Setup screen and auto-normalize 
 
 The easiest way to get CullAI is to download the latest release for your platform.
 
-| Platform | Installer | Portable |
-|----------|-----------|----------|
+| Platform    | Installer                                                                      | Portable                                                                          |
+| ----------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
 | **Windows** | [`CullAI-Setup.exe`](https://github.com/AshminDhungana/CullAI/releases/latest) | [`CullAI-Portable.exe`](https://github.com/AshminDhungana/CullAI/releases/latest) |
-| **macOS** | [`CullAI.dmg`](https://github.com/AshminDhungana/CullAI/releases/latest) | [`CullAI-mac.zip`](https://github.com/AshminDhungana/CullAI/releases/latest) |
-| **Linux** | [`CullAI.AppImage`](https://github.com/AshminDhungana/CullAI/releases/latest) | — |
+| **macOS**   | [`CullAI.dmg`](https://github.com/AshminDhungana/CullAI/releases/latest)       | [`CullAI-mac.zip`](https://github.com/AshminDhungana/CullAI/releases/latest)      |
+| **Linux**   | [`CullAI.AppImage`](https://github.com/AshminDhungana/CullAI/releases/latest)  | —                                                                                 |
 
 > 💡 **Windows users without admin rights?** Use the **Portable** build — it runs without installation.
 > 💡 **macOS users:** The `.dmg` is signed and notarized. If Gatekeeper shows a warning, right-click → Open.
