@@ -69,22 +69,12 @@ let _activeLibrary: 'human' | 'face-api' | 'none' = 'none';
  * Returns the absolute path to the @vladmandic/human models directory.
  *
  * In development  : resolves from node_modules next to the project root.
- * In packaged app : resolves from the asarUnpack destination, which is
- *                   <resources>/app.asar.unpacked/node_modules/…
- *
- * The path must match the asarUnpack glob in electron-builder.config.ts:
- *   "node_modules/@vladmandic/human/models/**"
+ * In packaged app : resolves from the extraResources destination, which is
+ *                   <resources>/models/human (see electron-builder.config.ts).
  */
 function getModelsPath(): string {
   if (app.isPackaged) {
-    return path.join(
-      process.resourcesPath,
-      'app.asar.unpacked',
-      'node_modules',
-      '@vladmandic',
-      'human',
-      'models',
-    );
+    return path.join(process.resourcesPath, 'models', 'human');
   }
   // Development: walk up from dist/main/ → project root → node_modules
   // __dirname is dist/main/ when compiled, or src/main/ when run via tsx.

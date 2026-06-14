@@ -19,7 +19,7 @@
 import { dialog, ipcMain, safeStorage, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import { storeApiKey, getApiKey, deleteApiKey } from './safe-storage';
 import {
   getLicenseStatus,
@@ -2238,9 +2238,9 @@ export function registerIpcHandlers(store: AppStore): void {
       // Create archive with progress events
       await new Promise<void>((resolve, reject) => {
         const output = fs.createWriteStream(filePath);
-        const archive = archiver('zip', { zlib: { level: 6 } });
+        const archive = new ZipArchive({ zlib: { level: 6 } });
 
-        archive.on('progress', (progressData) => {
+        archive.on('progress', (progressData: { entries: { processed: number; total: number } }) => {
           const pct = Math.round(
             (progressData.entries.processed / Math.max(1, progressData.entries.total)) * 100,
           );

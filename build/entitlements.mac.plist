@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Allow outgoing network connections for AI provider APIs -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Allow incoming network connections (if needed for local preview server) -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- Allow file read access to user-selected folders -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Allow automation events -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+  </dict>
+</plist>

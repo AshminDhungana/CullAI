@@ -95,7 +95,7 @@ async function getImghash(): Promise<ImghashModule | null> {
     );
     _imghash = null;
   }
-  return _imghash;
+  return _imghash ?? null;
 }
 
 // ---------------------------------------------------------------------------

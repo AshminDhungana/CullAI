@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback} from "react";
 import { SplashScreen } from "./components/SplashScreen";
+import UpdateBanner from "./components/UpdateBanner";
 import SetupScreen from "./screens/Setup";
 import ProcessingScreen from "./screens/Processing";
 import ResultsScreen from "./screens/Results";
@@ -95,6 +96,8 @@ function App() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-50 dark:bg-[#0f1117]">
+      {/* ── Phase 18 — Auto-Updater Banner ────────────────────────────────── */}
+      <UpdateBanner />
 
       {/* ── Splash ─────────────────────────────────────────────────────────── */}
       <div

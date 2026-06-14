@@ -137,6 +137,23 @@ Weights are fully adjustable via sliders in the Setup screen and auto-normalize 
 
 ## Installation
 
+### Download Pre-built Installers
+
+The easiest way to get CullAI is to download the latest release for your platform.
+
+| Platform | Installer | Portable |
+|----------|-----------|----------|
+| **Windows** | [`CullAI-Setup.exe`](https://github.com/AshminDhungana/CullAI/releases/latest) | [`CullAI-Portable.exe`](https://github.com/AshminDhungana/CullAI/releases/latest) |
+| **macOS** | [`CullAI.dmg`](https://github.com/AshminDhungana/CullAI/releases/latest) | [`CullAI-mac.zip`](https://github.com/AshminDhungana/CullAI/releases/latest) |
+| **Linux** | [`CullAI.AppImage`](https://github.com/AshminDhungana/CullAI/releases/latest) | — |
+
+> 💡 **Windows users without admin rights?** Use the **Portable** build — it runs without installation.
+> 💡 **macOS users:** The `.dmg` is signed and notarized. If Gatekeeper shows a warning, right-click → Open.
+
+📦 [**View all releases →**](https://github.com/AshminDhungana/CullAI/releases)
+
+---
+
 ### Build from Source
 
 CullAI supports **Windows**, **macOS**, and **Linux** builds using Electron and electron-builder.

@@ -20,10 +20,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as ReactWindowModule from 'react-window';
-const { FixedSizeGrid } = (ReactWindowModule as any).default ?? ReactWindowModule;
+const FixedSizeGrid = (ReactWindowModule as any).FixedSizeGrid;
 type GridChildComponentProps = import('react-window').GridChildComponentProps;
 import * as AutoSizerModule from 'react-virtualized-auto-sizer';
-const AutoSizer = (AutoSizerModule as any).default ?? AutoSizerModule;
+const AutoSizer = AutoSizerModule as any;
 import {
   ChevronLeft,
   Star,

@@ -20,6 +20,7 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { initSecureStore } from './safe-storage';
 import { loadLicense } from './license-manager';
 import { disposeDetector } from './face-detector';
+import { initAutoUpdater } from './auto-updater';
 
 // ---------------------------------------------------------------------------
 // Window creation
@@ -119,6 +120,10 @@ app.whenReady().then(async () => {
   // Create the window first so the user sees something immediately while
   // the store initialises in the background.
   createWindow();
+
+  // Phase 18: initialise auto-updater after window is ready
+  // (only in packaged builds — dev mode skips update checks)
+  initAutoUpdater(mainWindow!);
 
   // Phase 3.2: verify OS keychain before registering any IPC handlers.
   // This is async (shows a native dialog if needed) and must complete before

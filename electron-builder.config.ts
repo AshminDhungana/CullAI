@@ -1,26 +1,105 @@
 import type { Configuration } from 'electron-builder'
 
 const config: Configuration = {
-  appId: 'com.ashmindhungana.cullai',
+  appId: 'app.cullai.desktop',
   productName: 'CullAI',
+  copyright: 'Copyright © 2026 CullAI',
 
   directories: {
-    output: 'dist/release',
-    buildResources: 'build'
+    output: 'release',
+    buildResources: 'build',
   },
 
   files: [
     'dist/main/**/*',
+    'dist/shared/**/*',
     'dist/renderer/**/*',
-    'package.json'
+    'package.json',
+  ],
+
+  extraResources: [
+    // Face-detection model files are bundled at runtime
+    {
+      from: 'node_modules/@vladmandic/human/models',
+      to: 'models/human',
+    },
   ],
 
   asarUnpack: ['**/*.node'],
 
-  // Targets left empty for now — configured in Phase build
-  win: {},
-  mac: {},
-  linux: {}
+  // ---------------------------------------------------------------------------
+  // Windows
+  // ---------------------------------------------------------------------------
+  win: {
+    target: [
+      { target: 'nsis', arch: ['x64'] },
+      { target: 'portable', arch: ['x64'] },
+    ],
+    icon: 'build/icon.ico',
+    publisherName: 'CullAI',
+    verifyUpdateCodeSignature: false,
+  },
+
+  nsis: {
+    oneClick: false,
+    allowToChangeInstallationDirectory: true,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    shortcutName: 'CullAI',
+    // Portable build writes settings to app data directory
+  },
+
+  portable: {
+    // Produces CullAI-Portable.exe
+    artifactName: 'CullAI-Portable-${version}.${ext}',
+  },
+
+  // ---------------------------------------------------------------------------
+  // macOS
+  // ---------------------------------------------------------------------------
+  mac: {
+    target: [
+      { target: 'dmg', arch: ['x64', 'arm64'] },
+      { target: 'zip', arch: ['x64', 'arm64'] },
+    ],
+    icon: 'build/icon.icns',
+    category: 'public.app-category.photography',
+    hardenedRuntime: true,
+    gatekeeperAssess: true,
+    entitlements: 'build/entitlements.mac.plist',
+    entitlementsInherit: 'build/entitlements.mac.plist',
+  },
+
+  dmg: {
+    artifactName: 'CullAI-${version}-${arch}.${ext}',
+    contents: [
+      { x: 130, y: 220, type: 'file' },
+      { x: 410, y: 220, type: 'link', path: '/Applications' },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  // Linux
+  // ---------------------------------------------------------------------------
+  linux: {
+    target: [{ target: 'AppImage', arch: ['x64'] }],
+    icon: 'build/icons',
+    category: 'Graphics;Photography',
+    maintainer: 'Ashmin Dhungana',
+    // AppImage runs without installation
+  },
+
+  // ---------------------------------------------------------------------------
+  // Auto-update publishing
+  // ---------------------------------------------------------------------------
+  publish: [
+    {
+      provider: 'github',
+      owner: 'AshminDhungana',
+      repo: 'CullAI',
+      releaseType: 'release',
+    },
+  ],
 }
 
 export default config

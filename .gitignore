@@ -100,7 +100,8 @@ desktop.ini
 # Native Addons (libraw, sharp, libvips)
 # -------------------------
 *.node
-build/
+build/Release
+build/Debug
 prebuilds/
 
 # -------------------------

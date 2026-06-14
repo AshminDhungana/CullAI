@@ -516,4 +516,63 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   sessionHistoryGet: () =>
     ipcRenderer.invoke('session-history-get'),
+
+  // ── Phase 18 — Auto Updater ──────────────────────────────────────────────
+
+  /**
+   * Triggers a manual check for app updates (electron-updater).
+   * @returns {Promise<void>}
+   */
+  checkForUpdates: () => ipcRenderer.invoke('updater-check'),
+
+  /**
+   * Enables or disables automatic update checks on startup.
+   * @param {boolean} enabled
+   * @returns {Promise<void>}
+   */
+  setAutoUpdateEnabled: (enabled) => ipcRenderer.invoke('updater-set-enabled', enabled),
+
+  /**
+   * Subscribes to 'updater-update-available' events.
+   * @param {(info: { version: string, releaseDate: string }) => void} callback
+   * @returns {() => void} Unsubscribe function.
+   */
+  onUpdateAvailable: (callback) => {
+    const handler = (_event, info) => callback(info);
+    ipcRenderer.on('updater-update-available', handler);
+    return () => ipcRenderer.removeListener('updater-update-available', handler);
+  },
+
+  /**
+   * Subscribes to 'updater-update-downloaded' events.
+   * @param {(info: { version: string }) => void} callback
+   * @returns {() => void} Unsubscribe function.
+   */
+  onUpdateDownloaded: (callback) => {
+    const handler = (_event, info) => callback(info);
+    ipcRenderer.on('updater-update-downloaded', handler);
+    return () => ipcRenderer.removeListener('updater-update-downloaded', handler);
+  },
+
+  /**
+   * Subscribes to 'updater-download-progress' events.
+   * @param {(progress: { percent: number, transferred: number, total: number }) => void} callback
+   * @returns {() => void} Unsubscribe function.
+   */
+  onDownloadProgress: (callback) => {
+    const handler = (_event, progress) => callback(progress);
+    ipcRenderer.on('updater-download-progress', handler);
+    return () => ipcRenderer.removeListener('updater-download-progress', handler);
+  },
+
+  /**
+   * Subscribes to 'updater-error' events.
+   * @param {(error: { message: string }) => void} callback
+   * @returns {() => void} Unsubscribe function.
+   */
+  onUpdateError: (callback) => {
+    const handler = (_event, error) => callback(error);
+    ipcRenderer.on('updater-error', handler);
+    return () => ipcRenderer.removeListener('updater-error', handler);
+  },
 });

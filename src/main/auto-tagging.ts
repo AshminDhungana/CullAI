@@ -30,7 +30,7 @@
  * MAIN-PROCESS ONLY. Never import from src/renderer.
  */
 
-import type { ScoreRecord, AppSettings } from '../shared/types';
+import type { ScoreRecord, AppSettings, AIProvider } from '../shared/types';
 import { callAITagging } from './ai-client';
 import { AIAuthError, AIRateLimitError } from './ai-errors';
 
@@ -182,7 +182,7 @@ export async function runAutoTagging(
 // ---------------------------------------------------------------------------
 
 type ProviderParams = {
-  provider: string;
+  provider: AIProvider;
   apiKey:   string;
   model:    string;
   baseUrl:  string;
