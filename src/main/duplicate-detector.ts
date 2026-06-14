@@ -81,8 +81,9 @@ let _imghash: ImghashModule | null | undefined = undefined; // undefined = not y
 async function getImghash(): Promise<ImghashModule | null> {
   if (_imghash !== undefined) return _imghash;
   try {
-    // imghash is a CJS module — require() is safest here.
-    _imghash = require('imghash') as ImghashModule;
+    const mod = await import('imghash');
+    // imghash is a CJS module — grab .default when wrapped by ESM import
+    _imghash = (mod as any).default || mod;
     if (process.env.NODE_ENV === 'development') {
       console.log('[duplicate-detector] imghash loaded successfully');
     }
@@ -255,6 +256,7 @@ class UnionFind {
 export async function groupDuplicates(
   images: ImageRecord[],
   threshold: number = DEFAULT_SIMILARITY_THRESHOLD,
+  _hashFn?: (record: ImageRecord) => Promise<string>,
 ): Promise<DuplicateGroup[]> {
   const devMode = process.env.NODE_ENV === 'development';
   const n = images.length;
@@ -267,6 +269,9 @@ export async function groupDuplicates(
   const hashes: string[] = await Promise.all(
     images.map(async (record) => {
       try {
+        if (_hashFn) {
+          return await _hashFn(record);
+        }
         const buffer = Buffer.from(record.base64, 'base64');
         return await computeHash(buffer);
       } catch (err: unknown) {

@@ -53,8 +53,14 @@ import {
 /** Hard timeout for every AI HTTP call. 30 s is generous for a single image. */
 const TIMEOUT_MS = 30_000;
 
-/** Anthropic API base URL — hardcoded, never overridden by params.baseUrl. */
-const ANTHROPIC_BASE = 'https://api.anthropic.com';
+/** Anthropic API base URL — hardcoded, never overridden by params.baseUrl.
+ *  In test mode, the `CULLAI_MOCK_ANTHROPIC_URL` env var may redirect to a
+ *  local mock server (Phase 17.10).
+ */
+const ANTHROPIC_BASE =
+  process.env.NODE_ENV === 'test' && process.env.CULLAI_MOCK_ANTHROPIC_URL
+    ? process.env.CULLAI_MOCK_ANTHROPIC_URL
+    : 'https://api.anthropic.com';
 
 /** Anthropic API version header value. */
 const ANTHROPIC_VERSION = '2023-06-01';

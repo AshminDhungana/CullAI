@@ -159,10 +159,10 @@ async function tryInitHuman(backend: 'tensorflow' | 'wasm'): Promise<HumanInstan
   const devMode = process.env.NODE_ENV === 'development';
 
   try {
-    // Use CommonJS require — human.node.js is a CJS bundle.
-    // Dynamic import avoids the module being parsed at load time.
-    const HumanModule = require('@vladmandic/human/dist/human.node.js') as { default: new (cfg: object) => HumanInstance };
-    const HumanClass = HumanModule.default ?? (HumanModule as any);
+    // Dynamic import so vitest can intercept the module in tests.
+    const mod = await import('@vladmandic/human');
+    const HumanModule = (mod as any).default || mod;
+    const HumanClass = HumanModule.default ?? HumanModule;
 
     const cfg = buildHumanConfig(backend, modelsPath);
     const instance = new HumanClass(cfg) as HumanInstance;

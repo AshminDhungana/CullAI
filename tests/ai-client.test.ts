@@ -3,8 +3,8 @@ import {
   computeWeightedTotal,
   buildScoringPrompt,
   buildDiscoveryPrompt,
-} from '../../src/main/ai-client';
-import { GENRE_PRESETS } from '../../src/shared/genre-presets';
+} from '../src/main/ai-client';
+import { GENRE_PRESETS } from '../src/shared/genre-presets';
 
 describe('computeWeightedTotal', () => {
   it('returns 0 when all scores are 0', () => {

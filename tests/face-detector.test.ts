@@ -1,27 +1,38 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// Mock @vladmandic/human before importing the detector
-vi.mock('@vladmandic/human', () => ({
-  default: class Human {
-    load = vi.fn().mockResolvedValue(undefined);
-    detect = vi.fn().mockResolvedValue({
-      face: [
-        {
-          faceScore: 0.95,
-          box: { x: 10, y: 10, w: 50, h: 50 },
-          mesh: [],
-          iris: 0,
-          gaze: { angle: 0 },
-          age: 30,
-          gender: 'Male',
-          emotion: [{ emotion: 'happy', score: 0.9 }],
-        },
-      ],
-    });
+// Mock electron before importing face-detector
+vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
   },
 }));
 
-import { detectFaces } from '../../src/main/face-detector';
+const mockDetect = vi.fn().mockResolvedValue({
+  face: [
+    {
+      faceScore: 0.95,
+      box: { x: 10, y: 10, w: 50, h: 50 },
+      mesh: [],
+      iris: 0,
+      gaze: { angle: 0 },
+      age: 30,
+      gender: 'Male',
+      emotion: [{ emotion: 'happy', score: 0.9 }],
+    },
+  ],
+});
+
+const mockLoad = vi.fn().mockResolvedValue(undefined);
+
+// Mock the main package entry — the source code does require('@vladmandic/human')
+vi.mock('@vladmandic/human', () => ({
+  default: class Human {
+    load = mockLoad;
+    detect = mockDetect;
+  },
+}));
+
+import { detectFaces } from '../src/main/face-detector';
 
 describe('detectFaces', () => {
   it('detects face in portrait image', async () => {

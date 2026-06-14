@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { writeXmpSidecar } from '../../src/main/xmp-writer';
+import { writeXmpSidecar } from '../src/main/xmp-writer';
 
 describe('XMP keyword tagging', () => {
   let tmpDir: string;
@@ -29,7 +29,7 @@ describe('XMP keyword tagging', () => {
       keywords: ['portrait', 'golden hour', 'emotion'],
     } as any;
 
-    await writeXmpSidecar(score, imagePath, true);
+    await writeXmpSidecar(score, imagePath, true, score.keywords);
 
     const xmpPath = path.join(tmpDir, 'IMG_001.xmp');
     const xml = fs.readFileSync(xmpPath, 'utf8');
@@ -55,7 +55,7 @@ describe('XMP keyword tagging', () => {
       keywords: [],
     } as any;
 
-    await writeXmpSidecar(score, imagePath, true);
+    await writeXmpSidecar(score, imagePath, true, score.keywords);
 
     const xmpPath = path.join(tmpDir, 'IMG_001.xmp');
     const xml = fs.readFileSync(xmpPath, 'utf8');

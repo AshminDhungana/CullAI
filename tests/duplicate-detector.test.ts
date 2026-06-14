@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import * as duplicateDetector from '../../src/main/duplicate-detector';
+import * as duplicateDetector from '../src/main/duplicate-detector';
 
 // Mock imghash so tests are fast and deterministic.
-vi.mock('imghash', () => ({
-  hash: vi.fn().mockImplementation((path: string) => {
+vi.mock('imghash', () => {
+  const hash = vi.fn().mockImplementation((path: string) => {
     // Return deterministic fake hashes based on path for predictability
     if (path.includes('burst_1')) return Promise.resolve('d5c86c4f8a3b1e2d');
     if (path.includes('burst_2')) return Promise.resolve('d5c86c4f8a3b1e2c'); // 1-bit diff
@@ -11,10 +11,15 @@ vi.mock('imghash', () => ({
     if (path.includes('landscape')) return Promise.resolve('deadbeefdeadbeef');
     if (path.includes('portrait')) return Promise.resolve('cafebabe12345678');
     return Promise.resolve('0000000000000000');
-  }),
-}));
+  });
 
-import { ImageRecord } from '../../src/shared/types';
+  return {
+    default: { hash },
+    hash,
+  };
+});
+
+import { ImageRecord } from '../src/shared/types';
 
 describe('hammingDistance', () => {
   it('returns 0 for identical hashes', () => {
@@ -61,14 +66,24 @@ describe('groupDuplicates', () => {
 
   it('groups burst shots into a single cluster', async () => {
     const images = [makeRecord('burst_1.jpg'), makeRecord('burst_2.jpg'), makeRecord('burst_3.jpg'), makeRecord('landscape.jpg')];
-    const groups = await duplicateDetector.groupDuplicates(images, 10);
+    const hashMap: Record<string, string> = {
+      'burst_1.jpg': 'd5c86c4f8a3b1e2d',
+      'burst_2.jpg': 'd5c86c4f8a3b1e2c',
+      'burst_3.jpg': 'd5c86c4f8a3b1e2b',
+      'landscape.jpg': 'deadbeefdeadbeef',
+    };
+    const groups = await duplicateDetector.groupDuplicates(images, 10, (record) => Promise.resolve(hashMap[record.filename]));
     expect(groups).toHaveLength(2); // burst cluster + landscape singleton
     expect(groups[0].duplicates.length).toBeGreaterThan(0);
   });
 
   it('treats all unique images as singletons', async () => {
     const images = [makeRecord('landscape.jpg'), makeRecord('portrait.jpg')];
-    const groups = await duplicateDetector.groupDuplicates(images, 10);
+    const hashMap: Record<string, string> = {
+      'landscape.jpg': 'deadbeefdeadbeef',
+      'portrait.jpg': 'cafebabe12345678',
+    };
+    const groups = await duplicateDetector.groupDuplicates(images, 10, (record) => Promise.resolve(hashMap[record.filename]));
     expect(groups).toHaveLength(2);
     expect(groups.every((g) => g.duplicates.length === 0)).toBe(true);
   });
@@ -79,10 +94,14 @@ describe('groupDuplicates', () => {
   });
 
   it('respects the threshold parameter', async () => {
-    // burst_1 and burst_2 differ by exactly 1 bit (see mock), so a threshold of 0
+    // burst_1 and burst_2 differ by exactly 1 bit, so a threshold of 0
     // should keep them in separate groups
     const images = [makeRecord('burst_1.jpg'), makeRecord('burst_2.jpg')];
-    const groups = await duplicateDetector.groupDuplicates(images, 0);
+    const hashMap: Record<string, string> = {
+      'burst_1.jpg': 'd5c86c4f8a3b1e2d',
+      'burst_2.jpg': 'd5c86c4f8a3b1e2c',
+    };
+    const groups = await duplicateDetector.groupDuplicates(images, 0, (record) => Promise.resolve(hashMap[record.filename]));
     expect(groups).toHaveLength(2);
     expect(groups.every((g) => g.duplicates.length === 0)).toBe(true);
   });

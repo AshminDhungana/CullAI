@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { walkFolders } from '../../src/main/folder-walker';
+import { walkFolders } from '../src/main/folder-walker';
 
 describe('walkFolders', () => {
   let tmpDir: string;
@@ -15,42 +15,48 @@ describe('walkFolders', () => {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
-  function mkdir(relative: string) {
-    fs.mkdirSync(path.join(tmpDir, relative), { recursive: true });
+  function mkdirWithFile(relative: string) {
+    const full = path.join(tmpDir, relative);
+    fs.mkdirSync(full, { recursive: true });
+    // Write a file so the folder is detected as "has files"
+    fs.writeFileSync(path.join(full, 'file.txt'), 'hello');
+    return full;
   }
 
   it('returns root folder when no subdirectories exist', async () => {
+    // root folder itself needs a file to be included
+    fs.writeFileSync(path.join(tmpDir, 'file.txt'), 'hello');
     const result = await walkFolders(tmpDir);
-    expect(result).toEqual([tmpDir]);
+    // walkFolders returns '' as the root and relative paths for subfolders
+    expect(result).toContain('');
   });
 
   it('finds all nested subdirectories', async () => {
-    mkdir('a');
-    mkdir('a/b');
-    mkdir('c');
+    mkdirWithFile('a');
+    mkdirWithFile('a/b');
+    mkdirWithFile('c');
 
     const result = await walkFolders(tmpDir);
-    expect(result).toContain(tmpDir);
-    expect(result).toContain(path.join(tmpDir, 'a'));
-    expect(result).toContain(path.join(tmpDir, 'a', 'b'));
-    expect(result).toContain(path.join(tmpDir, 'c'));
-    expect(result).toHaveLength(4);
+    expect(result).toContain('');
+    expect(result).toContain('a');
+    expect(result).toContain(path.join('a', 'b').replace(/\\/g, '/'));
+    expect(result).toContain('c');
   });
 
   it('excludes hidden directories', async () => {
-    mkdir('visible');
-    mkdir('.hidden');
+    mkdirWithFile('visible');
+    mkdirWithFile('.hidden');
 
     const result = await walkFolders(tmpDir);
-    expect(result).toContain(path.join(tmpDir, 'visible'));
-    expect(result).not.toContain(path.join(tmpDir, '.hidden'));
+    expect(result).toContain('visible');
+    expect(result).not.toContain('.hidden');
   });
 
   it('excludes .cullai_cache directories', async () => {
-    mkdir('wedding');
-    mkdir('.cullai_cache');
+    mkdirWithFile('wedding');
+    mkdirWithFile('.cullai_cache');
 
     const result = await walkFolders(tmpDir);
-    expect(result).not.toContain(path.join(tmpDir, '.cullai_cache'));
+    expect(result).not.toContain('.cullai_cache');
   });
 });

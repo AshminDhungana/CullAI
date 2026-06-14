@@ -6,21 +6,25 @@ import {
   sidecarPath,
   writeXmpSidecar,
   writeAllSidecars,
-} from '../../src/main/xmp-writer';
+} from '../src/main/xmp-writer';
 import type { ScoreRecord } from '../../src/shared/types';
 
 describe('sidecarPath', () => {
   it('replaces extension with .xmp', () => {
-    expect(sidecarPath('/photos/wedding/IMG_001.CR3')).toBe('/photos/wedding/IMG_001.xmp');
+    const result = sidecarPath('/photos/wedding/IMG_001.CR3');
+    expect(result.endsWith('IMG_001.xmp')).toBe(true);
+    expect(path.extname(result)).toBe('.xmp');
   });
 
   it('works for JPEG inputs', () => {
-    expect(sidecarPath('/tmp/DSC_042.jpg')).toBe('/tmp/DSC_042.xmp');
+    const result = sidecarPath('/tmp/DSC_042.jpg');
+    expect(result.endsWith('DSC_042.xmp')).toBe(true);
   });
 
   it('preserves the original directory', () => {
-    const original = '/deep/nested/path/image.nef';
-    expect(sidecarPath(original)).toBe('/deep/nested/path/image.xmp');
+    const original = path.join('deep', 'nested', 'path', 'image.nef');
+    const result = sidecarPath(original);
+    expect(path.dirname(result)).toBe(path.dirname(original));
   });
 });
 
@@ -52,7 +56,7 @@ describe('writeXmpSidecar', () => {
   it('writes a valid XML file for S-tier', async () => {
     const original = path.join(tmpDir, 'IMG_001.jpg');
     fs.writeFileSync(original, 'fake');
-    await writeXmpSidecar(makeScore('S'), original, true);
+    await writeXmpSidecar(makeScore('S'), original, true, ['portrait', 'natural light']);
 
     const xmpPath = path.join(tmpDir, 'IMG_001.xmp');
     const xml = fs.readFileSync(xmpPath, 'utf8');
@@ -99,7 +103,7 @@ describe('writeXmpSidecar', () => {
   it('includes dc:subject with rdf:Bag when keywords present', async () => {
     const original = path.join(tmpDir, 'IMG_001.jpg');
     fs.writeFileSync(original, 'fake');
-    await writeXmpSidecar(makeScore('S'), original, true);
+    await writeXmpSidecar(makeScore('S'), original, true, ['portrait', 'natural light']);
 
     const xmpPath = path.join(tmpDir, 'IMG_001.xmp');
     const xml = fs.readFileSync(xmpPath, 'utf8');

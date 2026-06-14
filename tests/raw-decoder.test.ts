@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { isRawFile, RawDecodeError, extractEmbeddedJpeg, decodeRaw } from '../../src/main/raw-decoder';
+import { isRawFile, RawDecodeError, extractEmbeddedJpeg, decodeRaw } from '../src/main/raw-decoder';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { CullAIError } from '../../src/main/ai-errors';
+import { CullAIError } from '../src/main/ai-errors';
 
 vi.mock('lightdrift-libraw', () => {
   class MockProcessor {

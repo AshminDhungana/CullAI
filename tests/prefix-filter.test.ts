@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { scanFolder } from '../../src/main/image-processor';
+import { scanFolder } from '../src/main/image-processor';
 
 describe('scanFolder — prefix filter', () => {
   let tmpDir: string;
@@ -19,21 +19,21 @@ describe('scanFolder — prefix filter', () => {
     fs.writeFileSync(path.join(tmpDir, name), '');
   }
 
-  it('excludes files without matching prefix', () => {
+  it('excludes files without matching prefix', async () => {
     touch('IMG_001.jpg');
     touch('DSC_002.jpg');
     touch('IMG_003.jpg');
 
-    const result = scanFolder(tmpDir, undefined, ['IMG_']);
+    const result = await scanFolder(tmpDir, { prefixes: ['IMG_'] });
     expect(result).toHaveLength(2);
     expect(result.every(p => path.basename(p).startsWith('IMG_'))).toBe(true);
   });
 
-  it('is case-insensitive by default', () => {
+  it('is case-insensitive by default', async () => {
     touch('img_001.jpg');
     touch('IMG_002.jpg');
 
-    const result = scanFolder(tmpDir, undefined, ['img_']);
+    const result = await scanFolder(tmpDir, { prefixes: ['img_'] });
     expect(result).toHaveLength(2);
   });
 });

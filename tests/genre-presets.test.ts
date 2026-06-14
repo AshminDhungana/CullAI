@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GENRE_PRESETS } from '../../src/shared/genre-presets';
+import { GENRE_PRESETS } from '../src/shared/genre-presets';
 
 describe('GENRE_PRESETS', () => {
   it('should have exactly 7 presets', () => {

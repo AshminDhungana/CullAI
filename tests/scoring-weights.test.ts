@@ -3,9 +3,8 @@ import {
   computeWeightedTotal,
   buildScoringPrompt,
   buildDiscoveryPrompt,
-} from '../../src/main/ai-client';
-import { GENRE_PRESETS } from '../../src/shared/genre-presets';
-import { ImageRecord } from '../../src/shared/types';
+} from '../src/main/ai-client';
+import { GENRE_PRESETS } from '../src/shared/genre-presets';
 
 // ── computeWeightedTotal ───────────────────────────────────────────────────
 
@@ -46,7 +45,7 @@ describe('buildScoringPrompt', () => {
     imageBase64: 'b64data',
     filename: 'IMG_001.jpg',
     discoveryContext: 'A wedding shoot',
-    styleProfile: null as any,
+    styleProfile: { id: 'default', name: 'Default', genre: 'general' as const, weights: GENRE_PRESETS.general, preferenceText: '' },
     weights: GENRE_PRESETS.wedding,
     faceMetadata: {
       hasFaces: true,
@@ -85,7 +84,7 @@ describe('buildScoringPrompt', () => {
 
   it('includes face metadata summary', () => {
     const prompt = buildScoringPrompt(baseParams);
-    expect(prompt).toLowerCase()).toContain('face');
+    expect(prompt.toLowerCase()).toContain('face');
   });
 
   it('produces identical output for identical params', () => {
@@ -98,14 +97,9 @@ describe('buildScoringPrompt', () => {
 // ── buildDiscoveryPrompt ───────────────────────────────────────────────────
 
 describe('buildDiscoveryPrompt', () => {
-  it('includes all sample image filenames', () => {
-    const images: ImageRecord[] = [
-      { id: '1', filePath: '/a/IMG_001.jpg', filename: 'IMG_001.jpg', isRaw: false, base64: 'b64', width: 100, height: 100 },
-      { id: '2', filePath: '/a/IMG_002.jpg', filename: 'IMG_002.jpg', isRaw: false, base64: 'b64', width: 100, height: 100 },
-    ];
-    const prompt = buildDiscoveryPrompt(images, 'Wedding with natural light');
-    expect(prompt).toContain('IMG_001.jpg');
-    expect(prompt).toContain('IMG_002.jpg');
-    expect(prompt).toContain('Wedding with natural light');
+  it('includes genre and sample count', () => {
+    const prompt = buildDiscoveryPrompt('wedding', 6);
+    expect(prompt).toContain('wedding');
+    expect(prompt).toContain('6 sample image');
   });
 });

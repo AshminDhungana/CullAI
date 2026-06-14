@@ -13,8 +13,8 @@ import {
   clearSession,
   sessionFilePath,
   updateTier,
-} from '../../src/main/session-manager.ts';
-import { AppSettings } from '../../src/shared/types';
+} from '../src/main/session-manager.ts';
+import { AppSettings } from '../src/shared/types';
 
 function makeSettings(overrides?: Partial<AppSettings>): AppSettings {
   return {
@@ -178,6 +178,17 @@ describe('loadSession', () => {
   it('recovers from .bak when main file is corrupt', async () => {
     const settings = makeSettings({ outputFolder: tmpDir });
     await createSession(settings, 10);
+
+    // Save a score to trigger an atomicWrite, which creates a .bak
+    const score = {
+      filename: 'test.jpg',
+      scores: { quality: 80, aesthetic: 75, composition: 70, sharpness: 85, exposure: 90, faceEyes: 80 },
+      total: 82.34,
+      tier: 'S' as const,
+      reasoning: 'Sharp',
+      faceMetadata: { hasFaces: false, faceCount: 0, eyesOpen: true, blinkDetected: false, expressionNeutral: true, boundingBoxes: [], exceedsFaceLimit: false },
+    };
+    await saveScore(tmpDir, 'id-1', score);
 
     // Corrupt the main file
     fs.writeFileSync(path.join(tmpDir, 'session.json'), '{ broken json');
