@@ -77,18 +77,21 @@ jobs:
         run: npm ci
 
       # -----------------------------------------------------------------------
-      # Compile TypeScript *before* invoking electron-builder.
-      # All three steps must succeed; if any fails the job stops here and the
-      # packaging step is never reached (avoids the "entry file not found" error).
+      # Compile TypeScript — these two steps MUST succeed before electron-builder
+      # is invoked; if either fails the job stops and packaging never runs.
       # -----------------------------------------------------------------------
-      - name: Build icons
-        run: npm run build:icons
+      - name: Build main (TypeScript)
+        run: npm run build:main
 
-      - name: Build renderer
+      - name: Build renderer (Vite)
         run: npm run build:renderer
 
-      - name: Build main
-        run: npm run build:main
+      # Icon generation uses a canvas/native dependency that can be flaky on
+      # headless CI runners. The icon files are committed to build/ so this
+      # step is best-effort — a failure here does not corrupt the asar.
+      - name: Build icons
+        run: npm run build:icons
+        continue-on-error: true
 
       # -----------------------------------------------------------------------
       # Package

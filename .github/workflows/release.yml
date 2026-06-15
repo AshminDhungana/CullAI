@@ -45,10 +45,18 @@ jobs:
         run: npm ci
 
       # -----------------------------------------------------------------------
-      # Compile TypeScript (build:all = build:icons + build:main + build:renderer)
+      # Compile TypeScript — must succeed before electron-builder runs.
+      # Icons are best-effort (files already committed to build/).
       # -----------------------------------------------------------------------
-      - name: Build all
-        run: npm run build:all
+      - name: Build main (TypeScript)
+        run: npm run build:main
+
+      - name: Build renderer (Vite)
+        run: npm run build:renderer
+
+      - name: Build icons
+        run: npm run build:icons
+        continue-on-error: true
 
       # -----------------------------------------------------------------------
       # Publish
