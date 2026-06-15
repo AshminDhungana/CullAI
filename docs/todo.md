@@ -36,7 +36,7 @@ cat > /home/claude/todo.md << 'ENDOFFILE'
 | 17    | Test Suite (Enhanced)                  | ✅ Complete    |
 | 18    | Packaging & Release                    | ✅ Complete    |
 | 19    | CLI Mode & Automation                  | ✅ Complete    |
-| 20    | Additional UX & Performance            | ⬜ Not Started |
+| 20    | Additional UX & Performance            | ✅ Complete    |
 
 ---
 
@@ -1726,24 +1726,24 @@ PROVIDER_DEFAULTS = {
 
 ### 20.1 Benchmark Mode (Hidden Flag)
 
-- [ ] Add a CLI flag `--benchmark` that runs a standard test suite on a fixed set of images (in `tests/fixtures/benchmark/`)
-- [ ] Measures and prints to console:
+- [x] Add a CLI flag `--benchmark` that runs a standard test suite on a fixed set of images (in `tests/fixtures/benchmark/`)
+- [x] Measures and prints to console:
   - Time per stage: folder scan, RAW decode, face detection, duplicate detection, AI scoring (uses mock AI or a real provider if specified)
   - Memory usage peaks
   - Cache hit ratio (if caching enabled)
-- [ ] Outputs a JSON report: `benchmark_YYYYMMDD_HHMMSS.json`
-- [ ] Does not write any final output (XMP, copy files) unless `--output` is also provided
+- [x] Outputs a JSON report: `benchmark_YYYYMMDD_HHMMSS.json`
+- [x] Does not write any final output (XMP, copy files) unless `--output` is also provided
 
 ### 20.2 Background Maintenance
 
-- [ ] On app start, run lightweight maintenance tasks:
+- [x] On app start, run lightweight maintenance tasks:
   - Check for orphaned `.cullai_cache` folders (where input folder no longer exists) and offer to delete them (once a week)
   - Trim old session logs (keep last 30 sessions in `electron-store`)
-- [ ] All maintenance is logged and can be disabled by advanced users via a hidden setting
+- [x] All maintenance is logged and can be disabled by advanced users via a hidden setting
 
 ### 20.3 Quick Action Buttons on Results Screen
 
-- [ ] Add a floating action button (or right‑click context menu) with:
+- [x] Add a floating action button (or right‑click context menu) with:
   - "Open containing folder" for the selected image
   - "Copy filename" / "Copy path"
   - "View in Lightroom" (if XMP was written, just a reminder – no direct integration)
