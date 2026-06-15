@@ -21,6 +21,8 @@ import { initSecureStore } from './safe-storage';
 import { loadLicense } from './license-manager';
 import { disposeDetector } from './face-detector';
 import { initAutoUpdater } from './auto-updater';
+import { parseCLIArgs } from '../cli/args';
+import { runCLI } from '../cli/runner';
 
 // ---------------------------------------------------------------------------
 // Window creation
@@ -116,14 +118,20 @@ async function checkSafeStorageAvailability(): Promise<void> {
 // passed to their respective modules. Handlers are registered only after
 // both are ready so no handler can race against an uninitialised store.
 // ---------------------------------------------------------------------------
-app.whenReady().then(async () => {
-  // Create the window first so the user sees something immediately while
-  // the store initialises in the background.
-  createWindow();
+// ---------------------------------------------------------------------------
+// Phase 19 — Headless CLI Mode
+// ---------------------------------------------------------------------------
+const isHeadless = app.commandLine.hasSwitch('headless');
 
-  // Phase 18: initialise auto-updater after window is ready
-  // (only in packaged builds — dev mode skips update checks)
-  initAutoUpdater(mainWindow!);
+app.whenReady().then(async () => {
+  // In headless mode we skip the GUI window entirely and run the CLI pipeline.
+  if (!isHeadless) {
+    createWindow();
+
+    // Phase 18: initialise auto-updater after window is ready
+    // (only in packaged builds — dev mode skips update checks)
+    initAutoUpdater(mainWindow!);
+  }
 
   // Phase 3.2: verify OS keychain before registering any IPC handlers.
   // This is async (shows a native dialog if needed) and must complete before
@@ -152,6 +160,21 @@ app.whenReady().then(async () => {
         console.log(`[main] License loaded: ${license.tier}`);
       } else {
         console.log('[main] No valid license — running in Free tier');
+      }
+
+      // ── Phase 19: Headless CLI execution ───────────────────────────────────
+      if (isHeadless) {
+        try {
+          const args = parseCLIArgs(process.argv);
+          await runCLI(args);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error('[headless] CLI runner failed:', msg);
+          app.exit(1);
+        } finally {
+          app.quit();
+        }
+        return; // stop execution — headless path is complete
       }
 
       // ── Phase 5b: Non-blocking startup cache cleanup ──────────────────────

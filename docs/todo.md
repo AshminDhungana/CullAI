@@ -1689,31 +1689,31 @@ PROVIDER_DEFAULTS = {
 
 ### 19.1 Add CLI Entry Point
 
-- [ ] In `src/main/index.ts`, check for `--headless` flag via `process.argv` or `app.commandLine`
-- [ ] Install `commander` for argument parsing: `npm install commander`
-- [ ] Create `src/cli/args.ts` — define and parse CLI arguments:
+- [x] In `src/main/index.ts`, check for `--headless` flag via `process.argv` or `app.commandLine`
+- [x] Install `commander` for argument parsing: `npm install commander`
+- [x] Create `src/cli/args.ts` — define and parse CLI arguments:
   ```bash
   cullai --input /photos --output /keepers --count 200 --provider ollama --headless
   ```
-- [ ] Options: `--input`, `--output`, `--count`, `--provider`, `--api-key`, `--model`, `--weights`, `--no-xmp`, `--dry-run`
-- [ ] When `--headless` is detected, skip `createWindow()` and run the pipeline directly in the main process
+- [x] Options: `--input`, `--output`, `--count`, `--provider`, `--api-key`, `--model`, `--weights`, `--no-xmp`, `--dry-run`
+- [x] When `--headless` is detected, skip `createWindow()` and run the pipeline directly in the main process
 
 ### 19.2 Reuse Pipeline Logic
 
-- [ ] The existing pipeline in `orchestrator.ts` already runs in the main process — no extraction needed
-- [ ] Wrap orchestrator call in a CLI runner function in `src/cli/runner.ts` that accepts parsed args and calls `runPipeline(settings)`
-- [ ] Both GUI (via IPC) and CLI (via direct call) use the same `orchestrator.ts` code path
+- [x] The existing pipeline in `orchestrator.ts` already runs in the main process — no extraction needed
+- [x] Wrap orchestrator call in a CLI runner function in `src/cli/runner.ts` that accepts parsed args and calls `runPipeline(settings)`
+- [x] Both GUI (via IPC) and CLI (via direct call) use the same `orchestrator.ts` code path
 
 ### 19.3 CLI Output
 
-- [ ] Print progress to stdout: `[1/200] Scoring IMG_001.CR3...`
-- [ ] On completion, print summary table with tier counts
-- [ ] Output `results.json` path and output folder path
-- [ ] Exit code 0 on success, non‑zero on error
+- [x] Print progress to stdout: `[1/200] Scoring IMG_001.CR3...`
+- [x] On completion, print summary table with tier counts
+- [x] Output `results.json` path and output folder path
+- [x] Exit code 0 on success, non‑zero on error
 
 ### 19.4 Package CLI Separately
 
-- [ ] Add a new npm script `npm run build:cli` that packages the Electron app with a wrapper shell script / batch file named `cullai-cli` that calls Electron with `--headless`
+- [x] Add a new npm script `npm run build:cli` that packages the Electron app with a wrapper shell script / batch file named `cullai-cli` that calls Electron with `--headless`
 - [ ] Document CLI usage in README under a new "CLI Mode" section
 
 ✅ **Done Criteria:** Running `cullai --input ./test --output ./out --count 10 --provider ollama --headless` processes 10 images, writes XMPs, and exits with code 0 and a correct JSON summary in stdout.

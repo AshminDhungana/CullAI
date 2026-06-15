@@ -12,11 +12,13 @@
     "skipLibCheck": true,
     "composite": true,
     "sourceMap": true,
-    "types": ["node"]
+    "types": ["node"],
+    "noEmitOnError": false
   },
   "include": [
     "src/main/**/*",
-    "src/shared/**/*"
+    "src/shared/**/*",
+    "src/cli/**/*"
   ],
   "exclude": ["node_modules", "dist"]
 }

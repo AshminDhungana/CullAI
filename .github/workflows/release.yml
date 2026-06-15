@@ -53,8 +53,25 @@ jobs:
         run: npm run clean
 
       # -----------------------------------------------------------------------
+      # Hard gate: confirm dist/ is truly gone before we start building.
+      # If rimraf silently failed (e.g. file lock on Windows), catch it here
+      # rather than letting tsc skip emit against a stale .tsbuildinfo.
+      # -----------------------------------------------------------------------
+      - name: Verify dist is clean
+        shell: node {0}
+        run: |
+          const fs = require('fs');
+          if (fs.existsSync('dist')) {
+            console.error('dist/ still exists after clean — rimraf may have failed (file lock?)');
+            process.exit(1);
+          }
+          console.log('dist/ confirmed absent — proceeding with fresh build');
+
+      # -----------------------------------------------------------------------
       # Compile TypeScript — --force is set in package.json build:main so tsc
       # always emits even if .tsbuildinfo claims everything is up-to-date.
+      # noEmitOnError: false in tsconfig.main.json ensures output is always
+      # written even when type errors are present (they appear as warnings).
       # Icons are best-effort (files already committed to build/).
       # -----------------------------------------------------------------------
       - name: Build main (TypeScript)
@@ -70,6 +87,7 @@ jobs:
       # -----------------------------------------------------------------------
       # Hard gate: fail immediately with a clear message if tsc produced no
       # output, rather than letting electron-builder create a broken .asar.
+      # Also checks file size — a 0-byte file means tsc ran but emitted nothing.
       # -----------------------------------------------------------------------
       - name: Verify build output
         shell: node {0}
@@ -81,6 +99,12 @@ jobs:
               console.error(`MISSING: ${f} — did the build step silently fail?`);
               process.exit(1);
             }
+            const size = fs.statSync(f).size;
+            if (size === 0) {
+              console.error(`EMPTY FILE: ${f} (0 bytes) — tsc emitted an empty file, check for compilation errors`);
+              process.exit(1);
+            }
+            console.log(`OK: ${f} (${size} bytes)`);
           }
           console.log('Build output verified OK');
 

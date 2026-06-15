@@ -14,9 +14,11 @@
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
+  "references": [
+    { "path": "./tsconfig.main.json" }
+  ],
   "include": [
-    "src/renderer/**/*",
-    "src/shared/**/*"
+    "src/renderer/**/*"
   ],
   "exclude": ["node_modules", "dist"]
 }
