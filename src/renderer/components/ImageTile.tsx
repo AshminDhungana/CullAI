@@ -9,6 +9,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { ChevronDown, ChevronUp, Eye, Star, Sparkles, Camera, Sun, Focus } from 'lucide-react';
 import FaceOverlay from './FaceOverlay';
+import QuickActions from './QuickActions';
 import type { ScoreRecord } from '../../shared/types';
 
 // ── Tier styling maps ──────────────────────────────────────────────────────────
@@ -64,6 +65,8 @@ interface ImageTileProps {
   score: ScoreRecord;
   imageId: string;
   outputFolder: string;
+  /** Absolute path to the original image on disk (for QuickActions). */
+  filePath?: string;
   isSelected: boolean;
   isFocused: boolean;
   onClick: (e: React.MouseEvent) => void;
@@ -73,13 +76,16 @@ export default function ImageTile({
   score,
   imageId,
   outputFolder,
+  filePath,
   isSelected,
   isFocused,
   onClick,
 }: ImageTileProps) {
   const [expanded, setExpanded] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const tileRef = useRef<HTMLDivElement>(null);
   const tierStyle = TIER_COLORS[score.tier] ?? TIER_COLORS.rejected;
 
   // ── Thumbnail src ──────────────────────────────────────────────────────────
@@ -95,8 +101,16 @@ export default function ImageTile({
     setExpanded((prev) => !prev);
   }, []);
 
+  // ── Quick actions (Phase 20.3) — right-click context menu ──────────────────
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!filePath) return;
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+  }, [filePath]);
+
   return (
     <div
+      ref={tileRef}
       className={[
         'group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200',
         'bg-white/5 dark:bg-white/[0.03] backdrop-blur-sm',
@@ -109,6 +123,7 @@ export default function ImageTile({
         'hover:scale-[1.02]',
       ].join(' ')}
       onClick={onClick}
+      onContextMenu={handleContextMenu}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       role="button"
@@ -208,6 +223,16 @@ export default function ImageTile({
           </p>
         )}
       </div>
+
+      {/* Phase 20.3 — Quick Actions context menu */}
+      {contextMenuPos && filePath && (
+        <QuickActions
+          filePath={filePath}
+          filename={score.filename}
+          position={contextMenuPos}
+          onClose={() => setContextMenuPos(null)}
+        />
+      )}
     </div>
   );
 }

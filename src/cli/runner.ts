@@ -20,6 +20,7 @@ import { runPipeline, resolvePipelineConfirmation } from '../main/orchestrator';
 import { loadSession } from '../main/session-manager';
 import { writeAllSidecars } from '../main/xmp-writer';
 import { CullAIError } from '../main/ai-errors';
+import { runBenchmark, printBenchmarkToConsole, writeBenchmarkReport } from '../main/benchmark';
 import type { CLIArgs } from './args';
 
 // ── Exit codes ───────────────────────────────────────────────────────────────
@@ -37,6 +38,17 @@ const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', 
 
 // ── Main entry ─────────────────────────────────────────────────────────────
 export async function runCLI(args: CLIArgs): Promise<void> {
+  // ── Phase 20.1: Benchmark mode ------------------------------------------------
+  if (args.benchmark) {
+    const includeAi = !!args.apiKey || !!process.env.ANTHROPIC_API_KEY;
+    const report = await runBenchmark(includeAi);
+    printBenchmarkToConsole(report);
+    const reportPath = await writeBenchmarkReport(report, args.output || undefined);
+    console.log(`Benchmark report written to: ${reportPath}`);
+    process.exit(EXIT.OK);
+    return;
+  }
+
   const settings = buildSettings(args);
 
   // ── Resolve API key ──────────────────────────────────────────────────────

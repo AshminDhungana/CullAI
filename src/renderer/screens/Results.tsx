@@ -582,6 +582,7 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
             score={record}
             imageId={id}
             outputFolder={settings.outputFolder}
+            filePath={`${settings.inputFolder}/${record.filename}`.replace(/\\/g, '/')}
             isSelected={isSelected}
             isFocused={isFocused}
             onClick={() => { setFocusedIndex(index); handleToggleSelect(id); }}

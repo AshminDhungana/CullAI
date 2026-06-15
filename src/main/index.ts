@@ -208,6 +208,34 @@ app.whenReady().then(async () => {
         // Module import failure — non-fatal
         console.warn('[main] cache-cleaner import failed:', err);
       });
+
+      // ── Phase 20.2: Background Maintenance ────────────────────────────────
+      import('./maintenance').then(({ runBackgroundMaintenance }) => {
+        runBackgroundMaintenance(store)
+          .then((result) => {
+            if (result.orphanedCacheCount > 0) {
+              console.log(
+                `[maintenance] Cleaned ${result.orphanedCacheCount} orphaned cache(s), ` +
+                  `freed ${(result.orphanedCacheFreedBytes / 1024 / 1024).toFixed(1)} MB`,
+              );
+            }
+            if (result.sessionLogEntriesRemoved > 0) {
+              console.log(
+                `[maintenance] Trimmed ${result.sessionLogEntriesRemoved} old session log entries`,
+              );
+            }
+            if (result.skippedBecause === 'too-soon') {
+              if (process.env.NODE_ENV === 'development') {
+                console.log('[maintenance] Skipped — ran too recently (<7 days)');
+              }
+            }
+          })
+          .catch((err: unknown) =>
+            console.warn('[maintenance] Background maintenance failed:', err),
+          );
+      }).catch((err: unknown) => {
+        console.warn('[main] maintenance import failed:', err);
+      });
     })
     .catch((err: unknown) => {
       // Store failed to load — this is fatal: settings cannot be persisted.

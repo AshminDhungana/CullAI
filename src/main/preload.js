@@ -209,6 +209,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   shellShowItem: (folderPath) => ipcRenderer.invoke('shell-show-item', folderPath),
 
+  // ── Phase 20.3 — Quick Action Buttons ─────────────────────────────────────
+  /**
+   * Opens the folder containing the given file path and selects the file.
+   * @param {string} filePath Absolute path to a file.
+   */
+  openContainingFolder: (filePath) => ipcRenderer.invoke('open-containing-folder', filePath),
+
+  /**
+   * Copies the given text to the system clipboard.
+   * @param {string} text The text to copy.
+   */
+  copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
+
+  /**
+   * Returns a reminder string about Lightroom integration (no direct API).
+   * @returns {Promise<{ message: string }>}
+   */
+  viewInLightroomReminder: () => ipcRenderer.invoke('view-in-lightroom-reminder'),
+
   // ── Secure API key storage ────────────────────────────────────────────────
   /**
    * Encrypts and persists the API key for `provider` in the OS keychain.

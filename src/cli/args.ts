@@ -29,6 +29,7 @@ export interface CLIArgs {
   dryRun: boolean;
   verbose: boolean;
   headless: boolean;
+  benchmark: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,7 +52,8 @@ program
   .option('--no-xmp', 'Skip XMP sidecar generation (default: enabled in CLI)', false)
   .option('--dry-run', 'Estimate cost and show plan without calling the AI', false)
   .option('-v, --verbose', 'Print verbose output including cost per image', false)
-  .option('--headless', 'Launch in headless mode without a GUI window (set by Electron entry wrapper)', false);
+  .option('--headless', 'Launch in headless mode without a GUI window (set by Electron entry wrapper)', false)
+  .option('--benchmark', 'Run benchmark mode on a fixed set of fixture images', false);
 
 export function parseCLIArgs(argv: string[]): CLIArgs {
   program.parse(argv);
@@ -104,5 +106,6 @@ export function parseCLIArgs(argv: string[]): CLIArgs {
     dryRun: Boolean(opts.dryRun),
     verbose: Boolean(opts.verbose),
     headless: Boolean(opts.headless),
+    benchmark: Boolean(opts.benchmark),
   };
 }

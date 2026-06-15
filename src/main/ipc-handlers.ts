@@ -16,7 +16,7 @@
  *
  */
 
-import { dialog, ipcMain, safeStorage, shell, BrowserWindow } from 'electron';
+import { dialog, ipcMain, safeStorage, shell, BrowserWindow, clipboard } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ZipArchive } from 'archiver';
@@ -1273,6 +1273,62 @@ export function registerIpcHandlers(store: AppStore): void {
     }
     shell.showItemInFolder(resolved);
     return true;
+  });
+
+  // ── Phase 20.3 — Quick Action Buttons IPC Handlers ────────────────────────
+
+  /**
+   * Opens the folder that contains the given file path and selects the file.
+   * On macOS this reveals the file in Finder; on Windows it opens Explorer.
+   *
+   * Payload: filePath — absolute path to a file (not a directory).
+   * Returns: true
+   */
+  ipcMain.handle('open-containing-folder', async (_event, filePath: string) => {
+    if (!filePath || typeof filePath !== 'string' || !filePath.trim()) {
+      throw new Error('open-containing-folder: filePath is required');
+    }
+    const resolved = path.resolve(filePath.trim());
+    try {
+      const stats = await fs.promises.stat(resolved);
+      if (stats.isDirectory()) {
+        // If a directory was passed, just open the directory itself
+        shell.openPath(resolved);
+        return true;
+      }
+    } catch {
+      throw new Error(`open-containing-folder: path does not exist — ${resolved}`);
+    }
+    shell.showItemInFolder(resolved);
+    return true;
+  });
+
+  /**
+   * Copies the given text string to the system clipboard.
+   *
+   * Payload: text — the string to copy.
+   * Returns: true
+   */
+  ipcMain.handle('copy-to-clipboard', (_event, text: string) => {
+    if (typeof text !== 'string') {
+      throw new Error('copy-to-clipboard: text must be a string');
+    }
+    clipboard.writeText(text);
+    return true;
+  });
+
+  /**
+   * Placeholder for "View in Lightroom" — returns a message since there is no
+   * direct Lightroom integration. The caller can display this as a toast.
+   *
+   * Payload: none
+   * Returns: { message: string }
+   */
+  ipcMain.handle('view-in-lightroom-reminder', () => {
+    return {
+      message:
+        'Lightroom does not support direct launching. Import the folder (with XMP sidecars) into Lightroom to review your keepers.',
+    };
   });
 
   // -------------------------------------------------------------------------
