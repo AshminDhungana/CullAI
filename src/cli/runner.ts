@@ -16,7 +16,7 @@ import { defaultAppSettings } from '../shared/types';
 import { GENRE_PRESETS } from '../shared/genre-presets';
 import { PROVIDER_DEFAULTS } from '../shared/constants';
 import { getApiKey } from '../main/safe-storage';
-import { runPipeline, resolvePipelineConfirmation, fillShortfall } from '../main/orchestrator';
+import { runPipeline, resolvePipelineConfirmation } from '../main/orchestrator';
 import { loadSession } from '../main/session-manager';
 import { writeAllSidecars } from '../main/xmp-writer';
 import { CullAIError } from '../main/ai-errors';

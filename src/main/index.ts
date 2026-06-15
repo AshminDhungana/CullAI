@@ -139,7 +139,7 @@ app.whenReady().then(async () => {
   await checkSafeStorageAvailability();
 
   import('electron-store')
-    .then(({ default: Store }) => {
+    .then(async ({ default: Store }) => {
       // Main settings store — plain JSON, never contains raw API keys.
       const store = new Store();
 
