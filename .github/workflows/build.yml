@@ -23,8 +23,12 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libraw-dev
 
+      # NPM_CONFIG_ignore_scripts prevents postinstall from running electron-rebuild
+      # during `npm ci` — the test job doesn't need a packaged Electron binary.
       - name: Install dependencies
         run: npm ci
+        env:
+          npm_config_ignore_scripts: "true"
 
       - name: Run tests
         run: npm test
@@ -46,17 +50,37 @@ jobs:
           node-version: "22"
           cache: "npm"
 
+      # -----------------------------------------------------------------------
+      # System-level libraw (required to compile the lightdrift-libraw addon)
+      # -----------------------------------------------------------------------
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libraw-dev
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install libraw
+        run: |
+          brew install libraw
+          # Expose pkg-config path for both Intel (/usr/local) and Apple Silicon (/opt/homebrew)
+          echo "PKG_CONFIG_PATH=$(brew --prefix libraw)/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "LDFLAGS=-L$(brew --prefix libraw)/lib $LDFLAGS" >> $GITHUB_ENV
+          echo "CPPFLAGS=-I$(brew --prefix libraw)/include $CPPFLAGS" >> $GITHUB_ENV
 
+      # Windows ships a prebuilt .node via node-pre-gyp / package-lock; no
+      # extra system lib is needed.  If a future version requires it, add a
+      # vcpkg or chocolatey step here.
+
+      # -----------------------------------------------------------------------
+      # Install JS deps (postinstall runs electron-rebuild automatically)
+      # -----------------------------------------------------------------------
       - name: Install dependencies
         run: npm ci
 
+      # -----------------------------------------------------------------------
+      # Compile TypeScript *before* invoking electron-builder.
+      # All three steps must succeed; if any fails the job stops here and the
+      # packaging step is never reached (avoids the "entry file not found" error).
+      # -----------------------------------------------------------------------
       - name: Build icons
         run: npm run build:icons
 
@@ -66,6 +90,9 @@ jobs:
       - name: Build main
         run: npm run build:main
 
+      # -----------------------------------------------------------------------
+      # Package
+      # -----------------------------------------------------------------------
       - name: Build distributable
         run: npx electron-builder --publish=never
         env:

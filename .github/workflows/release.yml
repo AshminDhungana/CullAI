@@ -23,20 +23,36 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      # -----------------------------------------------------------------------
+      # System-level libraw
+      # -----------------------------------------------------------------------
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libraw-dev
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install libraw
+        run: |
+          brew install libraw
+          echo "PKG_CONFIG_PATH=$(brew --prefix libraw)/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "LDFLAGS=-L$(brew --prefix libraw)/lib $LDFLAGS" >> $GITHUB_ENV
+          echo "CPPFLAGS=-I$(brew --prefix libraw)/include $CPPFLAGS" >> $GITHUB_ENV
 
+      # -----------------------------------------------------------------------
+      # Install JS deps
+      # -----------------------------------------------------------------------
       - name: Install dependencies
         run: npm ci
 
+      # -----------------------------------------------------------------------
+      # Compile TypeScript (build:all = build:icons + build:main + build:renderer)
+      # -----------------------------------------------------------------------
       - name: Build all
         run: npm run build:all
 
+      # -----------------------------------------------------------------------
+      # Publish
+      # -----------------------------------------------------------------------
       - name: Publish release
         run: npx electron-builder --publish=always
         env:
