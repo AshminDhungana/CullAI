@@ -662,15 +662,22 @@ export function registerIpcHandlers(store: AppStore): void {
       throw new Error('scan-folder-extensions: invalid folder path');
     }
     const resolved = path.resolve(folderPath);
-    const entries = await fs.promises.readdir(resolved, { withFileTypes: true });
-    const counts: Record<string, number> = {};
-    for (const entry of entries) {
-      if (entry.isFile() && !entry.name.startsWith('.')) {
-        const ext = path.extname(entry.name).toLowerCase();
-        if (ext) counts[ext] = (counts[ext] ?? 0) + 1;
+    try {
+      const entries = await fs.promises.readdir(resolved, { withFileTypes: true });
+      const counts: Record<string, number> = {};
+      for (const entry of entries) {
+        if (entry.isFile() && !entry.name.startsWith('.')) {
+          const ext = path.extname(entry.name).toLowerCase();
+          if (ext) counts[ext] = (counts[ext] ?? 0) + 1;
+        }
       }
+      return counts;
+    } catch (err: any) {
+      if (err.code === 'ENOENT') {
+        return {};
+      }
+      throw err;
     }
-    return counts;
   });
 
   /**
@@ -689,7 +696,14 @@ export function registerIpcHandlers(store: AppStore): void {
         throw new Error('scan-folder-prefixes: invalid folder path');
       }
       const resolved = path.resolve(folderPath);
-      const entries = await fs.promises.readdir(resolved, { withFileTypes: true });
+      let entries: fs.Dirent[] = [];
+      try {
+        entries = await fs.promises.readdir(resolved, { withFileTypes: true });
+      } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+          throw err;
+        }
+      }
       const names = entries
         .filter(e => e.isFile() && !e.name.startsWith('.'))
         .map(e => e.name);
