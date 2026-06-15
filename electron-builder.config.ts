@@ -11,10 +11,10 @@ const config: Configuration = {
   },
 
   files: [
-    'dist/main/**/*',
-    'dist/shared/**/*',
-    'dist/renderer/**/*',
+    'dist/**/*',
     'package.json',
+    '!dist/**/*.map',
+    '!dist/**/*.tsbuildinfo',
   ],
 
   extraResources: [
