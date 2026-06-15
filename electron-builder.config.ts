@@ -11,10 +11,8 @@ const config: Configuration = {
   },
 
   files: [
-    'dist/**/*',
+    { from: 'dist', to: 'dist', filter: ['**/*', '!**/*.map', '!**/*.tsbuildinfo'] },
     'package.json',
-    '!dist/**/*.map',
-    '!dist/**/*.tsbuildinfo',
   ],
 
   extraResources: [
