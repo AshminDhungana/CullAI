@@ -77,8 +77,17 @@ jobs:
         run: npm ci
 
       # -----------------------------------------------------------------------
-      # Compile TypeScript — these two steps MUST succeed before electron-builder
-      # is invoked; if either fails the job stops and packaging never runs.
+      # Wipe any stale dist/ that may have been cached or left by a prior run.
+      # This prevents tsc from reading a stale .tsbuildinfo and skipping emit,
+      # which is what caused "dist/main/index.js was not found in this archive".
+      # -----------------------------------------------------------------------
+      - name: Clean dist
+        run: npm run clean
+
+      # -----------------------------------------------------------------------
+      # Compile TypeScript — --force is set in package.json build:main so tsc
+      # always emits even if .tsbuildinfo claims everything is up-to-date.
+      # These two steps MUST succeed before electron-builder is invoked.
       # -----------------------------------------------------------------------
       - name: Build main (TypeScript)
         run: npm run build:main
@@ -92,6 +101,23 @@ jobs:
       - name: Build icons
         run: npm run build:icons
         continue-on-error: true
+
+      # -----------------------------------------------------------------------
+      # Hard gate: fail immediately with a clear message if tsc produced no
+      # output, rather than letting electron-builder create a broken .asar.
+      # -----------------------------------------------------------------------
+      - name: Verify build output
+        shell: node {0}
+        run: |
+          const fs = require('fs');
+          const required = ['dist/main/index.js', 'dist/renderer/index.html'];
+          for (const f of required) {
+            if (!fs.existsSync(f)) {
+              console.error(`MISSING: ${f} — did the build step silently fail?`);
+              process.exit(1);
+            }
+          }
+          console.log('Build output verified OK');
 
       # -----------------------------------------------------------------------
       # Package
