@@ -338,8 +338,10 @@ export function registerIpcHandlers(store: AppStore): void {
   });
 
   /** Opens a native folder-picker dialog. Returns the selected path or undefined. */
-  ipcMain.handle('open-folder-dialog', async () => {
-    const win = BrowserWindow.getFocusedWindow();
+  ipcMain.handle('open-folder-dialog', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+      ?? BrowserWindow.getAllWindows()[0]
+      ?? null;
     const opts = { properties: ['openDirectory'] as ('openDirectory')[] };
     const result = win
       ? await dialog.showOpenDialog(win, opts)
@@ -902,13 +904,15 @@ export function registerIpcHandlers(store: AppStore): void {
   ipcMain.handle(
     'open-file-dialog',
     async (
-      _event,
+      event,
       options?: {
         filters?: { name: string; extensions: string[] }[];
         properties?: string[];
       },
     ) => {
-      const win = BrowserWindow.getFocusedWindow();
+      const win = BrowserWindow.fromWebContents(event.sender)
+        ?? BrowserWindow.getAllWindows()[0]
+        ?? null;
       const opts = {
         filters: options?.filters ?? [
           { name: 'Images', extensions: ['jpg', 'jpeg', 'png'] },
@@ -2188,7 +2192,7 @@ export function registerIpcHandlers(store: AppStore): void {
    */
   ipcMain.handle(
     'export-results-csv',
-    async (_event, payload: { outputFolder: string }) => {
+    async (event, payload: { outputFolder: string }) => {
       if (!payload?.outputFolder) {
         throw new Error('export-results-csv: outputFolder is required');
       }
@@ -2228,7 +2232,10 @@ export function registerIpcHandlers(store: AppStore): void {
 
       const csvContent = BOM + HEADER + rows;
 
-      const { filePath, canceled } = await dialog.showSaveDialog({
+      const win = BrowserWindow.fromWebContents(event.sender)
+        ?? BrowserWindow.getAllWindows()[0]
+        ?? null;
+      const { filePath, canceled } = await dialog.showSaveDialog(win ?? undefined, {
         defaultPath: path.join(payload.outputFolder, 'cullai_scores.csv'),
         filters: [{ name: 'CSV', extensions: ['csv'] }],
       });
@@ -2263,7 +2270,10 @@ export function registerIpcHandlers(store: AppStore): void {
       const outputFolder = payload.outputFolder;
 
       // Choose save path
-      const { filePath, canceled } = await dialog.showSaveDialog({
+      const zipWin = BrowserWindow.fromWebContents(event.sender)
+        ?? BrowserWindow.getAllWindows()[0]
+        ?? null;
+      const { filePath, canceled } = await dialog.showSaveDialog(zipWin ?? undefined, {
         defaultPath: path.join(outputFolder, `cullai_session_${Date.now()}.zip`),
         filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
       });

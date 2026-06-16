@@ -36,7 +36,7 @@
     "dev:electron": "electron -r tsx src/main/index.ts",
     "clean": "rimraf dist",
     "build:icons": "npx tsx src/scripts/generate-icons.ts",
-    "build:main": "tsc -b tsconfig.main.json --force",
+    "build:main": "tsc -b tsconfig.main.json --force && node -e \"require('fs').copyFileSync('src/main/preload.js','dist/main/preload.js')\"",
     "build:renderer": "vite build",
     "build:all": "npm run clean && npm run build:main && npm run build:renderer && npm run build:icons",
     "build": "npm run build:all && electron-builder",
