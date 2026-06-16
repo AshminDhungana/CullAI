@@ -1,32 +1,65 @@
-import { useState } from "react";
-import { Download, X, RotateCcw, CheckCircle, AlertCircle, Settings } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Download, X, RotateCcw, CheckCircle, AlertCircle } from "lucide-react";
 import useUpdater from "../hooks/useUpdater";
 
 type BannerState = "available" | "downloading" | "downloaded" | "error";
 
+// Auto-dismiss durations (ms). Error and downloaded states stay until dismissed.
+const AUTO_DISMISS_MS: Partial<Record<BannerState, number>> = {
+  available: 6000,
+};
+
 export default function UpdateBanner() {
   const { state, dismiss, checkForUpdates } = useUpdater();
-  const [showSettings, setShowSettings] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [exiting, setExiting] = useState(false);
 
-  // Determine banner visibility and state
-  const isVisible = !state.isDismissed && (
-    state.updateAvailable !== null ||
-    state.updateDownloaded !== null ||
-    state.error !== null
-  );
+  const hasContent =
+    !state.isDismissed &&
+    (state.updateAvailable !== null ||
+      state.updateDownloaded !== null ||
+      state.error !== null);
 
-  if (!isVisible) return null;
+  // Slide in when content appears
+  useEffect(() => {
+    if (hasContent) {
+      setExiting(false);
+      setVisible(true);
+    }
+  }, [hasContent]);
 
-  let bannerState: BannerState = "available";
-  if (state.error) bannerState = "error";
-  else if (state.updateDownloaded) bannerState = "downloaded";
-  else if (state.downloadProgress) bannerState = "downloading";
+  // Auto-dismiss for transient states
+  const bannerState: BannerState = (() => {
+    if (state.error) return "error";
+    if (state.updateDownloaded) return "downloaded";
+    if (state.downloadProgress) return "downloading";
+    return "available";
+  })();
 
-  // ── Background/Accent colours per state ─────────────────────────────────
-  const bgClass
-    = bannerState === "error"    ? "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300"
-    : bannerState === "downloaded" ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-300"
-    :                               "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300";
+  useEffect(() => {
+    const delay = AUTO_DISMISS_MS[bannerState];
+    if (!delay) return;
+    const t = setTimeout(handleDismiss, delay);
+    return () => clearTimeout(t);
+  }, [bannerState]);
+
+  function handleDismiss() {
+    setExiting(true);
+    setTimeout(() => {
+      setVisible(false);
+      dismiss();
+    }, 300); // matches transition duration
+  }
+
+  if (!hasContent || !visible) return null;
+
+  // ── Colour tokens per state ──────────────────────────────────────────────
+  const colours = {
+    error:      "bg-red-50   dark:bg-red-950/60   border-red-400/50   text-red-800   dark:text-red-200",
+    downloaded: "bg-green-50 dark:bg-green-950/60 border-green-400/50 text-green-800 dark:text-green-200",
+    downloading:"bg-blue-50  dark:bg-blue-950/60  border-blue-400/50  text-blue-800  dark:text-blue-200",
+    available:  "bg-amber-50 dark:bg-amber-950/60 border-amber-400/50 text-amber-800 dark:text-amber-200",
+  }[bannerState];
 
   const progressPercent = state.downloadProgress
     ? Math.round(state.downloadProgress.percent)
@@ -34,130 +67,113 @@ export default function UpdateBanner() {
 
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-[100] border-b backdrop-blur-sm ${bgClass}`}
-      role="alert"
+      role="status"
       aria-live="polite"
+      aria-atomic="true"
+      style={{
+        // Slide in from left, fade out on exit
+        transform: exiting ? "translateX(-110%)" : "translateX(0)",
+        opacity: exiting ? 0 : 1,
+        transition: "transform 300ms cubic-bezier(0.4,0,0.2,1), opacity 300ms ease",
+      }}
+      className={[
+        "fixed top-4 left-4 z-[100]",
+        "w-72 rounded-xl border shadow-lg shadow-black/10",
+        "backdrop-blur-md",
+        colours,
+      ].join(" ")}
     >
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div className="flex items-start gap-3 p-3.5">
 
-        {/* ── Icon ────────────────────────────────────────────────────────── */}
-        {bannerState === "error" && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
-        {bannerState === "downloaded" && <CheckCircle className="w-5 h-5 flex-shrink-0" />}
-        {bannerState === "available" && <Download className="w-5 h-5 flex-shrink-0 animate-bounce" />}
-        {bannerState === "downloading" && (
-          <div className="w-5 h-5 flex-shrink-0 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        )}
+        {/* ── Icon ─────────────────────────────────────────────────────── */}
+        <div className="flex-shrink-0 mt-0.5">
+          {bannerState === "error"       && <AlertCircle  className="w-4 h-4" />}
+          {bannerState === "downloaded"  && <CheckCircle  className="w-4 h-4" />}
+          {bannerState === "available"   && <Download     className="w-4 h-4 animate-bounce" />}
+          {bannerState === "downloading" && (
+            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          )}
+        </div>
 
-        {/* ── Message ───────────────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0">
+        {/* ── Body ─────────────────────────────────────────────────────── */}
+        <div className="flex-1 min-w-0 space-y-1.5">
           {bannerState === "error" && (
-            <p className="text-sm font-medium">
-              Update check failed: {state.error?.message}
-            </p>
+            <>
+              <p className="text-xs font-semibold leading-tight">Update check failed</p>
+              <p className="text-xs opacity-75 leading-tight truncate">
+                {state.error?.message ?? "Unknown error"}
+              </p>
+              <button
+                onClick={checkForUpdates}
+                className="inline-flex items-center gap-1 mt-0.5 px-2 py-1 rounded-md text-xs font-medium bg-current/10 hover:bg-current/20 transition"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Retry
+              </button>
+            </>
           )}
 
           {bannerState === "available" && (
-            <p className="text-sm font-medium">
-              A new version of CullAI is available
-              {state.updateAvailable?.version && ` (${state.updateAvailable.version})`}.
-              Downloading in the background…
-            </p>
+            <>
+              <p className="text-xs font-semibold leading-tight">Update available</p>
+              <p className="text-xs opacity-75 leading-tight">
+                {state.updateAvailable?.version
+                  ? `v${state.updateAvailable.version} — downloading in background`
+                  : "Downloading in background…"}
+              </p>
+            </>
           )}
 
           {bannerState === "downloading" && (
-            <div className="space-y-1">
-              <p className="text-sm font-medium">
+            <>
+              <p className="text-xs font-semibold leading-tight">
                 Downloading update… {progressPercent}%
               </p>
-              <div className="h-1.5 w-full bg-current/10 rounded-full overflow-hidden">
+              <div className="h-1 w-full bg-current/15 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-current rounded-full transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <p className="text-xs opacity-70">
-                {((state.downloadProgress?.transferred ?? 0) / 1024 / 1024).toFixed(1)} MB /{" "}
+              <p className="text-xs opacity-60">
+                {((state.downloadProgress?.transferred ?? 0) / 1024 / 1024).toFixed(1)} /{" "}
                 {((state.downloadProgress?.total ?? 0) / 1024 / 1024).toFixed(1)} MB
               </p>
-            </div>
+            </>
           )}
 
           {bannerState === "downloaded" && (
-            <p className="text-sm font-medium">
-              Update ready — CullAI {state.updateDownloaded?.version} has been downloaded.
-              Restart the app to install.
-            </p>
-          )}
-        </div>
-
-        {/* ── Actions ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {bannerState === "error" && (
-            <button
-              onClick={checkForUpdates}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-current/10 hover:bg-current/20 transition"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Retry
-            </button>
-          )}
-
-          {bannerState === "downloaded" && (
-            <button
-              onClick={() => {
-                // electron-updater autoInstallOnAppQuit is true by default.
-                // We just close the app and let the auto-installer do its job.
-                if (window.electronAPI?.quitApp) {
-                  window.electronAPI.quitApp();
-                } else {
-                  window.close();
-                }
-              }}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition"
-            >
-              Restart Now
-            </button>
-          )}
-
-          <button
-            onClick={() => setShowSettings((prev) => !prev)}
-            className="p-1.5 rounded-md hover:bg-current/10 transition"
-            title="Update settings"
-            aria-label="Update settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={dismiss}
-            className="p-1.5 rounded-md hover:bg-current/10 transition"
-            title="Dismiss"
-            aria-label="Dismiss update notification"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* ── Settings dropdown (inline, not overlay) ─────────────────────── */}
-        {showSettings && (
-          <div className="absolute top-full right-4 mt-1 w-64 bg-white dark:bg-[#1a1f2e] border border-gray-200 dark:border-[#2a3347] rounded-lg shadow-lg p-3">
-            <h4 className="text-sm font-semibold mb-2 text-gray-900 dark:text-gray-100">
-              Auto-Updater Settings
-            </h4>
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input
-                type="checkbox"
-                defaultChecked
-                onChange={(e) => {
-                  // Would wire to persistent store in full implementation
-                  setShowSettings(false);
+            <>
+              <p className="text-xs font-semibold leading-tight">
+                CullAI {state.updateDownloaded?.version} ready
+              </p>
+              <p className="text-xs opacity-75 leading-tight">
+                Restart to install the update.
+              </p>
+              <button
+                onClick={() => {
+                  if (window.electronAPI?.quitApp) {
+                    window.electronAPI.quitApp();
+                  } else {
+                    window.close();
+                  }
                 }}
-                className="rounded border-gray-300 dark:border-gray-600"
-              />
-              Check for updates on startup
-            </label>
-          </div>
-        )}
+                className="inline-flex items-center gap-1 mt-0.5 px-2 py-1 rounded-md text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition"
+              >
+                Restart Now
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* ── Dismiss ──────────────────────────────────────────────────── */}
+        <button
+          onClick={handleDismiss}
+          className="flex-shrink-0 p-1 -mt-0.5 -mr-0.5 rounded-md hover:bg-current/10 transition"
+          aria-label="Dismiss"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
     </div>
   );

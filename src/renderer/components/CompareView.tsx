@@ -10,6 +10,7 @@ import { useState, useRef, useEffect } from 'react';
 import { X, Star, Sparkles, Camera, Focus, Sun, Eye, ChevronLeft } from 'lucide-react';
 import type { ScoreRecord } from '../../shared/types';
 import FaceOverlay from './FaceOverlay';
+import { buildThumbnailUrl } from '../utils/thumbnailUrl';
 
 interface CompareViewProps {
   selectedItems: { id: string; record: ScoreRecord }[];
@@ -128,9 +129,7 @@ export default function CompareView({
           {/* LEFT image — clipped to sliderPct% */}
           {(() => {
             const { record: leftRecord } = selectedItems[0];
-            const leftSrc = leftRecord.thumbnailPath
-              ? `file:///${encodeURI(`${outputFolder.replace(/\\/g, '/')}/${leftRecord.thumbnailPath}`)}`
-              : undefined;
+            const leftSrc = buildThumbnailUrl(outputFolder, leftRecord.thumbnailPath);
             return (
               <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - sliderPct}% 0 0)` }}>
                 {leftSrc
@@ -147,9 +146,7 @@ export default function CompareView({
           {/* RIGHT image */}
           {(() => {
             const { record: rightRecord } = selectedItems[1];
-            const rightSrc = rightRecord.thumbnailPath
-              ? `file:///${encodeURI(`${outputFolder.replace(/\\/g, '/')}/${rightRecord.thumbnailPath}`)}`
-              : undefined;
+            const rightSrc = buildThumbnailUrl(outputFolder, rightRecord.thumbnailPath);
             return (
               <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 0 0 ${sliderPct}%)` }}>
                 {rightSrc
@@ -179,9 +176,7 @@ export default function CompareView({
         <div className={`flex-1 p-6 grid gap-6 ${gridClass} overflow-hidden min-h-0`}>
         {selectedItems.map(({ id, record }) => {
           const tierStyle = TIER_COLORS[record.tier] ?? TIER_COLORS.rejected;
-          const thumbnailSrc = record.thumbnailPath
-            ? `file:///${encodeURI(`${outputFolder.replace(/\\/g, '/')}/${record.thumbnailPath}`)}`
-            : undefined;
+          const thumbnailSrc = buildThumbnailUrl(outputFolder, record.thumbnailPath);
 
           return (
             <div

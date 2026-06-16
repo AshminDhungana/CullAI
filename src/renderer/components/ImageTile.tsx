@@ -11,6 +11,7 @@ import { ChevronDown, ChevronUp, Eye, Star, Sparkles, Camera, Sun, Focus } from 
 import FaceOverlay from './FaceOverlay';
 import QuickActions from './QuickActions';
 import type { ScoreRecord } from '../../shared/types';
+import { buildThumbnailUrl } from '../utils/thumbnailUrl';
 
 // ── Tier styling maps ──────────────────────────────────────────────────────────
 
@@ -89,11 +90,11 @@ export default function ImageTile({
   const tierStyle = TIER_COLORS[score.tier] ?? TIER_COLORS.rejected;
 
   // ── Thumbnail src ──────────────────────────────────────────────────────────
-  // Use the persisted thumbnailPath (same pattern as CompareView.tsx).
-  // Falls back to no preview if the thumbnail was not generated.
-  const thumbnailSrc = score.thumbnailPath
-    ? `file:///${encodeURI(`${outputFolder.replace(/\\/g, '/')}/${score.thumbnailPath}`)}`
-    : undefined;
+  // buildThumbnailUrl handles all three edge cases:
+  //   • four-slash collision on macOS/Linux
+  //   • encodeURI leaving '#' / '?' unencoded
+  //   • leading './' or '/' on thumbnailPath
+  const thumbnailSrc = buildThumbnailUrl(outputFolder, score.thumbnailPath);
   const [thumbnailError, setThumbnailError] = useState(false);
 
   // ── Reasoning toggle ───────────────────────────────────────────────────────
