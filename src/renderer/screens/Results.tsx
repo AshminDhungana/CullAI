@@ -6,7 +6,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as ReactWindowModule from 'react-window';
 const FixedSizeGrid = (ReactWindowModule as any).FixedSizeGrid ?? (ReactWindowModule as any).default?.FixedSizeGrid;
-import type { GridChildComponentProps } from 'react-window';
 import * as AutoSizerModule from 'react-virtualized-auto-sizer';
 const AutoSizer = (AutoSizerModule as any).default ?? (AutoSizerModule as any).AutoSizer ?? AutoSizerModule;
 import {
@@ -28,9 +27,9 @@ import {
   RotateCcw,
   Tag,
   Sparkles,
-  Bookmark,        // ← Phase 14.4
-  X,               // ← Phase 14.4
-  Loader2,         // ← Phase 14.4
+  Bookmark,        
+  X,               
+  Loader2,         
 } from 'lucide-react';
 import type { AppSettings, Session, ScoreRecord, PipelineEvent, StyleProfile } from '../../shared/types';
 import ImageTile from '../components/ImageTile';
@@ -56,6 +55,15 @@ type UndoEntry = {
   previousTier: 'S' | 'A' | 'B' | 'rejected';
   filename: string;
   timestamp: number;
+};
+
+
+type GridChildComponentProps = {
+  columnIndex: number;
+  rowIndex: number;
+  style: React.CSSProperties;
+  data?: any;
+  isScrolling?: boolean;
 };
 
 const TABS: { id: TabType; label: string; color: string; activeBorder: string; activeBg: string }[] = [

@@ -129,7 +129,7 @@ export default function CompareView({
           {(() => {
             const { record: leftRecord } = selectedItems[0];
             const leftSrc = leftRecord.thumbnailPath
-              ? `file:///${outputFolder.replace(/\\/g, '/')}/${leftRecord.thumbnailPath}`
+              ? `file:///${encodeURI(`${outputFolder.replace(/\\/g, '/')}/${leftRecord.thumbnailPath}`)}`
               : undefined;
             return (
               <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - sliderPct}% 0 0)` }}>
@@ -148,7 +148,7 @@ export default function CompareView({
           {(() => {
             const { record: rightRecord } = selectedItems[1];
             const rightSrc = rightRecord.thumbnailPath
-              ? `file:///${outputFolder.replace(/\\/g, '/')}/${rightRecord.thumbnailPath}`
+              ? `file:///${encodeURI(`${outputFolder.replace(/\\/g, '/')}/${rightRecord.thumbnailPath}`)}`
               : undefined;
             return (
               <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 0 0 ${sliderPct}%)` }}>
@@ -180,7 +180,7 @@ export default function CompareView({
         {selectedItems.map(({ id, record }) => {
           const tierStyle = TIER_COLORS[record.tier] ?? TIER_COLORS.rejected;
           const thumbnailSrc = record.thumbnailPath
-            ? `file:///${outputFolder.replace(/\\/g, '/')}/${record.thumbnailPath}`
+            ? `file:///${encodeURI(`${outputFolder.replace(/\\/g, '/')}/${record.thumbnailPath}`)}`
             : undefined;
 
           return (

@@ -89,11 +89,12 @@ export default function ImageTile({
   const tierStyle = TIER_COLORS[score.tier] ?? TIER_COLORS.rejected;
 
   // ── Thumbnail src ──────────────────────────────────────────────────────────
-  // thumbnailPath is relative to outputFolder, e.g. ".cullai_cache/thumbnails/abc123.jpg"
-  // We construct a file:// URL for the <img> tag.
+  // Use the persisted thumbnailPath (same pattern as CompareView.tsx).
+  // Falls back to no preview if the thumbnail was not generated.
   const thumbnailSrc = score.thumbnailPath
-    ? `file:///${outputFolder.replace(/\\/g, '/')}/${score.thumbnailPath}`
+    ? `file:///${encodeURI(`${outputFolder.replace(/\\/g, '/')}/${score.thumbnailPath}`)}`
     : undefined;
+  const [thumbnailError, setThumbnailError] = useState(false);
 
   // ── Reasoning toggle ───────────────────────────────────────────────────────
   const toggleExpanded = useCallback((e: React.MouseEvent) => {
@@ -132,7 +133,7 @@ export default function ImageTile({
     >
       {/* ── Thumbnail ──────────────────────────────────────────────────────── */}
       <div className="relative aspect-[4/3] bg-black/40 overflow-hidden">
-        {thumbnailSrc ? (
+        {thumbnailSrc && !thumbnailError ? (
           <img
             ref={imgRef}
             src={thumbnailSrc}
@@ -140,6 +141,7 @@ export default function ImageTile({
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
             draggable={false}
+            onError={() => setThumbnailError(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-white/30 text-xs">

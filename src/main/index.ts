@@ -16,7 +16,9 @@
  */
 
 import { app, BrowserWindow, dialog, safeStorage } from 'electron';
+import * as fs from 'fs';
 import * as path from 'path';
+import { protocol } from 'electron';
 import { registerIpcHandlers } from './ipc-handlers';
 import { initSecureStore } from './safe-storage';
 import { loadLicense } from './license-manager';
@@ -24,6 +26,20 @@ import { disposeDetector } from './face-detector';
 import { initAutoUpdater } from './auto-updater';
 import { parseCLIArgs } from '../cli/args';
 import { runCLI } from '../cli/runner';
+
+// ---------------------------------------------------------------------------
+// Custom protocol registration — must happen once before app.whenReady()
+// so the renderer can load cullai:// thumbnails when webSecurity is true.
+// ---------------------------------------------------------------------------
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'cullai',
+    privileges: {
+      bypassCSP: true,
+      supportFetchAPI: true,
+    },
+  },
+]);
 
 // ---------------------------------------------------------------------------
 // Window creation
@@ -42,6 +58,7 @@ function createWindow(): void {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
+      webSecurity: app.isPackaged,
     },
   });
 
@@ -133,6 +150,31 @@ app.whenReady().then(async () => {
     const secureStore = new Store({ name: 'secure' });
     initSecureStore(secureStore as any);
 
+    // Register custom protocol for serving local files securely
+    protocol.registerFileProtocol('cullai', (request, callback) => {
+      const url = request.url.replace(/^cullai:\/\//, '');
+      const decodedPath = decodeURIComponent(url);
+
+      // Basic safety check: reject empty or parent-directory traversal
+      if (!decodedPath || decodedPath.includes('..')) {
+        console.warn(`[cullai-protocol] Blocked request: ${request.url}`);
+        callback({ path: '' } as any);
+        return;
+      }
+
+      // Optional: restrict to safe directories (e.g., user's home or output folders)
+      if (!fs.existsSync(decodedPath)) {
+        console.warn(`[cullai-protocol] File not found: ${decodedPath}`);
+        callback({ path: '' } as any);
+        return;
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[cullai-protocol] Serving: ${decodedPath}`);
+      }
+
+      callback({ path: decodedPath });
+    });
     // Register all IPC handlers. initUsageTracker is called inside
     // registerIpcHandlers (see ipc-handlers.ts) so it receives the
     // real store instance, not an undefined module-scope reference.

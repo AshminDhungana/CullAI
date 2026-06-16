@@ -201,6 +201,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     warning?: string;
   } | null>(null);
   const modelComboboxRef = useRef<ModelComboboxHandle>(null);
+  const prevProviderRef = useRef<string | null>(null);
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatusType | null>(null);
 
   // Derived gate flags — single source of truth for all feature locks in this
@@ -405,16 +406,22 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   // the 'custom' provider (and any other provider whose saved values differ from defaults).
   useEffect(() => {
     if (isLoading) return;
-    if (watchedProvider) {
-      const defaults = PROVIDER_DEFAULTS[watchedProvider];
-      setValue('baseUrl', defaults.baseUrl, { shouldDirty: true });
-      setValue('model', defaults.defaultModel, { shouldDirty: true });
-      setShowApiKey(false);
-      setApiKeySaveError('');
+    if (!watchedProvider) return;
+    if (prevProviderRef.current === null) {
+      // First effect run after stored settings are restored — just track it,
+      // don't overwrite the restored baseUrl/model.
+      prevProviderRef.current = watchedProvider;
+      return;
     }
-  }, [watchedProvider, setValue]); // eslint-disable-line react-hooks/exhaustive-deps
-  // isLoading is intentionally omitted from deps — we only want this to react to
-  // provider switches, not to the isLoading flag clearing after the initial load.
+    if (prevProviderRef.current === watchedProvider) return;
+    // Genuine user-driven provider switch — reset to defaults.
+    const defaults = PROVIDER_DEFAULTS[watchedProvider];
+    setValue('baseUrl', defaults.baseUrl, { shouldDirty: true });
+    setValue('model', defaults.defaultModel, { shouldDirty: true });
+    setShowApiKey(false);
+    setApiKeySaveError('');
+    prevProviderRef.current = watchedProvider;
+  }, [watchedProvider, setValue, isLoading]);
 
   useEffect(() => {
     if (watchedProvider === 'ollama' && watchedBaseUrl) {
