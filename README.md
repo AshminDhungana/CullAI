@@ -202,7 +202,7 @@ npx electron-builder --linux
 
 ### Build Output
 
-Generated installers will be available in the `dist/` directory:
+Generated installers will be available in the `release/` directory:
 
 - **Windows:** `.exe`
 - **macOS:** `.dmg`

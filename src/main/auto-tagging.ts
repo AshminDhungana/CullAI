@@ -141,7 +141,7 @@ export async function runAutoTagging(
       } catch (err: unknown) {
         // Auth errors and rate-limit errors are hard failures — abort tagging.
         if (err instanceof AIAuthError) {
-          console.error('[auto-tagging] Auth error — aborting tagging run:', err.message);
+          if (devMode) console.error('[auto-tagging] Auth error — aborting tagging run:', err.message);
           return result;
         }
         if (err instanceof AIRateLimitError) {

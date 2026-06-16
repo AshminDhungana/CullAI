@@ -17,7 +17,7 @@ import * as path from 'path';
 // ────────────────────────────────────────────────────────────────────────────
 
 const SOURCE_GIF = path.join(__dirname, '..', 'renderer', 'assets', 'camera_logo.gif');
-const BUILD_DIR = path.join(__dirname, '..', 'build');
+const BUILD_DIR = path.join(__dirname, '..', "..", 'build');
 const ICONS_DIR = path.join(BUILD_DIR, 'icons');
 
 // ────────────────────────────────────────────────────────────────────────────

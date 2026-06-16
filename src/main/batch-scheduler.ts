@@ -258,6 +258,7 @@ export class BatchScheduler {
       id: string,
       params: AICallParams,
     ): Promise<ScoreRecord | { authError: AIAuthError } | null> => {
+      const devMode = process.env.NODE_ENV === 'development';
       let serverRetries = 0;
       let timeoutRetries = 0;
       let totalRetries = 0;

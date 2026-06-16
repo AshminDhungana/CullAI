@@ -4,11 +4,12 @@
  * Entry point for the Electron main process.
  *
  * Responsibilities:
- *   1. Create the BrowserWindow.
- *   2. Initialise electron-store (main settings) and the secure store
+ *   1. Initialise electron-store (main settings) and the secure store
  *      (encrypted API keys — separate file, never logged).
- *   3. Verify OS keychain encryption is available; warn the user if not.
- *   4. Register all IPC handlers only after both stores are ready.
+ *   2. Verify OS keychain encryption is available; warn the user if not.
+ *   3. Register all IPC handlers only after both stores are ready.
+ *   4. Create the BrowserWindow — always last, so IPC is ready before
+ *      the renderer mounts and fires its first ipcRenderer.invoke() calls.
  *
  * All handler implementations live in ./ipc-handlers.ts.
  * Secure-storage helpers live in ./safe-storage.ts.
@@ -44,12 +45,9 @@ function createWindow(): void {
     },
   });
 
-  const isDev =
-    !app.isPackaged ||
-    process.env.NODE_ENV === 'development' ||
-    !!process.env.VITE_DEV_SERVER_URL;
-
-  if (isDev) {
+  // app.isPackaged is false in dev (electron -r tsx ...) and true in all
+  // packaged builds — the single reliable signal, no env-var leakage risk.
+  if (!app.isPackaged) {
     mainWindow.loadURL(
       process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173',
     );
@@ -74,7 +72,7 @@ function createWindow(): void {
 async function checkSafeStorageAvailability(): Promise<void> {
   const available = safeStorage.isEncryptionAvailable();
 
-  if (process.env.NODE_ENV === 'development') {
+  if (!app.isPackaged) {
     console.log(
       `[safe-storage] Encryption available: ${available}`,
       `| backend: ${(safeStorage as any).getSelectedStorageBackend?.() ?? 'unknown'}`,
@@ -110,139 +108,136 @@ async function checkSafeStorageAvailability(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Store initialisation → IPC registration
-//
-// electron-store is ESM-only (v9+), so we import() it dynamically.
-//
-// Both stores (main settings + secure API keys) are constructed here and
-// passed to their respective modules. Handlers are registered only after
-// both are ready so no handler can race against an uninitialised store.
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 // Phase 19 — Headless CLI Mode
 // ---------------------------------------------------------------------------
 const isHeadless = app.commandLine.hasSwitch('headless');
 
 app.whenReady().then(async () => {
-  // In headless mode we skip the GUI window entirely and run the CLI pipeline.
-  if (!isHeadless) {
-    createWindow();
-
-    // Phase 18: initialise auto-updater after window is ready
-    // (only in packaged builds — dev mode skips update checks)
-    initAutoUpdater(mainWindow!);
-  }
-
-  // Phase 3.2: verify OS keychain before registering any IPC handlers.
-  // This is async (shows a native dialog if needed) and must complete before
-  // we expose the 'api-key-store' IPC channel to the renderer.
+  // ── Step 1: verify OS keychain ────────────────────────────────────────────
+  // Must complete before IPC handlers are registered so the 'api-key-store'
+  // channel is never exposed before encryption availability is confirmed.
   await checkSafeStorageAvailability();
 
-  import('electron-store')
-    .then(async ({ default: Store }) => {
-      // Main settings store — plain JSON, never contains raw API keys.
-      const store = new Store();
+  // ── Step 2: initialise stores and register IPC handlers ──────────────────
+  // electron-store is ESM-only (v9+), so we await the dynamic import once
+  // here. IPC handlers are fully registered before the window is created,
+  // so the renderer can never beat its first ipcRenderer.invoke() call.
+  let store: any;
+  try {
+    const { default: Store } = await import('electron-store');
 
-      // Secure store — physically separate file ("secure.json").
-      // Encrypted blobs live here; the file itself is never logged.
-      const secureStore = new Store({ name: 'secure' });
-      initSecureStore(secureStore as any);
+    // Main settings store — plain JSON, never contains raw API keys.
+    store = new Store();
 
-      // Register all IPC handlers. initUsageTracker is called inside
-      // registerIpcHandlers (see ipc-handlers.ts) so it receives the
-      // real store instance, not an undefined module-scope reference.
-      registerIpcHandlers(store as any);
+    // Secure store — physically separate file ("secure.json").
+    // Encrypted blobs live here; the file itself is never logged.
+    const secureStore = new Store({ name: 'secure' });
+    initSecureStore(secureStore as any);
 
-      // Startup license validation — app is guaranteed ready here,
-      // store is initialised, app.getPath('userData') is safe.
-      const license = loadLicense();
-      if (license) {
-        console.log(`[main] License loaded: ${license.tier}`);
-      } else {
-        console.log('[main] No valid license — running in Free tier');
-      }
+    // Register all IPC handlers. initUsageTracker is called inside
+    // registerIpcHandlers (see ipc-handlers.ts) so it receives the
+    // real store instance, not an undefined module-scope reference.
+    registerIpcHandlers(store as any);
 
-      // ── Phase 19: Headless CLI execution ───────────────────────────────────
-      if (isHeadless) {
-        try {
-          const args = parseCLIArgs(process.argv);
-          await runCLI(args);
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error('[headless] CLI runner failed:', msg);
-          app.exit(1);
-        } finally {
-          app.quit();
-        }
-        return; // stop execution — headless path is complete
-      }
+    // Startup license validation — app is guaranteed ready here,
+    // store is initialised, app.getPath('userData') is safe.
+    const license = loadLicense();
+    if (license) {
+      console.log(`[main] License loaded: ${license.tier}`);
+    } else {
+      console.log('[main] No valid license — running in Free tier');
+    }
+  } catch (err: unknown) {
+    // Store failed to load — settings cannot be persisted.
+    // Log clearly and continue; the renderer will receive null from settings-get.
+    console.error('[main] Failed to initialise electron-store:', err);
+  }
 
-      // ── Phase 5b: Non-blocking startup cache cleanup ──────────────────────
-      // Runs enforceCacheLimits across all recently used input folders so stale
-      // or oversized cache entries are evicted before the user starts working.
-      // Errors are logged but never block app startup.
-      import('./cache-cleaner').then(({ enforceAllCacheLimits }) => {
-        const knownFolders = ((store as any).get('recentInputFolders') as string[]) || [];
-        const limits = (store as any).get('rawCacheLimits') as
-          | { maxSizeGB: number; maxAgeDays: number }
-          | undefined;
+  // ── Phase 19: Headless CLI execution ──────────────────────────────────────
+  // Runs the CLI pipeline and exits — no window is ever created.
+  if (isHeadless) {
+    try {
+      const args = parseCLIArgs(process.argv);
+      await runCLI(args);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[headless] CLI runner failed:', msg);
+      app.exit(1);
+    } finally {
+      app.quit();
+    }
+    return; // stop execution — headless path is complete
+  }
 
-        if (limits && knownFolders.length > 0) {
-          enforceAllCacheLimits(knownFolders, {
-            maxSizeBytes: limits.maxSizeGB * 1024 * 1024 * 1024,
-            maxAgeDays: limits.maxAgeDays,
-          })
-            .then((result) => {
-              if (result.deletedFiles > 0) {
-                console.log(
-                  `[cache-cleaner] Startup cleanup: deleted ${result.deletedFiles} files, ` +
-                    `freed ${(result.freedBytes / 1024 / 1024).toFixed(1)} MB`,
-                );
-              }
-            })
-            .catch((err: unknown) =>
-              console.warn('[cache-cleaner] Startup cleanup failed:', err),
-            );
-        }
-      }).catch((err: unknown) => {
-        // Module import failure — non-fatal
-        console.warn('[main] cache-cleaner import failed:', err);
-      });
+  // ── Step 3: create the window ─────────────────────────────────────────────
+  // IPC handlers are fully registered above, so there is no race between
+  // the renderer mounting and ipcRenderer.invoke() calls arriving in main.
+  createWindow();
 
-      // ── Phase 20.2: Background Maintenance ────────────────────────────────
-      import('./maintenance').then(({ runBackgroundMaintenance }) => {
-        runBackgroundMaintenance(store)
+  // Phase 18: initialise auto-updater after window is ready
+  // (only in packaged builds — dev mode skips update checks)
+  initAutoUpdater(mainWindow!);
+
+  // ── Phase 5b: Non-blocking startup cache cleanup ──────────────────────────
+  // Runs enforceCacheLimits across all recently used input folders so stale
+  // or oversized cache entries are evicted before the user starts working.
+  // Errors are logged but never block app startup.
+  if (store) {
+    import('./cache-cleaner').then(({ enforceAllCacheLimits }) => {
+      const knownFolders = (store.get('recentInputFolders') as string[]) || [];
+      const limits = store.get('rawCacheLimits') as
+        | { maxSizeGB: number; maxAgeDays: number }
+        | undefined;
+
+      if (limits && knownFolders.length > 0) {
+        enforceAllCacheLimits(knownFolders, {
+          maxSizeBytes: limits.maxSizeGB * 1024 * 1024 * 1024,
+          maxAgeDays: limits.maxAgeDays,
+        })
           .then((result) => {
-            if (result.orphanedCacheCount > 0) {
+            if (result.deletedFiles > 0) {
               console.log(
-                `[maintenance] Cleaned ${result.orphanedCacheCount} orphaned cache(s), ` +
-                  `freed ${(result.orphanedCacheFreedBytes / 1024 / 1024).toFixed(1)} MB`,
+                `[cache-cleaner] Startup cleanup: deleted ${result.deletedFiles} files, ` +
+                  `freed ${(result.freedBytes / 1024 / 1024).toFixed(1)} MB`,
               );
-            }
-            if (result.sessionLogEntriesRemoved > 0) {
-              console.log(
-                `[maintenance] Trimmed ${result.sessionLogEntriesRemoved} old session log entries`,
-              );
-            }
-            if (result.skippedBecause === 'too-soon') {
-              if (process.env.NODE_ENV === 'development') {
-                console.log('[maintenance] Skipped — ran too recently (<7 days)');
-              }
             }
           })
           .catch((err: unknown) =>
-            console.warn('[maintenance] Background maintenance failed:', err),
+            console.warn('[cache-cleaner] Startup cleanup failed:', err),
           );
-      }).catch((err: unknown) => {
-        console.warn('[main] maintenance import failed:', err);
-      });
-    })
-    .catch((err: unknown) => {
-      // Store failed to load — this is fatal: settings cannot be persisted.
-      // Log clearly and continue (the app will still open, just without
-      // persistence). The renderer will receive null from settings-get.
-      console.error('[main] Failed to initialise electron-store:', err);
+      }
+    }).catch((err: unknown) => {
+      console.warn('[main] cache-cleaner import failed:', err);
     });
+
+    // ── Phase 20.2: Background Maintenance ──────────────────────────────────
+    import('./maintenance').then(({ runBackgroundMaintenance }) => {
+      runBackgroundMaintenance(store)
+        .then((result) => {
+          if (result.orphanedCacheCount > 0) {
+            console.log(
+              `[maintenance] Cleaned ${result.orphanedCacheCount} orphaned cache(s), ` +
+                `freed ${(result.orphanedCacheFreedBytes / 1024 / 1024).toFixed(1)} MB`,
+            );
+          }
+          if (result.sessionLogEntriesRemoved > 0) {
+            console.log(
+              `[maintenance] Trimmed ${result.sessionLogEntriesRemoved} old session log entries`,
+            );
+          }
+          if (result.skippedBecause === 'too-soon') {
+            if (!app.isPackaged) {
+              console.log('[maintenance] Skipped — ran too recently (<7 days)');
+            }
+          }
+        })
+        .catch((err: unknown) =>
+          console.warn('[maintenance] Background maintenance failed:', err),
+        );
+    }).catch((err: unknown) => {
+      console.warn('[main] maintenance import failed:', err);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
