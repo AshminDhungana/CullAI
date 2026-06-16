@@ -50,9 +50,6 @@ export default function RecentFoldersDropdown({
   const containerRef = useRef<HTMLDivElement>(null);
   const listboxId    = useId();
 
-  // Nothing to show — render nothing so the parent layout is unaffected.
-  if (paths.length === 0) return null;
-
   // ── Open / close ──────────────────────────────────────────────────────────
 
   const open = () => {
@@ -130,6 +127,14 @@ export default function RecentFoldersDropdown({
       close();
     }
   };
+
+  // ── Early return AFTER all hooks ─────────────────────────────────────────
+  // MUST be here — never before useState/useRef/useEffect/useCallback/useId.
+  // Moving it above the hooks caused React error #310 and a blank screen when
+  // paths transitioned from [] to a non-empty array (e.g. after the first
+  // folder selection), because React saw a different number of hook calls
+  // between renders.
+  if (paths.length === 0) return null;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
