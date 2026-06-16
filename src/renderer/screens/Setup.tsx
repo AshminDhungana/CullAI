@@ -238,6 +238,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     trigger,
     getValues,
     setError,
+    clearErrors,
     formState: { errors, isValid, isDirty },
     reset,
   } = useForm<SetupFormValues>({
@@ -471,6 +472,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       // @ts-expect-error
       const folder = await window.electronAPI.openFolderDialog();
       if (folder) {
+        clearErrors('inputFolder');
         setValue('inputFolder', folder, { shouldDirty: true, shouldValidate: true });
         await validateInputFolder(folder);
         await addRecentInput(folder);
@@ -485,6 +487,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       // @ts-expect-error
       const folder = await window.electronAPI.openFolderDialog();
       if (folder) {
+        clearErrors('outputFolder');
         setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
         await addRecentOutput(folder);
         await runFolderRelationshipCheck(watchedInputFolder, folder);
@@ -495,12 +498,14 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   };
 
   const handleSelectRecentInput = async (folder: string) => {
+    clearErrors('inputFolder');
     setValue('inputFolder', folder, { shouldDirty: true, shouldValidate: true });
     await validateInputFolder(folder);
     await addRecentInput(folder);
   };
 
   const handleSelectRecentOutput = async (folder: string) => {
+    clearErrors('outputFolder');
     setValue('outputFolder', folder, { shouldDirty: true, shouldValidate: true });
     await addRecentOutput(folder);
     await runFolderRelationshipCheck(watchedInputFolder, folder);
@@ -773,7 +778,13 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   const handleBack = () => {
     if (currentIndex > 0) {
       directionRef.current = -1;
-      setStep(STEP_ORDER[currentIndex - 1]);
+      const prevStep = STEP_ORDER[currentIndex - 1];
+      // Clear any manual folder errors when returning to the project step
+      // so a prior failed submission doesn't permanently block the next one.
+      if (prevStep === 'project') {
+        clearErrors(['inputFolder', 'outputFolder']);
+      }
+      setStep(prevStep);
     }
   };
 

@@ -5,7 +5,6 @@ import SetupScreen from "./screens/Setup";
 import ProcessingScreen from "./screens/Processing";
 import ResultsScreen from "./screens/Results";
 import type { AppSettings, Session } from "../shared/types";
-import { defaultAppSettings } from "../shared/types";
 import { useTheme } from "./hooks/useTheme";
 import { Sun, Moon } from "lucide-react";
 
@@ -22,8 +21,10 @@ function App() {
   const [transitioning, setTransitioning] = useState(false);
 
   // Holds the settings chosen in Setup so Processing + Results can read them.
-  // Initialised with defaults so the type is always non-nullable downstream.
-  const [currentSettings, setCurrentSettings] = useState<AppSettings>(defaultAppSettings());
+  // Null until the user actually clicks Start Culling — ProcessingScreen must
+  // never mount with defaultAppSettings() because its useEffect fires on mount
+  // and empty folders immediately trigger the pipeline-error guard.
+  const [currentSettings, setCurrentSettings] = useState<AppSettings | null>(null);
 
   // Holds the completed session from the pipeline so Results can display scores.
   const [completedSession, setCompletedSession] = useState<Session | null>(null);
@@ -127,38 +128,45 @@ function App() {
       </div>
 
       {/* ── Processing ─────────────────────────────────────────────────────── */}
-      <div
-        className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
-          screen === "processing"
-            ? "opacity-100 translate-y-0"
-            : "opacity-0 translate-y-8 pointer-events-none"
-        }`}
-      >
-        <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
-          <ProcessingScreen
-            settings={currentSettings}
-            onCancel={handleCancelProcessing}
-            onComplete={handleProcessingComplete}
-          />
+      {/* Only rendered after handleStartCulling fires so ProcessingScreen never
+          mounts with empty settings and triggers the missing-folder guard. */}
+      {currentSettings && (
+        <div
+          className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
+            screen === "processing"
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-8 pointer-events-none"
+          }`}
+        >
+          <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
+            <ProcessingScreen
+              settings={currentSettings}
+              onCancel={handleCancelProcessing}
+              onComplete={handleProcessingComplete}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Results ────────────────────────────────────────────────────────── */}
-      <div
-        className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
-          screen === "results"
-            ? "opacity-100 translate-y-0"
-            : "opacity-0 translate-y-8 pointer-events-none"
-        }`}
-      >
-        <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
-          <ResultsScreen
-            settings={currentSettings}
-            session={completedSession}
-            onBack={handleBackToSetup}
-          />
+      {/* Only rendered once we have settings to pass down. */}
+      {currentSettings && (
+        <div
+          className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
+            screen === "results"
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-8 pointer-events-none"
+          }`}
+        >
+          <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
+            <ResultsScreen
+              settings={currentSettings}
+              session={completedSession}
+              onBack={handleBackToSetup}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );

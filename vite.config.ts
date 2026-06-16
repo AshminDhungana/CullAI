@@ -5,6 +5,12 @@ export default defineConfig({
   plugins: [react()],
   root: './src/renderer',
   base: './',
+  optimizeDeps: {
+    include: [
+      'react-window',
+      'react-virtualized-auto-sizer',
+    ],
+  },
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,

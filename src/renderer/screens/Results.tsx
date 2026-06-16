@@ -1,29 +1,14 @@
 /**
  * src/renderer/screens/Results.tsx
- *
- * Phase 12b — Results Performance & UX
- * Phase 13  — XMP Export
- *
- * Changes vs Phase 12:
- *   12b.1  Virtualized grid via react-window FixedSizeGrid + react-virtualized-auto-sizer
- *   12b.2  Undo stack (Cmd/Ctrl+Z) for manual tier overrides, max 20 entries
- *   12b.4  Re-score selected images with current weights (IPC: 're-score-images')
- *   12b.5  Export CSV  (IPC: 'export-results-csv')
- *   12b.6  Export session bundle as .zip (IPC: 'export-session-zip')
- *   12b.7  Tab badges now show  count / total  (e.g. "12/200")
- *   13.1   Export XMP sidecars button (IPC: 'export-xmp')
- *          — builds imagePathMap from session.settings.inputFolder + score.filename
- *          — "Include AI reasoning" toggle stored in component state (not persisted)
- *          — error count surfaced as warning toast when some sidecars fail
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as ReactWindowModule from 'react-window';
-const FixedSizeGrid = (ReactWindowModule as any).FixedSizeGrid;
-type GridChildComponentProps = import('react-window').GridChildComponentProps;
-import AutoSizerModule from 'react-virtualized-auto-sizer';
-const AutoSizer = AutoSizerModule as any;
+const FixedSizeGrid = (ReactWindowModule as any).FixedSizeGrid ?? (ReactWindowModule as any).default?.FixedSizeGrid;
+import type { GridChildComponentProps } from 'react-window';
+import * as AutoSizerModule from 'react-virtualized-auto-sizer';
+const AutoSizer = (AutoSizerModule as any).default ?? (AutoSizerModule as any).AutoSizer ?? AutoSizerModule;
 import {
   ChevronLeft,
   Star,
@@ -121,7 +106,7 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
   const [rescoreProgress, setRescoreProgress] = useState<{ done: number; total: number } | null>(null);
 
   // ── Virtualized grid (12b.1) ──────────────────────────────────────────────────
-  const gridRef     = useRef<import('react-window').FixedSizeGrid>(null);
+  const gridRef     = useRef<FixedSizeGrid>(null);
   const colCountRef = useRef<number>(4);
 
   // ── Load session scores ───────────────────────────────────────────────────────
