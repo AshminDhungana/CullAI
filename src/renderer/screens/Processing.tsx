@@ -256,6 +256,12 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
   }, [settings]);
 
   // ── Action handlers for resume banner ──────────────────────────────────────
+  const handleViewResults = () => {
+    if (loadedSession) {
+      onComplete(loadedSession);
+    }
+  };
+
   const handleResume = () => {
     setShowResumeBanner(false);
     triggerStart();
@@ -273,6 +279,12 @@ export default function ProcessingScreen({ settings, onCancel, onComplete }: Pro
   };
 
   const handleRetry = () => {
+    // Clean up old listener first to avoid stale error events firing on the new run
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
     // Reset states
     setPipelineError(null);
     setErrorRecoverable(false);

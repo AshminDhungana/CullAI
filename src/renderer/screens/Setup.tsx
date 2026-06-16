@@ -338,6 +338,11 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           disableDuplicateGrouping: values.disableDuplicateGrouping ?? false,
           duplicateThreshold: values.duplicateThreshold ?? 10,
           maxFacesPerImage: values.maxFacesPerImage ?? 0,
+          // These three were previously omitted, causing baseUrl, model, and cache
+          // settings to be lost between sessions for the 'custom' provider.
+          rawCacheMaxSizeGb: values.rawCacheMaxSizeGb ?? 5,
+          rawCacheMaxAgeDays: values.rawCacheMaxAgeDays ?? 30,
+          disableRawCache: values.disableRawCache ?? false,
         };
         // @ts-expect-error
         await window.electronAPI.saveSettings(toStore);
@@ -393,8 +398,12 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   }, [watchedGenre, setValue]);
 
   
-  // When provider changes, update baseUrl and model defaults and reset key visibility
+  // When provider changes, update baseUrl and model defaults and reset key visibility.
+  // Guard with isLoading so this only fires on genuine user-driven provider switches —
+  // not during initial mount, which would clobber the restored baseUrl and model for
+  // the 'custom' provider (and any other provider whose saved values differ from defaults).
   useEffect(() => {
+    if (isLoading) return;
     if (watchedProvider) {
       const defaults = PROVIDER_DEFAULTS[watchedProvider];
       setValue('baseUrl', defaults.baseUrl, { shouldDirty: true });
@@ -402,7 +411,9 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       setShowApiKey(false);
       setApiKeySaveError('');
     }
-  }, [watchedProvider, setValue]);
+  }, [watchedProvider, setValue]); // eslint-disable-line react-hooks/exhaustive-deps
+  // isLoading is intentionally omitted from deps — we only want this to react to
+  // provider switches, not to the isLoading flag clearing after the initial load.
 
   useEffect(() => {
     if (watchedProvider === 'ollama' && watchedBaseUrl) {

@@ -22,7 +22,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as ReactWindowModule from 'react-window';
 const FixedSizeGrid = (ReactWindowModule as any).FixedSizeGrid;
 type GridChildComponentProps = import('react-window').GridChildComponentProps;
-import * as AutoSizerModule from 'react-virtualized-auto-sizer';
+import AutoSizerModule from 'react-virtualized-auto-sizer';
 const AutoSizer = AutoSizerModule as any;
 import {
   ChevronLeft,
