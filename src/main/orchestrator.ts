@@ -1010,10 +1010,16 @@ async function* _runSingleFolderBatch(
   // Step 9b — Generate gallery thumbnails
   // =========================================================================
   //
-  // Create ~200px JPEG thumbnails for each scored image and store them as
+  // Create 800px JPEG thumbnails for each scored image and store them as
   // files in {outputFolder}/.cullai_cache/thumbnails/. This follows the
   // file-based caching pattern recommended for Electron image galleries
   // (vs base64 in session.json which bloats memory and has no browser caching).
+  //
+  // 800px is chosen to:
+  //   • Display crisp in CompareView (fills ~half a 1440px screen at full-screen).
+  //   • Display crisp in the gallery grid tiles (rendered at ~280px wide).
+  //   • Stay well under the 1024px AI scoring buffer size (no upscaling needed).
+  //   • Keep per-thumbnail file size reasonable (~80–150 KB at q85).
 
   if (devMode) console.log('[orchestrator] Step 9b: generating gallery thumbnails');
 
@@ -1037,13 +1043,14 @@ async function* _runSingleFolderBatch(
 
     try {
       const srcBuffer = Buffer.from(base64Data, 'base64');
-      // Use sharp (via lazy import from image-processor) to resize to ~200px
+      // Use sharp to resize to 800px max dimension — sharp enough for CompareView
+      // and the gallery grid while keeping file sizes manageable.
       let thumbBuffer: Buffer;
       try {
         const sharpMod = (await import('sharp')).default as unknown as typeof import('sharp');
         const { data } = await (sharpMod as any)(srcBuffer)
-          .resize({ width: 200, height: 200, fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 70, mozjpeg: true })
+          .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 85, mozjpeg: true })
           .toBuffer({ resolveWithObject: true });
         thumbBuffer = data as Buffer;
       } catch {
