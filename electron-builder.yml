@@ -77,9 +77,11 @@ linux:
   target:
     - target: AppImage
       arch: [x64]
-  icon: build/icons
   category: Graphics;Photography
   maintainer: Ashmin Dhungana
+  desktopName: cullai.desktop
+  syncDesktopName: true
+  executableName: CullAI
 
 # ---------------------------------------------------------------------------
 # Auto-update publishing

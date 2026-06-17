@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "20"
           cache: "npm"
 
       - name: Install system dependencies
@@ -47,7 +47,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "20"
           cache: "npm"
 
       # -----------------------------------------------------------------------
@@ -69,6 +69,10 @@ jobs:
       # Windows ships a prebuilt .node via node-pre-gyp / package-lock; no
       # extra system lib is needed.  If a future version requires it, add a
       # vcpkg or chocolatey step here.
+
+      - name: Clean npm cache (Windows)
+        if: runner.os == 'Windows'
+        run: npm cache clean --force
 
       # -----------------------------------------------------------------------
       # Install JS deps (postinstall runs electron-rebuild automatically)
