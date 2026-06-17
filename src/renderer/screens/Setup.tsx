@@ -162,12 +162,16 @@ const LIGHTROOM_MODE_LABELS: Record<string, string> = {
 interface SetupScreenProps {
   onStart: (settings: AppSettings) => void;
   themeToggle: React.ReactNode;
+  /** Scrolls the Setup screen's overflow container back to top.
+   *  window.scrollTo() is a no-op here because the window never scrolls —
+   *  only the App-level overflow-y-auto div does. */
+  scrollToTop: () => void;
 }
 
 // -----------------------------------------------------------------------------
 // Main Component
 // -----------------------------------------------------------------------------
-export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) {
+export default function SetupScreen({ onStart, themeToggle, scrollToTop }: SetupScreenProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [folderScanCount, setFolderScanCount] = useState<number | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -776,6 +780,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
       if (canProceed && currentIndex < STEP_ORDER.length - 1) {
         directionRef.current = 1;
         setStep(STEP_ORDER[currentIndex + 1]);
+        scrollToTop();
       }
     } finally {
       setIsValidatingStep(false);
@@ -792,6 +797,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         clearErrors(['inputFolder', 'outputFolder']);
       }
       setStep(prevStep);
+      scrollToTop();
     }
   };
 
@@ -799,6 +805,7 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
     const targetIdx = STEP_ORDER.indexOf(targetId);
     directionRef.current = targetIdx < currentIndex ? -1 : 1;
     setStep(targetId);
+    scrollToTop();
   };
 
   const getStepStatus = (stepId: WizardStep): 'complete' | 'current' | 'pending' => {
@@ -2395,12 +2402,13 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 32 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-white dark:from-[#0f1117] dark:to-[#0a0c10]"
-    >
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 32 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-white dark:from-[#0f1117] dark:to-[#0a0c10]"
+      >
       {/* Sticky header */}
       <div className="sticky top-0 z-10 w-full border-b border-gray-200 dark:border-[#1e2535] shadow-sm backdrop-blur-md bg-gray-50/90 dark:bg-[#0f1117]/90">
         <div className="max-w-5xl mx-auto px-6">
@@ -2469,8 +2477,8 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         </div>
       </div>
 
-      {/* Scrollable body */}
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      {/* Scrollable body — pb-28 keeps last card clear of the floating nav */}
+      <div className="max-w-5xl mx-auto px-6 py-8 pb-28">
         <AnimatePresence mode="wait" custom={directionRef.current}>
           <motion.div
             key={step}
@@ -2494,37 +2502,6 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
           </motion.div>
         </AnimatePresence>
 
-        {/* Navigation buttons */}
-        {step !== 'welcome' && step !== 'review' && (
-          <div className="flex justify-between mt-10 pt-6 border-t border-gray-200 dark:border-[#1e2535]">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 dark:bg-[#0f1117] border border-gray-300 dark:border-[#1e2535] rounded-xl text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#1a1f2e] transition disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={isValidatingStep}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-xl shadow-md transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isValidatingStep ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Validating...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ChevronRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-        )}
       </div>
 
       {showDryRunModal && dryRunEstimates && (
@@ -2634,5 +2611,123 @@ export default function SetupScreen({ onStart, themeToggle }: SetupScreenProps) 
         </div>
       )}
     </motion.div>
+
+    {/* ── Split floating nav — OUTSIDE motion.div so the parent transform
+         (y: 32→0) does not trap position:fixed children into scrolling.
+         Back left, ghost progress center, Continue right. ── */}
+    <AnimatePresence>
+      {step !== 'welcome' && step !== 'review' && (
+        <>
+          {/* Back — bottom-left, ghost/transparent */}
+          <motion.button
+            key="nav-back"
+            type="button"
+            onClick={handleBack}
+            aria-label="Go back"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.93 }}
+            className="
+              fixed bottom-6 left-6 z-50
+              flex items-center gap-2
+              pl-3 pr-4 h-11
+              rounded-full
+              bg-white/10 dark:bg-white/5
+              border border-white/20 dark:border-white/10
+              text-gray-500 dark:text-gray-400
+              text-sm font-medium
+              backdrop-blur-xl
+              shadow-lg shadow-black/10
+              hover:bg-white/20 dark:hover:bg-white/10
+              hover:text-gray-800 dark:hover:text-gray-200
+              transition-colors duration-150
+            "
+          >
+            <ChevronLeft className="w-4 h-4 flex-shrink-0" />
+            Back
+          </motion.button>
+
+          {/* Center — ghost progress dots + step name, non-interactive */}
+          <motion.div
+            key="nav-label"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.22, delay: 0.05, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="
+              fixed bottom-6 left-1/2 -translate-x-1/2 z-50
+              flex items-center gap-2
+              px-4 h-11
+              rounded-full
+              bg-white/5 dark:bg-white/[0.03]
+              border border-white/10 dark:border-white/[0.06]
+              backdrop-blur-md
+              pointer-events-none select-none
+            "
+          >
+            <div className="flex items-center gap-1.5">
+              {STEP_ORDER.filter(s => s !== 'welcome' && s !== 'review').map((s) => (
+                <div
+                  key={s}
+                  className={`rounded-full transition-all duration-300 ${
+                    s === step
+                      ? 'w-4 h-1.5 bg-amber-400'
+                      : STEP_ORDER.indexOf(s) < STEP_ORDER.indexOf(step)
+                        ? 'w-1.5 h-1.5 bg-emerald-400/60'
+                        : 'w-1.5 h-1.5 bg-white/20 dark:bg-white/10'
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="text-xs font-medium text-white/30 dark:text-white/20 tracking-wide">
+              {STEPS[currentIndex]?.label}
+            </span>
+          </motion.div>
+
+          {/* Continue — bottom-right, solid amber */}
+          <motion.button
+            key="nav-continue"
+            type="button"
+            onClick={handleNext}
+            disabled={isValidatingStep}
+            aria-label={isValidatingStep ? 'Validating…' : 'Continue to next step'}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
+            whileHover={{ scale: isValidatingStep ? 1 : 1.06 }}
+            whileTap={{ scale: isValidatingStep ? 1 : 0.94 }}
+            className="
+              fixed bottom-6 right-6 z-50
+              flex items-center gap-2
+              pl-5 pr-4 h-12
+              rounded-full
+              bg-gradient-to-br from-amber-400 to-amber-600
+              hover:from-amber-500 hover:to-amber-700
+              text-white text-sm font-semibold
+              shadow-xl shadow-amber-500/25
+              disabled:opacity-50 disabled:cursor-not-allowed
+              transition-all duration-150
+            "
+          >
+            {isValidatingStep ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Validating…</span>
+              </>
+            ) : (
+              <>
+                <span>Continue</span>
+                <ChevronRight className="w-4 h-4 flex-shrink-0" />
+              </>
+            )}
+          </motion.button>
+        </>
+      )}
+    </AnimatePresence>
+  </>
   );
 }

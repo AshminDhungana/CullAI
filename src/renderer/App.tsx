@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback} from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { SplashScreen } from "./components/SplashScreen";
 import UpdateBanner from "./components/UpdateBanner";
 import SetupScreen from "./screens/Setup";
@@ -30,6 +30,17 @@ function App() {
   const [completedSession, setCompletedSession] = useState<Session | null>(null);
 
   const { toggle, isDark } = useTheme();
+
+  // Ref to the Setup screen's overflow-y-auto scroll container.
+  // window.scrollTo() is a no-op in this layout because the window never
+  // scrolls — only this div does. We pass scrollToTop() into SetupScreen so
+  // wizard step changes scroll THIS container back to 0, not the window.
+  const setupScrollRef = useRef<HTMLDivElement>(null);
+  const scrollSetupToTop = useCallback(() => {
+    if (setupScrollRef.current) {
+      setupScrollRef.current.scrollTop = 0;
+    }
+  }, []);
 
   useEffect(() => {
     preloadResources().finally(() => setPreloadDone(true));
@@ -112,17 +123,23 @@ function App() {
       </div>
 
       {/* ── Setup ──────────────────────────────────────────────────────────── */}
+      {/* NOTE: No translate-y here — CSS transforms create a new containing
+          block that breaks position:fixed children (the floating nav buttons).
+          Opacity-only transition keeps the fade while letting fixed positioning
+          work correctly relative to the viewport. */}
       <div
-        className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
+        ref={setupScrollRef}
+        className={`absolute inset-0 overflow-y-auto transition-opacity duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
           screen === "setup" || transitioning
-            ? "opacity-100 translate-y-0"
-            : "opacity-0 translate-y-8 pointer-events-none"
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none"
         }`}
       >
         <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
           <SetupScreen
             onStart={handleStartCulling}
             themeToggle={<ThemeToggle />}
+            scrollToTop={scrollSetupToTop}
           />
         </div>
       </div>
@@ -132,10 +149,10 @@ function App() {
           mounts with empty settings and triggers the missing-folder guard. */}
       {currentSettings && (
         <div
-          className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
+          className={`absolute inset-0 overflow-y-auto transition-opacity duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
             screen === "processing"
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-8 pointer-events-none"
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none"
           }`}
         >
           <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">
@@ -152,10 +169,10 @@ function App() {
       {/* Only rendered once we have settings to pass down. */}
       {currentSettings && (
         <div
-          className={`absolute inset-0 overflow-y-auto transition-all duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
+          className={`absolute inset-0 overflow-y-auto transition-opacity duration-[600ms] [transition-timing-function:cubic-bezier(0.25,0.46,0.45,0.94)] ${
             screen === "results"
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-8 pointer-events-none"
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none"
           }`}
         >
           <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] transition-colors duration-300">

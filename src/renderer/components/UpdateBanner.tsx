@@ -4,9 +4,12 @@ import useUpdater from "../hooks/useUpdater";
 
 type BannerState = "available" | "downloading" | "downloaded" | "error";
 
-// Auto-dismiss durations (ms). Error and downloaded states stay until dismissed.
+// Auto-dismiss durations (ms).
 const AUTO_DISMISS_MS: Partial<Record<BannerState, number>> = {
-  available: 6000,
+  available:   5000,
+  downloading: 0,    // never auto-dismiss while actively downloading
+  downloaded:  6000, // give user time to read + click Restart, then dismiss
+  error:       8000, // a bit longer so they can read the message
 };
 
 export default function UpdateBanner() {
@@ -38,7 +41,7 @@ export default function UpdateBanner() {
 
   useEffect(() => {
     const delay = AUTO_DISMISS_MS[bannerState];
-    if (!delay) return;
+    if (!delay) return; // 0 or undefined → no auto-dismiss for this state
     const t = setTimeout(handleDismiss, delay);
     return () => clearTimeout(t);
   }, [bannerState]);
