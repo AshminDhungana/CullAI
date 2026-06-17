@@ -61,9 +61,19 @@ export function buildThumbnailUrl(
   // 4. Split on '/' and encode every segment individually so that '#', '?',
   //    spaces, and other reserved characters are percent-encoded without
   //    touching the path separators themselves.
+  //
+  //    Exception: a Windows drive-letter segment ("C:", "D:", …) must keep
+  //    its literal, unencoded colon. encodeURIComponent has no notion of
+  //    this special case and will happily turn "C:" into "C%3A". Electron's
+  //    (and the WHATWG URL parser's) file:// handler requires the raw colon
+  //    immediately after a single letter to recognise a drive root — once
+  //    it's percent-encoded, "C%3A" is treated as a literal, nonexistent
+  //    folder name and the whole request 404s with no console error.
+  const isWindowsDriveLetter = (segment: string) => /^[A-Za-z]:$/.test(segment);
+
   const encodedPath = joined
     .split('/')
-    .map((segment) => encodeURIComponent(segment))
+    .map((segment) => (isWindowsDriveLetter(segment) ? segment : encodeURIComponent(segment)))
     .join('/');
 
   // 5. Emit "file:///" + path.

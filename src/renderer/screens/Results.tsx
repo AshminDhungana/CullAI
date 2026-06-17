@@ -2,12 +2,11 @@
  * src/renderer/screens/Results.tsx
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as ReactWindowModule from 'react-window';
-const FixedSizeGrid = (ReactWindowModule as any).FixedSizeGrid ?? (ReactWindowModule as any).default?.FixedSizeGrid;
-import * as AutoSizerModule from 'react-virtualized-auto-sizer';
-const AutoSizer = (AutoSizerModule as any).default ?? (AutoSizerModule as any).AutoSizer ?? AutoSizerModule;
+import { Grid, useGridRef } from 'react-window';
+import type { CellComponentProps } from 'react-window';
+import { AutoSizer } from 'react-virtualized-auto-sizer';
 import {
   ChevronLeft,
   Star,
@@ -58,12 +57,14 @@ type UndoEntry = {
 };
 
 
-type GridChildComponentProps = {
-  columnIndex: number;
-  rowIndex: number;
-  style: React.CSSProperties;
-  data?: any;
-  isScrolling?: boolean;
+type GridCellProps = {
+  filteredImages: [string, ScoreRecord][];
+  colCount: number;
+  selectedImageIds: Set<string>;
+  focusedIndex: number | null;
+  settings: AppSettings;
+  onToggleSelect: (id: string) => void;
+  onFocusAndSelect: (index: number, id: string) => void;
 };
 
 const TABS: { id: TabType; label: string; color: string; activeBorder: string; activeBg: string }[] = [
@@ -114,8 +115,8 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
   const [rescoreProgress, setRescoreProgress] = useState<{ done: number; total: number } | null>(null);
 
   // ── Virtualized grid (12b.1) ──────────────────────────────────────────────────
-  const gridRef     = useRef<FixedSizeGrid>(null);
-  const colCountRef = useRef<number>(4);
+  const gridRef = useGridRef(null);
+  const [colCount, setColCount] = useState<number>(4);
 
   // ── Load session scores ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -179,12 +180,14 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
   // ── Scroll focused tile into view via grid API (12b.1) ────────────────────────
   useEffect(() => {
     if (focusedIndex !== null && gridRef.current) {
-      gridRef.current.scrollToItem({
-        rowIndex: Math.floor(focusedIndex / colCountRef.current),
-        align: 'smart',
+      gridRef.current.scrollToCell({
+        rowIndex: Math.floor(focusedIndex / colCount),
+        columnIndex: focusedIndex % colCount,
+        rowAlign: 'smart',
+        columnAlign: 'smart',
       });
     }
-  }, [focusedIndex]);
+  }, [focusedIndex, colCount]);
 
   // ── handleUpdateTier (with undo push) ─────────────────────────────────────────
   const handleUpdateTier = useCallback(async (
@@ -266,7 +269,7 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
   const handleKeyboardNavigate = useCallback((direction: 'left' | 'right' | 'up' | 'down') => {
     if (filteredImages.length === 0) return;
     if (focusedIndex === null) { setFocusedIndex(0); return; }
-    const cols = colCountRef.current;
+    const cols = colCount;
     let newIndex = focusedIndex;
     switch (direction) {
       case 'left':  newIndex = Math.max(0, focusedIndex - 1); break;
@@ -275,7 +278,7 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
       case 'down':  newIndex = Math.min(filteredImages.length - 1, focusedIndex + cols); break;
     }
     setFocusedIndex(newIndex);
-  }, [filteredImages, focusedIndex]);
+  }, [filteredImages, focusedIndex, colCount]);
 
   const handleKeyboardAssignTier = useCallback((newTier: 'S' | 'A' | 'B' | 'rejected') => {
     if (focusedIndex === null || !filteredImages[focusedIndex]) return;
@@ -539,28 +542,40 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
     [selectedImageIds, scoresState]);
 
   // ── Virtualized grid cell renderer (12b.1) ────────────────────────────────────
-  // Defined with useCallback so FixedSizeGrid doesn't re-render all cells on
-  // every keystroke — only cells whose data actually changed will re-paint.
-  const CellRenderer = useCallback(({ columnIndex, rowIndex, style }: GridChildComponentProps) => {
-    const col   = colCountRef.current;
-    const index = rowIndex * col + columnIndex;
-    if (index >= filteredImages.length) return null;
+  // react-window 2.x cellComponent: receives columnIndex/rowIndex/style plus
+  // whatever we pass via Grid's `cellProps`. Grid automatically re-renders
+  // cells when cellProps values change, so we pass the live data straight in
+  // rather than reading from a ref at render time.
+  const GridCell = useCallback(({
+    columnIndex,
+    rowIndex,
+    style,
+    filteredImages: cellFilteredImages,
+    colCount: cellColCount,
+    selectedImageIds: cellSelectedIds,
+    focusedIndex: cellFocusedIndex,
+    settings: cellSettings,
+    onToggleSelect,
+    onFocusAndSelect,
+  }: CellComponentProps<GridCellProps>) => {
+    const index = rowIndex * cellColCount + columnIndex;
+    if (index >= cellFilteredImages.length) return null;
 
-    const [id, record] = filteredImages[index];
-    const isSelected   = selectedImageIds.has(id);
-    const isFocused    = focusedIndex === index;
+    const [id, record] = cellFilteredImages[index];
+    const isSelected   = cellSelectedIds.has(id);
+    const isFocused    = cellFocusedIndex === index;
 
     return (
       <div
         style={{
           ...style,
-          paddingRight:  columnIndex < col - 1 ? TILE_GAP : 0,
+          paddingRight:  columnIndex < cellColCount - 1 ? TILE_GAP : 0,
           paddingBottom: TILE_GAP,
         }}
       >
         <div id={`tile-${id}`} className="relative h-full">
           <button
-            onClick={(e) => { e.stopPropagation(); handleToggleSelect(id); }}
+            onClick={(e) => { e.stopPropagation(); onToggleSelect(id); }}
             className={`absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
               isSelected
                 ? 'bg-amber-500 border-amber-400 text-black font-extrabold'
@@ -574,16 +589,26 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
           <ImageTile
             score={record}
             imageId={id}
-            outputFolder={settings.outputFolder}
-            filePath={`${settings.inputFolder}/${record.filename}`.replace(/\\/g, '/')}
+            outputFolder={cellSettings.outputFolder}
+            filePath={`${cellSettings.inputFolder}/${record.filename}`.replace(/\\/g, '/')}
             isSelected={isSelected}
             isFocused={isFocused}
-            onClick={() => { setFocusedIndex(index); handleToggleSelect(id); }}
+            onClick={() => onFocusAndSelect(index, id)}
           />
         </div>
       </div>
     );
-  }, [filteredImages, selectedImageIds, focusedIndex, handleToggleSelect, settings.outputFolder]);
+  }, []);
+
+  const gridCellProps = useMemo<GridCellProps>(() => ({
+    filteredImages,
+    colCount,
+    selectedImageIds,
+    focusedIndex,
+    settings,
+    onToggleSelect: handleToggleSelect,
+    onFocusAndSelect: (index: number, id: string) => { setFocusedIndex(index); handleToggleSelect(id); },
+  }), [filteredImages, colCount, selectedImageIds, focusedIndex, settings, handleToggleSelect]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
@@ -868,30 +893,34 @@ export default function ResultsScreen({ settings, session: initialSession, onBac
         {/* ── Virtualized Gallery Grid (12b.1) ────────────────────────────── */}
         {filteredImages.length > 0 ? (
           <div style={{ height: '72vh', minHeight: 480 }}>
-            <AutoSizer>
-              {({ width, height }: { width: number; height: number }) => {
-                const colCount = Math.max(1, Math.floor((width + TILE_GAP) / (TILE_WIDTH + TILE_GAP)));
-                colCountRef.current = colCount;
-                const rowCount = Math.ceil(filteredImages.length / colCount);
+            <AutoSizer
+              renderProp={({ width, height }) => {
+                // width/height are undefined on the very first paint (before
+                // ResizeObserver reports a size) — render nothing that frame
+                // rather than divide by zero / mount Grid at 0x0.
+                if (!width || !height) return null;
+
+                const nextColCount = Math.max(1, Math.floor((width + TILE_GAP) / (TILE_WIDTH + TILE_GAP)));
+                if (nextColCount !== colCount) setColCount(nextColCount);
+                const rowCount = Math.ceil(filteredImages.length / nextColCount);
                 // Distribute width evenly across columns; gap is handled by cell padding
-                const colWidth = Math.floor(width / colCount);
+                const colWidth = Math.floor(width / nextColCount);
 
                 return (
-                  <FixedSizeGrid
-                    ref={gridRef}
-                    width={width}
-                    height={height}
-                    columnCount={colCount}
+                  <Grid
+                    gridRef={gridRef}
+                    style={{ width, height }}
+                    cellComponent={GridCell}
+                    cellProps={gridCellProps}
+                    columnCount={nextColCount}
                     rowCount={rowCount}
                     columnWidth={colWidth}
                     rowHeight={TILE_HEIGHT + TILE_GAP}
-                    overscanRowCount={2}
-                  >
-                    {CellRenderer}
-                  </FixedSizeGrid>
+                    overscanCount={2}
+                  />
                 );
               }}
-            </AutoSizer>
+            />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center rounded-2xl border border-dashed border-gray-200 dark:border-white/10 bg-white/5 dark:bg-white/[0.02]">
