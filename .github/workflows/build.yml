@@ -69,30 +69,29 @@ jobs:
       # -----------------------------------------------------------------------
       # Windows: @tensorflow/tfjs-node has no prebuilt napi-v8 binary for this
       # Node ABI, so npm falls back to compiling from source via node-gyp.
-      # node-gyp's MSVS auto-detection can fail on the windows-latest image
-      # (it errors with "could not find a version of Visual Studio" even
-      # though VS Build Tools ARE present) due to a known PowerShell-based
-      # detection issue. Pointing node-gyp at the installed VS version
-      # directly avoids the broken auto-detection step.
       #
-      # windows-latest ships VS 2022 Build Tools already, so normally no
-      # install is needed — just tell node-gyp which version to use.
+      # Setting GYP_MSVS_VERSION alone is NOT sufficient: node-gyp's
+      # find-visualstudio.js still shells out to PowerShell/vswhere to locate
+      # the actual install path, and that lookup crashes with
+      # "RangeError [ERR_CHILD_PROCESS_STDIO_MAXB...]" on windows-latest
+      # before it can read VS's path back — a buffer-size bug in node-gyp's
+      # PowerShell invocation, not a missing-VS problem. The version pin
+      # doesn't help because the lookup itself never completes.
+      #
+      # Fix: install VS 2022 Build Tools via Chocolatey. This registers VS
+      # in a way vswhere/node-gyp reads back cleanly, bypassing the broken
+      # built-in detection entirely. Takes ~5-10 min but is required.
       # -----------------------------------------------------------------------
+      - name: Install Visual Studio Build Tools (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install visualstudio2022buildtools --no-progress -y --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+        shell: pwsh
+
       - name: Configure MSVS version for node-gyp (Windows)
         if: runner.os == 'Windows'
         run: echo "GYP_MSVS_VERSION=2022" >> $env:GITHUB_ENV
         shell: pwsh
-
-      # Fallback only — uncomment if the GYP_MSVS_VERSION pointer above is not
-      # sufficient (e.g. the runner image drops VS Build Tools in the future,
-      # or the C++ workload component is missing). This is slow (~5-10 min)
-      # so it's disabled by default; only enable if builds keep failing on
-      # the "find VS" step with the pointer set.
-      # - name: Install Visual Studio Build Tools (Windows)
-      #   if: runner.os == 'Windows'
-      #   run: |
-      #     choco install visualstudio2022buildtools --no-progress -y --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
-      #   shell: pwsh
 
       - name: Clean npm cache (Windows)
         if: runner.os == 'Windows'
