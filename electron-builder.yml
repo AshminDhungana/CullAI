@@ -10,9 +10,9 @@ files:
   - from: dist
     to: dist
     filter:
-      - '**/*'
-      - '!**/*.map'
-      - '!**/*.tsbuildinfo'
+      - "**/*"
+      - "!**/*.map"
+      - "!**/*.tsbuildinfo"
   - package.json
 
 extraResources:
@@ -20,7 +20,7 @@ extraResources:
     to: models/human
 
 asarUnpack:
-  - '**/*.node'
+  - "**/*.node"
 
 # ---------------------------------------------------------------------------
 # Windows
@@ -73,14 +73,18 @@ dmg:
 # ---------------------------------------------------------------------------
 # Linux
 # ---------------------------------------------------------------------------
+# NOTE: `desktopName` and `syncDesktopName` are NOT valid keys under the
+# `linux` block in electron-builder's config schema (this caused the
+# "configuration.linux should be one of these: null" validation error).
+# `desktopName` is already set at the package.json root level, so it's
+# omitted here entirely rather than relocated, to avoid drift between
+# the two config sources.
 linux:
   target:
     - target: AppImage
       arch: [x64]
   category: Graphics;Photography
   maintainer: Ashmin Dhungana
-  desktopName: cullai.desktop
-  syncDesktopName: true
   executableName: CullAI
 
 # ---------------------------------------------------------------------------
