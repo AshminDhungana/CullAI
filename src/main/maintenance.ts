@@ -1,7 +1,6 @@
 /**
  * src/main/maintenance.ts
  *
- * Phase 20.2 — Background Maintenance
  *
  * Runs lightweight maintenance tasks on app startup:
  *  1. Orphaned .cullai_cache cleanup — checks if the input folder still exists.

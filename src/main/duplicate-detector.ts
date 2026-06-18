@@ -1,7 +1,6 @@
 /**
  * src/main/duplicate-detector.ts
  *
- * Phase 7 — Duplicate / Burst-Shot Detection
  *
  * ── Library choice ────────────────────────────────────────────────────────────
  * Primary: `imghash` — DCT-based perceptual hashing with a straightforward

@@ -212,6 +212,26 @@ Generated installers will be available in the `release/` directory:
 
 ---
 
+## CLI Mode
+
+CullAI also supports headless CLI execution for batch automation and CI pipelines:
+
+```bash
+# Run directly (dev)
+npm run dev:electron -- --headless -i <input-folder> -o <output-folder> -c 20 -p claude
+
+# Build wrapper scripts once
+npm run build:cli
+
+# Then run via wrapper
+.\bin\cullai-cli.bat -i <input-folder> -o <output-folder> -c 20 -p claude   # Windows
+./bin/cullai-cli -i <input-folder> -o <output-folder> -c 20 -p claude       # macOS / Linux
+```
+
+Available options: `-i/--input`, `-o/--output`, `-c/--count`, `-p/--provider`, `-k/--api-key`, `-m/--model`, `-w/--weights`, `--no-xmp`, `--dry-run`, `-v/--verbose`, `--benchmark`.
+
+---
+
 ## Quick Start
 
 1. **Launch CullAI** and open the Setup screen

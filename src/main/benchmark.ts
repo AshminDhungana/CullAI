@@ -1,7 +1,6 @@
 /**
  * src/main/benchmark.ts
  *
- * Phase 20.1 — Benchmark Mode
  *
  * Runs a built-in suite of micro-benchmarks against the core pipeline stages,
  * using images from `tests/fixtures/benchmark/` (falls back to `tests/fixtures/`).

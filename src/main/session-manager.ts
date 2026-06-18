@@ -1,7 +1,6 @@
 /**
  * src/main/session-manager.ts
  *
- * Phase 8 — Session Manager
  *
  * ── Purpose ──────────────────────────────────────────────────────────────────
  *

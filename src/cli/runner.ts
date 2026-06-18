@@ -1,7 +1,6 @@
 /**
  * src/cli/runner.ts
  *
- * Phase 19 — CLI Pipeline Runner
  *
  * Drives the existing runPipeline() from the command line in headless mode.
  * Converts CLIArgs → AppSettings, handles all PipelineEvent types, prints

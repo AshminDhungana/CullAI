@@ -1,7 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // ── Phase 3.2 — Secure storage availability ───────────────────────────────
   /**
    * Returns true if the OS keychain (DPAPI / Keychain / kwallet) is available
    * and safeStorage encryption is usable on this machine.

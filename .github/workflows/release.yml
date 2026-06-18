@@ -42,22 +42,25 @@ jobs:
       # Windows: @tensorflow/tfjs-node has no prebuilt napi-v8 binary for this
       # Node ABI, so npm falls back to compiling from source via node-gyp.
       #
-      # Setting GYP_MSVS_VERSION alone is NOT sufficient: node-gyp's
-      # find-visualstudio.js still shells out to PowerShell/vswhere to locate
-      # the actual install path, and that lookup crashes with
-      # "RangeError [ERR_CHILD_PROCESS_STDIO_MAXB...]" on windows-latest
-      # before it can read VS's path back — a buffer-size bug in node-gyp's
-      # PowerShell invocation, not a missing-VS problem. The version pin
-      # doesn't help because the lookup itself never completes.
+      # Round 1 fix (GYP_MSVS_VERSION env var only) failed: node-gyp's
+      # PowerShell/vswhere lookup crashed before reading VS's path back.
       #
-      # Fix: install VS 2022 Build Tools via Chocolatey. This registers VS
-      # in a way vswhere/node-gyp reads back cleanly, bypassing the broken
-      # built-in detection entirely. Takes ~5-10 min but is required.
+      # Round 2 fix (choco install visualstudio2022buildtools with
+      # --package-parameters "--add ...VC.Tools.x86.x64") got further —
+      # node-gyp DID find VS2022 BuildTools, the C++ core features, and the
+      # v143 toolset — but still failed with "missing any Windows SDK".
+      # The manually-specified component list didn't include a Windows SDK.
+      #
+      # Round 3 (this fix): use the dedicated `visualstudio2022-workload-
+      # vctools` Chocolatey package instead of the bare buildtools package.
+      # This is the exact command node-gyp's own README recommends
+      # (https://github.com/nodejs/node-gyp#on-windows) and bundles the
+      # Windows 11 SDK along with the VC++ toolset, so no manual component
+      # list is needed.
       # -----------------------------------------------------------------------
-      - name: Install Visual Studio Build Tools (Windows)
+      - name: Install Visual Studio Build Tools + Windows SDK (Windows)
         if: runner.os == 'Windows'
-        run: |
-          choco install visualstudio2022buildtools --no-progress -y --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+        run: choco install visualstudio2022-workload-vctools -y --no-progress
         shell: pwsh
 
       - name: Configure MSVS version for node-gyp (Windows)

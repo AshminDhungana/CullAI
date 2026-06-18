@@ -1,8 +1,6 @@
 /**
  * src/main/folder-walker.ts
  *
- * Phase 10b — Recursive folder discovery.
- *
  * walkFolders(rootPath) returns every subdirectory under rootPath that
  * contains at least one file. Hidden directories (names starting with '.')
  * and the RAW cache directory (.cullai_cache) are excluded at every depth.

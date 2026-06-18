@@ -1,7 +1,6 @@
 /**
  * src/main/xmp-writer.ts
  *
- * Phase 13 — XMP Export
  *
  * Writes XMP sidecar files (.xmp) alongside original images so that
  * Lightroom Classic, Capture One, and any XMP-aware DAM can read star

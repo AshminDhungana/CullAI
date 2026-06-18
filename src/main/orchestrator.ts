@@ -1,8 +1,6 @@
 /**
  * src/main/orchestrator.ts
  *
- * Phase 10 — Full Batch Pipeline
- * Phase 11 — Parallel Scoring via BatchScheduler
  *
  * Implements the three core pipeline functions:
  *

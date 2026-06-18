@@ -7,7 +7,7 @@ import { estimateCost } from '../../shared/constants';
 interface ProcessingScreenProps {
   settings: AppSettings;
   onCancel: () => void;
-  onComplete: (session?: any) => void; // Phase 10 expects session data on completion
+  onComplete: (session?: any) => void; 
 }
 
 export default function ProcessingScreen({ settings, onCancel, onComplete }: ProcessingScreenProps) {

@@ -1,7 +1,6 @@
 /**
  * src/main/batch-scheduler.ts
  *
- * Phase 11 — Parallel Batch Scheduler
  *
  * ── Purpose ──────────────────────────────────────────────────────────────────
  *

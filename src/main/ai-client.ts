@@ -1,9 +1,6 @@
 /**
  * ai-client.ts
  *
- * Phase 9  — Single AI scoring call.
- * Phase 10 — Discovery pass (multi-image, plain-text response).
- * Phase 13b — Auto-tagging pass (multi-image, JSON keyword arrays).
  *
  * Implements six public functions:
  *

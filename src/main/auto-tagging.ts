@@ -1,7 +1,6 @@
 /**
  * src/main/auto-tagging.ts
  *
- * Phase 13b — AI-Powered Auto-Tagging
  *
  * Generates 5–10 descriptive keyword tags for S-tier and A-tier keeper images
  * by making a separate, lightweight AI vision call after scoring is complete.

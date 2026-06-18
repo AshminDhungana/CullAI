@@ -1,7 +1,6 @@
 /**
  * src/main/face-detector.ts
  *
- * Phase 6 — Face & Eye Detection
  *
  * Primary library : @vladmandic/human v3 (vladmandic/human on GitHub)
  *   Entry point   : @vladmandic/human/dist/human.node.js  (CommonJS, Node.js-only build)
