@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+# CullAI Headless CLI Wrapper
+# Usage: ./cullai-cli [options]
+# Forwards to Electron with --headless
+
+set -e
+
+# Try to find the project root (where the electron binary exists)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ELECTRON="$SCRIPT_DIR/../node_modules/.bin/electron"
+
+if [ ! -x "$ELECTRON" ]; then
+    ELECTRON="$(which electron 2>/dev/null || true)"
+fi
+
+if [ -z "$ELECTRON" ] || [ ! -x "$ELECTRON" ]; then
+    echo "Error: electron not found. Run 'npm install' first." >&2
+    exit 1
+fi
+
+exec "$ELECTRON" --headless "$@"
